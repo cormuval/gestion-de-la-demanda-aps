@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id_rol     Int           @id @default(autoincrement())
+  nombre_rol String        @db.VarChar(50)
+  estado     String        @default("Activo") @db.VarChar(50)
+  menus      Menu[]
+  funcionarios Funcionario[]
+
+  @@map("roles")
+}
+
+model Menu {
+  id_menu     Int     @id @default(autoincrement())
+  nombre      String  @db.VarChar(300)
+  descripcion String? @db.VarChar(300)
+  ruta        String  @db.VarChar(300)
+  imagen      String? @db.VarChar(300)
+  role_id     Int
+  role        Role    @relation(fields: [role_id], references: [id_rol])
+
+  @@index([role_id])
+  @@map("menu")
+}
+
+model Funcionario {
+  rut                String      @id @db.VarChar(50)
+  email              String      @unique @db.VarChar(100)
+  nombre             String      @db.VarChar(50)
+  rol_id             Int
+  estado             String      @default("Activo") @db.VarChar(50)
+  codigo             String?     @db.VarChar(50)
+  rut_consulta       String?     @db.VarChar(300)
+  centro_id          String?     @db.VarChar(50)
+  programa_asociado  String?     @db.VarChar(50)
+  invitacion_app     String?     @db.VarChar(10)
+  password_hash      String?     @db.VarChar(200)
+  role               Role        @relation(fields: [rol_id], references: [id_rol])
+  solicitudesOrientador Solicitud[] @relation("SolicitudesOrientador")
+  solicitudesGestor     Solicitud[] @relation("SolicitudesGestor")
+  llamadasComunicador   Llamada[]   @relation("LlamadasComunicador")
+
+  @@index([rol_id])
+  @@map("funcionarios")
+}
+
+model Usuario {
+  rut                    String      @id @db.VarChar(300)
+  nombre                 String      @db.VarChar(50)
+  apellido               String      @db.VarChar(50)
+  nombre_social          String?     @db.VarChar(50)
+  genero                 String?     @db.VarChar(50)
+  otro_genero            String?     @db.VarChar(50)
+  fecha_nacimiento       DateTime?   @db.Date
+  sector                 String?     @db.VarChar(50)
+  telefono               String?     @db.VarChar(150)
+  telefono_alternativo   String?     @db.VarChar(150)
+  correo_contacto        String?     @db.VarChar(100)
+  gestante               String?     @db.VarChar(50)
+  discapacidad           String?     @db.VarChar(150)
+  priorizacion_administrativa Float?
+  centro_id              String?     @db.VarChar(50)
+  policonsultante        String?     @db.VarChar(50)
+  solicitudes            Solicitud[]
+
+  @@map("usuarios")
+}
+
+model TipoSolicitud {
+  id_tipo_solicitud     Int      @id @default(autoincrement())
+  nombre_tipo_solicitud String   @db.VarChar(50)
+  estado                String   @default("Activo") @db.VarChar(50)
+  esperanza             String?  @db.VarChar(1)
+  placeres              String?  @db.VarChar(1)
+  padre_damian          String?  @db.VarChar(1)
+  baron                 String?  @db.VarChar(1)
+  rodelillo             String?  @db.VarChar(1)
+  reina_isabel          String?  @db.VarChar(1)
+  placilla              String?  @db.VarChar(1)
+  las_canas             String?  @db.VarChar(1)
+  mena                  String?  @db.VarChar(1)
+  cordillera            String?  @db.VarChar(1)
+  quebrada_verde        String?  @db.VarChar(1)
+  cecosf_porvenir_bajo  String?  @db.VarChar(1)
+  puertas_negras        String?  @db.VarChar(1)
+  cecosf_laguna_verde   String?  @db.VarChar(1)
+  cecosf_juan_pablo_ii  String?  @db.VarChar(1)
+  desarrollo            String?  @db.VarChar(1)
+  solicitudes           Solicitud[]
+  motivos               Motivo[]
+
+  @@map("tipo_solicitud")
+}
+
+model Motivo {
+  id_motivo      Int      @id @default(autoincrement())
+  tipo_solicitud_id Int
+  nombre_motivo  String   @db.VarChar(150)
+  estado         String   @default("Activo") @db.VarChar(50)
+  tipoSolicitud  TipoSolicitud @relation(fields: [tipo_solicitud_id], references: [id_tipo_solicitud])
+  solicitudes    Solicitud[]
+
+  @@index([tipo_solicitud_id])
+  @@map("motivos")
+}
+
+model Solicitud {
+  id_solicitud           String      @id @db.VarChar(50)
+  fecha_inicio           DateTime    @default(now())
+  rut_orientador         String?     @db.VarChar(50)
+  rut_usuario            String      @db.VarChar(50)
+  tipo_solicitud_id      Int
+  motivo_id              Int
+  ultimo_control         String?     @db.VarChar(50)
+  descripcion            String?     @db.Text
+  disponibilidad_llamada String?     @db.VarChar(50)
+  priorizacion_admin     Float?
+  rut_gestor             String?     @db.VarChar(50)
+  accion                 String?     @db.VarChar(50)
+  razon_rechazo          String?     @db.VarChar(150)
+  fecha_validacion       DateTime?
+  estado_solicitud       String      @default("En Curso") @db.VarChar(50)
+  centro_id              String?     @db.VarChar(50)
+  observacion_rechazo    String?     @db.VarChar(200)
+  usuario                Usuario     @relation(fields: [rut_usuario], references: [rut])
+  tipoSolicitud          TipoSolicitud @relation(fields: [tipo_solicitud_id], references: [id_tipo_solicitud])
+  motivo                 Motivo      @relation(fields: [motivo_id], references: [id_motivo])
+  orientador             Funcionario? @relation("SolicitudesOrientador", fields: [rut_orientador], references: [rut])
+  gestor                 Funcionario? @relation("SolicitudesGestor", fields: [rut_gestor], references: [rut])
+  llamadas               Llamada[]
+  estadisticas           Estadistica[]
+
+  @@index([rut_usuario])
+  @@index([estado_solicitud])
+  @@index([tipo_solicitud_id])
+  @@index([motivo_id])
+  @@index([rut_orientador])
+  @@index([rut_gestor])
+  @@map("solicitudes")
+}
+
+model Llamada {
+  id_llamada        String      @id @db.VarChar(50)
+  cita_id           String?     @db.VarChar(50)
+  rut_usuario       String      @db.VarChar(50)
+  rut_comunicador   String?     @db.VarChar(50)
+  respuesta_usuario String      @default("Sin llamadas") @db.VarChar(50)
+  observacion       String?     @db.VarChar(350)
+  hora_agendada     DateTime?
+  fecha_llamada     DateTime?
+  centro_id         String?     @db.VarChar(50)
+  solicitud         Solicitud?  @relation(fields: [cita_id], references: [id_solicitud])
+  comunicador       Funcionario? @relation("LlamadasComunicador", fields: [rut_comunicador], references: [rut])
+
+  @@index([cita_id])
+  @@index([rut_usuario])
+  @@index([rut_comunicador])
+  @@index([respuesta_usuario])
+  @@map("llamadas")
+}
+
+model Prestacion {
+  id_prestacion     Int     @id @default(autoincrement())
+  profesional_id    Int
+  nombre_prestacion String  @db.VarChar(100)
+  estado            String  @default("Activo") @db.VarChar(50)
+  profesional       Profesional @relation(fields: [profesional_id], references: [id_profesional])
+
+  @@index([profesional_id])
+  @@map("prestaciones")
+}
+
+model Profesional {
+  id_profesional       Int     @id @default(autoincrement())
+  nombre               String  @db.VarChar(50)
+  estado               String  @default("Activo") @db.VarChar(50)
+  esperanza            String? @db.VarChar(1)
+  placeres             String? @db.VarChar(1)
+  padre_damian         String? @db.VarChar(1)
+  baron                String? @db.VarChar(1)
+  rodelillo            String? @db.VarChar(1)
+  reina_isabel         String? @db.VarChar(1)
+  placilla             String? @db.VarChar(1)
+  las_canas            String? @db.VarChar(1)
+  mena                 String? @db.VarChar(1)
+  cordillera           String? @db.VarChar(1)
+  quebrada_verde       String? @db.VarChar(1)
+  cecosf_porvenir_bajo String? @db.VarChar(1)
+  puertas_negras       String? @db.VarChar(1)
+  cecosf_laguna_verde  String? @db.VarChar(1)
+  cecosf_juan_pablo_ii String? @db.VarChar(1)
+  desarrollo           String? @db.VarChar(1)
+  prestaciones         Prestacion[]
+  estadisticas         Estadistica[]
+
+  @@map("profesionales")
+}
+
+model Estadistica {
+  id_estadistica           Int      @id @default(autoincrement())
+  centro_id                String?  @db.VarChar(50)
+  nombre                   String?  @db.VarChar(300)
+  imagen                   String?  @db.VarChar(300)
+  profesional_id           Int?
+  prestacion_id            String?  @db.VarChar(100)
+  fecha_estimada_atencion  DateTime? @db.Date
+  observacion              String?  @db.VarChar(500)
+  estado                   String   @default("Activo") @db.VarChar(50)
+  razon_rechazo            String?  @db.VarChar(350)
+  profesional              Profesional? @relation(fields: [profesional_id], references: [id_profesional])
+  solicitud                Solicitud? @relation(fields: [prestacion_id], references: [id_solicitud])
+
+  @@index([profesional_id])
+  @@index([prestacion_id])
+  @@map("estadisticas")
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  timestamp   DateTime @default(now())
+  category    String   @db.VarChar(50)
+  action      String   @db.VarChar(50)
+  success     Boolean
+  user_id     String?  @db.VarChar(150)
+  user_name   String?  @db.VarChar(150)
+  user_rut    String?  @db.VarChar(50)
+  resource_id String?  @db.VarChar(150)
+  details     String?  @db.Text
+  error       String?  @db.Text
+
+  @@index([category])
+  @@index([action])
+  @@index([timestamp])
+  @@map("logs")
+}
