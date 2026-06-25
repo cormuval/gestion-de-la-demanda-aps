@@ -6,3 +6,7 @@ coverage
 .env.local
 *.log
 docker-data
+
+# Claude Code / skills
+.agents/
+.claude/
