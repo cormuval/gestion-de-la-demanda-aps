@@ -10,3 +10,4 @@ docker-data
 # Claude Code / skills
 .agents/
 .claude/
+.superpowers/
