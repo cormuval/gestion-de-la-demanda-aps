@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 // types
-import { LOG_CATEGORY, LOG_ACTION, LogAction, LogCategory, LogMetadata, LogUser } from "@/shared/types/logger";
+import { LOG_CATEGORY, LogAction, LogCategory, LogMetadata, LogUser } from "@/shared/types/logger";
 
 class AuditLoggerService {
     async log(

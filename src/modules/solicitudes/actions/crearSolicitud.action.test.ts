@@ -38,7 +38,7 @@ describe("crearSolicitud", () => {
     });
 
     it("rechaza input invalido (falta nombre)", async () => {
-        await expect(crearSolicitud({ ...baseInput, nombre_usuario: "" } as any)).rejects.toThrow();
+        await expect(crearSolicitud({ ...baseInput, nombre_usuario: "" } as any)).rejects.toThrow("Nombre requerido");
     });
 
     it("crea la solicitud con estado 'En Curso' y rut_orientador del usuario en sesion", async () => {

@@ -48,7 +48,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
     }, [loading, user, pathname, router]);
 
-    if (loading || !user || !canAccess(user.menu, pathname)) {
+    const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
+    if (loading || !user || (isProtected && !canAccess(user.menu, pathname))) {
         return (
             <main className="flex min-h-screen items-center justify-center">
                 <div className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">Cargando acceso...</div>
