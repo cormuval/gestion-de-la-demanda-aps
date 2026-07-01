@@ -8,6 +8,7 @@ declare module "next-auth" {
             image?: string | null;
             rut: string;
             nombre: string;
+            centro_id: string | null;
             rol: { id: number; nombre: string };
             menu: MenuItem[];
         };
@@ -18,6 +19,7 @@ declare module "next-auth/jwt" {
     interface JWT {
         rut?: string;
         nombre?: string;
+        centro_id?: string | null;
         rol?: { id: number; nombre: string };
         menu?: MenuItem[];
     }

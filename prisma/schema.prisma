@@ -73,6 +73,14 @@ model Usuario {
   @@map("usuarios")
 }
 
+model Centro {
+  id_centro     String  @id @db.VarChar(50)
+  nombre_centro String? @db.VarChar(50)
+  Telefono      String? @db.VarChar(50)
+
+  @@map("centros")
+}
+
 model TipoSolicitud {
   id_tipo_solicitud     Int      @id @default(autoincrement())
   nombre_tipo_solicitud String   @db.VarChar(50)
@@ -117,7 +125,7 @@ model Solicitud {
   rut_orientador         String?     @db.VarChar(50)
   rut_usuario            String      @db.VarChar(50)
   tipo_solicitud_id      Int
-  motivo_id              Int
+  motivo_id              Int?
   ultimo_control         String?     @db.VarChar(50)
   descripcion            String?     @db.Text
   disponibilidad_llamada String?     @db.VarChar(50)
@@ -131,7 +139,7 @@ model Solicitud {
   observacion_rechazo    String?     @db.VarChar(200)
   usuario                Usuario     @relation(fields: [rut_usuario], references: [rut])
   tipoSolicitud          TipoSolicitud @relation(fields: [tipo_solicitud_id], references: [id_tipo_solicitud])
-  motivo                 Motivo      @relation(fields: [motivo_id], references: [id_motivo])
+  motivo                 Motivo?     @relation(fields: [motivo_id], references: [id_motivo])
   orientador             Funcionario? @relation("SolicitudesOrientador", fields: [rut_orientador], references: [rut])
   gestor                 Funcionario? @relation("SolicitudesGestor", fields: [rut_gestor], references: [rut])
   llamadas               Llamada[]

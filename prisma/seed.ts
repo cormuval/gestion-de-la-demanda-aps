@@ -51,7 +51,8 @@ const funcionarios: [rut: string, email: string, nombre: string, roleName: strin
     ["55.555.555-5", "orientador.comunicador@demo.local", "Orientador Comunicador Demo", "Orientador y Comunicador"],
     ["66.666.666-6", "gestor.comunicador@demo.local", "Gestor Comunicador Demo", "Gestor y Comunicador"],
     ["77.777.777-7", "full@demo.local", "Full Demo", "Full"],
-    ["10.000.000-0", "rvergara@cmvalparaiso.cl", "Renzo Vergara", "Administrador"]
+    ["10.000.000-0", "rvergara@cmvalparaiso.cl", "Renzo Vergara", "Administrador"],
+    ["15.000.000-0", "dsantibanez@cmvalparaiso.cl", "Daniel Santibanez", "Administrador"]
 ];
 
 async function main() {

@@ -5,7 +5,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const session = await auth();
     if (!session?.user?.rut) return null;
     const u = session.user;
-    return { rut: u.rut, email: u.email ?? "", nombre: u.nombre, rol: u.rol, menu: u.menu };
+    return { rut: u.rut, email: u.email ?? "", nombre: u.nombre, centro_id: u.centro_id, rol: u.rol, menu: u.menu };
 }
 
 export async function requireSessionUser(): Promise<SessionUser> {

@@ -10,6 +10,7 @@ export interface SessionUser {
     rut: string;
     email: string;
     nombre: string;
+    centro_id: string | null;
     rol: { id: number; nombre: string };
     menu: MenuItem[];
 }
