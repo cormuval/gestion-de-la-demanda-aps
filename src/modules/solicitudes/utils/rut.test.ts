@@ -10,6 +10,11 @@ describe("RUT chileno", () => {
         expect(esRutChilenoValido("12345678-5")).toBe(true);
     });
 
+    it("acepta y normaliza RUT valido sin guion", () => {
+        expect(esRutChilenoValido("123456785")).toBe(true);
+        expect(normalizarRut("123456785")).toBe("12345678-5");
+    });
+
     it("acepta digito verificador K", () => {
         expect(esRutChilenoValido("1.000.005-K")).toBe(true);
     });

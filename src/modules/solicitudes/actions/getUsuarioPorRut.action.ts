@@ -31,7 +31,8 @@ export async function getUsuarioPorRut(rutUsuario: string) {
             telefono_alternativo: true,
             gestante: true,
             discapacidad: true,
-            centro_id: true
+            centro_id: true,
+            priorizacion_administrativa: true
         }
     });
 

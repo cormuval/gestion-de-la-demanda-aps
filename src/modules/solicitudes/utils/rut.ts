@@ -1,10 +1,12 @@
 export function normalizarRut(rut: string): string {
-    return rut.replace(/\./g, "").replace(/\s/g, "").toUpperCase();
+    const limpio = rut.replace(/\./g, "").replace(/-/g, "").replace(/\s/g, "").toUpperCase();
+    if (limpio.length < 2) return limpio;
+    return `${limpio.slice(0, -1)}-${limpio.slice(-1)}`;
 }
 
 export function esRutChilenoValido(rut: string): boolean {
     const limpio = normalizarRut(rut);
-    if (!/^\d{7,8}-?[\dK]$/.test(limpio)) return false;
+    if (!/^\d{7,8}-[\dK]$/.test(limpio)) return false;
 
     const cuerpo = limpio.slice(0, -1).replace("-", "");
     const dv = limpio.slice(-1);

@@ -7,6 +7,8 @@ import { puedeAccederSolicitudes } from "@/shared/lib/access";
 import { AuditLogger } from "@/shared/lib/logger";
 // schemas
 import { usuarioSolicitudSchema, UsuarioSolicitudInput, UsuarioSolicitudData } from "../schemas/usuario.schema";
+// utils
+import { calcularPriorizacionAdministrativa } from "../utils/priorizacion";
 
 async function requireSolicitudesUser() {
     const user = await requireSessionUser();
@@ -37,7 +39,12 @@ function toUsuarioData(data: UsuarioSolicitudData) {
         telefono_alternativo: data.telefono_alternativo,
         gestante: data.gestante,
         discapacidad: data.discapacidad,
-        centro_id: data.centro_id
+        centro_id: data.centro_id,
+        priorizacion_administrativa: calcularPriorizacionAdministrativa({
+            discapacidad: data.discapacidad,
+            fechaNacimiento: data.fecha_nacimiento,
+            gestante: data.gestante
+        })
     };
 }
 
@@ -64,7 +71,8 @@ export async function crearUsuario(input: UsuarioSolicitudInput) {
             telefono_alternativo: true,
             gestante: true,
             discapacidad: true,
-            centro_id: true
+            centro_id: true,
+            priorizacion_administrativa: true
         }
     });
 
@@ -96,7 +104,8 @@ export async function actualizarUsuario(input: UsuarioSolicitudInput) {
             telefono_alternativo: true,
             gestante: true,
             discapacidad: true,
-            centro_id: true
+            centro_id: true,
+            priorizacion_administrativa: true
         }
     });
 

@@ -5,10 +5,10 @@ import { esRutChilenoValido, normalizarRut } from "../utils/rut";
 export const GENEROS_USUARIO = ["Femenino", "Masculino", "No revelado"] as const;
 export const GESTANTE_USUARIO = ["Si", "No", "No aplica"] as const;
 export const DISCAPACIDAD_USUARIO = [
-    "El usuario no posee una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
+    "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
     "El usuario es cuidador(a) principal de una persona con discapacidad.",
     "El usuario poseé una credencial de discapacidad.",
-    "El usuario pertenece a la poblacion sename"
+    "El usuario pertenece a la poblacion sename."
 ] as const;
 
 export const usuarioSolicitudSchema = z.object({

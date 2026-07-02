@@ -7,10 +7,12 @@ import { puedeAccederSolicitudes } from "@/shared/lib/access";
 import { AuditLogger } from "@/shared/lib/logger";
 // types
 import { SolicitudFiltros } from "../schemas/solicitud.schema";
+// utils
+import { normalizarRut } from "../utils/rut";
 
 function buildWhere(filtros: SolicitudFiltros): Prisma.SolicitudWhereInput {
     const where: Prisma.SolicitudWhereInput = {};
-    if (filtros.rut) where.rut_usuario = filtros.rut.trim();
+    if (filtros.rut) where.rut_usuario = normalizarRut(filtros.rut);
     if (filtros.estado) where.estado_solicitud = filtros.estado;
     if (filtros.centroId) where.centro_id = filtros.centroId;
     if (filtros.fechaDesde || filtros.fechaHasta) {

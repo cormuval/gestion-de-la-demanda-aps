@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Pencil, Plus, Search, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Pencil, Plus, Printer, Search, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getCatalogos } from "@/modules/catalogos/actions/getCatalogos.action";
@@ -25,6 +25,7 @@ import type { Catalogos } from "@/modules/catalogos/types/catalogos";
 
 type UsuarioConfirmado = NonNullable<Awaited<ReturnType<typeof getUsuarioPorRut>>["usuario"]>;
 type Pendientes = Awaited<ReturnType<typeof getPendientes>>;
+type VoucherSolicitud = Awaited<ReturnType<typeof crearSolicitud>>["voucher"];
 
 type SolicitudFormState = {
     tipo_solicitud_id: string;
@@ -129,6 +130,7 @@ export default function IngresarSolicitudPage() {
     const [centros, setCentros] = useState<CentroOption[]>([]);
     const [solicitudForm, setSolicitudForm] = useState<SolicitudFormState>(emptySolicitudForm);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioFormState>(emptyUsuarioForm);
+    const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
     const [usuarioModalMode, setUsuarioModalMode] = useState<"crear" | "editar" | null>(null);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
     const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
@@ -159,6 +161,16 @@ export default function IngresarSolicitudPage() {
             [field]: value,
             ...(field === "genero" && value !== "Femenino" ? { gestante: "No aplica" } : {})
         }));
+    }
+
+    function limpiarIngresoSolicitud() {
+        setRutBusqueda("");
+        setRutRevisado("");
+        setPendientes(null);
+        setUsuarioConfirmado(null);
+        setSolicitudForm(emptySolicitudForm);
+        setUsuarioForm(emptyUsuarioForm);
+        setUsuarioModalMode(null);
     }
 
     function openCrearUsuario() {
@@ -236,7 +248,7 @@ export default function IngresarSolicitudPage() {
                 toast.error("Selecciona una disponibilidad de llamada valida");
                 return;
             }
-            const { solicitud } = await crearSolicitud({
+            const { solicitud, voucher } = await crearSolicitud({
                 rut_usuario: usuarioConfirmado.rut,
                 disponibilidad_llamada: solicitudForm.disponibilidad_llamada,
                 tipo_solicitud_id: Number(solicitudForm.tipo_solicitud_id),
@@ -244,7 +256,8 @@ export default function IngresarSolicitudPage() {
                 descripcion: solicitudForm.descripcion
             });
             toast.success(`Solicitud creada: ${solicitud.id_solicitud}`);
-            setSolicitudForm(emptySolicitudForm);
+            setVoucherSolicitud(voucher);
+            limpiarIngresoSolicitud();
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al crear solicitud");
         } finally {
@@ -406,6 +419,8 @@ export default function IngresarSolicitudPage() {
                     onSubmit={onGuardarUsuario}
                 />
             )}
+
+            {voucherSolicitud && <VoucherSolicitudModal voucher={voucherSolicitud} onClose={() => setVoucherSolicitud(null)} />}
         </div>
     );
 }
@@ -445,6 +460,11 @@ function UsuarioStatus({
                 <span>
                     <strong>Nombre:</strong> {usuario.nombre} {usuario.apellido}
                 </span>
+                {usuario.nombre_social && (
+                    <span className="font-medium text-blue-700">
+                        <strong>Nombre social:</strong> {usuario.nombre_social}
+                    </span>
+                )}
                 <span>
                     <strong>Telefono:</strong> {usuario.telefono || "-"}
                 </span>
@@ -456,6 +476,110 @@ function UsuarioStatus({
                 <Pencil size={16} />
                 Editar usuario
             </Button>
+        </div>
+    );
+}
+
+function VoucherSolicitudModal({ voucher, onClose }: { voucher: VoucherSolicitud; onClose: () => void }) {
+    const fecha = new Date(voucher.fecha_inicio);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-sm rounded-md border bg-background shadow-lg">
+                <div className="no-print flex items-center justify-between border-b p-4">
+                    <div>
+                        <h2 className="text-lg font-semibold">Voucher de solicitud</h2>
+                        <p className="text-sm text-muted-foreground">Listo para imprimir.</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
+                        <X size={18} />
+                    </Button>
+                </div>
+
+                <div className="voucher-print-area mx-auto bg-white p-4 text-black">
+                    <div className="text-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/assets/CALUGA_LOGOS_2025.png" alt="Corporacion Municipal Valparaiso" className="mx-auto mb-3 max-h-14 max-w-full object-contain" />
+                        <p className="text-sm font-bold">COMPROBANTE DE SOLICITUD</p>
+                        <p className="text-xs">{voucher.centro || "Centro no informado"}</p>
+                    </div>
+
+                    <div className="my-3 border-t border-dashed border-black" />
+                    <VoucherLine label="Solicitud" value={voucher.id_solicitud} />
+                    <VoucherLine label="Fecha" value={fecha.toLocaleDateString("es-CL")} />
+                    <VoucherLine label="Hora" value={fecha.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} />
+                    <VoucherLine label="RUT" value={voucher.rut} />
+                    <VoucherLine label="Tipo" value={voucher.tipoSolicitud.nombre_tipo_solicitud} />
+                    <VoucherLine label="Motivo" value={voucher.motivo?.nombre_motivo || "Sin motivo"} />
+                    {voucher.disponibilidad_llamada && <VoucherLine label="Disponibilidad" value={voucher.disponibilidad_llamada} />}
+                    {(voucher.usuario.telefono || voucher.usuario.telefono_alternativo) && (
+                        <VoucherLine label="Telefonos" value={[voucher.usuario.telefono, voucher.usuario.telefono_alternativo].filter(Boolean).join(" / ")} />
+                    )}
+                    <div className="my-3 border-t border-dashed border-black" />
+                    <p className="text-center text-[11px]">Conserve este comprobante.</p>
+                    <p className="mt-2 text-center text-[11px]">
+                        Esta solicitud sera revisada y gestionada por un profesional de salud para otorgar la prestacion adecuada a su solicitud.
+                    </p>
+                </div>
+
+                <div className="no-print flex justify-end gap-2 border-t p-4">
+                    <Button type="button" variant="outline" onClick={onClose}>
+                        Cerrar
+                    </Button>
+                    <Button type="button" onClick={() => window.print()}>
+                        <Printer size={16} />
+                        Imprimir
+                    </Button>
+                </div>
+
+                <style>{`
+                    .voucher-print-area {
+                        width: 80mm;
+                        max-width: 100%;
+                        font-family: Arial, sans-serif;
+                        font-size: 12px;
+                        line-height: 1.35;
+                    }
+
+                    @media print {
+                        @page {
+                            size: 80mm auto;
+                            margin: 4mm;
+                        }
+
+                        body * {
+                            visibility: hidden;
+                        }
+
+                        .voucher-print-area,
+                        .voucher-print-area * {
+                            visibility: visible;
+                        }
+
+                        .voucher-print-area {
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 72mm;
+                            max-width: 72mm;
+                            padding: 0;
+                        }
+
+                        .no-print {
+                            display: none !important;
+                        }
+                    }
+                `}</style>
+            </div>
+        </div>
+    );
+}
+
+function VoucherLine({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="mb-1">
+            <span className="font-bold">{label}: </span>
+            <span>{value}</span>
         </div>
     );
 }

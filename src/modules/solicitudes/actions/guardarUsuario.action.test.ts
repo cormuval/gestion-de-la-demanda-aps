@@ -33,7 +33,7 @@ const usuarioInput = {
     telefono: "+56911111111",
     telefono_alternativo: "+56922222222",
     gestante: "No",
-    discapacidad: "El usuario no posee una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
+    discapacidad: "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
     centro_id: "650"
 };
 
@@ -77,6 +77,7 @@ describe("guardarUsuario actions", () => {
         expect(arg.data.nombre_social).toBe("Nombre Social");
         expect(arg.data.correo_contacto).toBe("paciente@demo.local");
         expect(arg.data.sector).toBe("Sector 1");
+        expect(arg.data.priorizacion_administrativa).toEqual(expect.any(Number));
     });
 
     it("actualiza usuario sin cambiar el RUT", async () => {
@@ -91,6 +92,7 @@ describe("guardarUsuario actions", () => {
         expect(arg.data.nombre_social).toBe("Nombre Social");
         expect(arg.data.correo_contacto).toBe("paciente@demo.local");
         expect(arg.data.sector).toBe("Sector 1");
+        expect(arg.data.priorizacion_administrativa).toEqual(expect.any(Number));
     });
 
     it("fuerza gestante No aplica si genero no es Femenino", async () => {

@@ -8,7 +8,7 @@ vi.mock("@/shared/lib/prisma", () => ({
         funcionario: { findUnique: vi.fn() },
         tipoSolicitud: { findFirst: vi.fn() },
         motivo: { findFirst: vi.fn(), count: vi.fn() },
-        solicitud: { create: vi.fn() }
+        solicitud: { create: vi.fn(), findFirst: vi.fn() }
     }
 }));
 vi.mock("@/shared/lib/auth", () => ({
@@ -43,6 +43,7 @@ beforeEach(() => {
     (prisma.tipoSolicitud.findFirst as any).mockResolvedValue({ id_tipo_solicitud: 1 });
     (prisma.motivo.findFirst as any).mockResolvedValue({ id_motivo: 1 });
     (prisma.motivo.count as any).mockResolvedValue(1);
+    (prisma.solicitud.findFirst as any).mockResolvedValue(null);
 });
 
 describe("crearSolicitud", () => {
@@ -56,8 +57,36 @@ describe("crearSolicitud", () => {
     });
 
     it("crea la solicitud con estado 'En Curso' y rut_orientador del usuario en sesion", async () => {
-        (prisma.usuario.findUnique as any).mockResolvedValue({ rut: "12345678-5" });
-        (prisma.solicitud.create as any).mockResolvedValue({ id_solicitud: "SOL-x" });
+        (prisma.usuario.findUnique as any).mockResolvedValue({
+            rut: "12345678-5",
+            nombre: "Paciente",
+            apellido: "Demo",
+            nombre_social: null,
+            telefono: "+56911111111",
+            telefono_alternativo: "+56922222222",
+            fecha_nacimiento: new Date("1990-01-01T00:00:00"),
+            priorizacion_administrativa: 2.5
+        });
+        (prisma.solicitud.create as any).mockResolvedValue({
+            id_solicitud: "SOL-x",
+            fecha_inicio: new Date("2026-07-02T12:00:00"),
+            estado_solicitud: "En Curso",
+            centro_id: "650",
+            descripcion: null,
+            disponibilidad_llamada: "Solo AM",
+            priorizacion_admin: 2.5,
+            ultimo_control: "36",
+            usuario: {
+                rut: "12345678-5",
+                nombre: "Paciente",
+                apellido: "Demo",
+                nombre_social: null,
+                telefono: "+56911111111",
+                telefono_alternativo: "+56922222222"
+            },
+            tipoSolicitud: { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Tipo" },
+            motivo: { id_motivo: 1, nombre_motivo: "Motivo" }
+        });
 
         await crearSolicitud({ ...baseInput, rut_usuario: "12.345.678-5" } as any);
 
@@ -67,18 +96,67 @@ describe("crearSolicitud", () => {
         expect(arg.data.rut_orientador).toBe("22.222.222-2");
         expect(arg.data.tipo_solicitud_id).toBe(1);
         expect(arg.data.centro_id).toBe("650");
-        expect(arg.data.priorizacion_admin).toBeNull();
+        expect(arg.data.priorizacion_admin).toBe(2.5);
+        expect(arg.data.ultimo_control).toEqual(expect.any(String));
+        expect(prisma.solicitud.findFirst).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    rut_usuario: "12345678-5",
+                    tipo_solicitud_id: 1,
+                    motivo_id: 1,
+                    estado_solicitud: "En Curso"
+                })
+            })
+        );
     });
 
     it("crea solicitud sin motivo si el tipo no tiene motivos activos", async () => {
-        (prisma.usuario.findUnique as any).mockResolvedValue({ rut: "12345678-5" });
+        (prisma.usuario.findUnique as any).mockResolvedValue({
+            rut: "12345678-5",
+            nombre: "Paciente",
+            apellido: "Demo",
+            nombre_social: null,
+            telefono: null,
+            telefono_alternativo: null,
+            fecha_nacimiento: null,
+            priorizacion_administrativa: null
+        });
         (prisma.motivo.count as any).mockResolvedValue(0);
-        (prisma.solicitud.create as any).mockResolvedValue({ id_solicitud: "SOL-x" });
+        (prisma.solicitud.create as any).mockResolvedValue({
+            id_solicitud: "SOL-x",
+            fecha_inicio: new Date("2026-07-02T12:00:00"),
+            estado_solicitud: "En Curso",
+            centro_id: "650",
+            descripcion: null,
+            disponibilidad_llamada: "Solo AM",
+            priorizacion_admin: null,
+            ultimo_control: null,
+            usuario: { rut: "12345678-5", nombre: "Paciente", apellido: "Demo", nombre_social: null, telefono: null, telefono_alternativo: null },
+            tipoSolicitud: { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Tipo" },
+            motivo: null
+        });
 
         await crearSolicitud({ ...baseInput, motivo_id: null } as any);
 
         const arg = (prisma.solicitud.create as any).mock.calls[0][0];
         expect(arg.data.motivo_id).toBeNull();
+    });
+
+    it("rechaza duplicado en curso con mismo usuario, tipo y motivo", async () => {
+        (prisma.usuario.findUnique as any).mockResolvedValue({
+            rut: "12345678-5",
+            nombre: "Paciente",
+            apellido: "Demo",
+            nombre_social: null,
+            telefono: null,
+            telefono_alternativo: null,
+            fecha_nacimiento: null,
+            priorizacion_administrativa: null
+        });
+        (prisma.solicitud.findFirst as any).mockResolvedValue({ id_solicitud: "SOL-duplicada" });
+
+        await expect(crearSolicitud(baseInput as any)).rejects.toThrow("El usuario ya posee una solicitud en curso del mismo tipo y motivo.");
+        expect(prisma.solicitud.create).not.toHaveBeenCalled();
     });
 
     it("rechaza solicitud sin motivo si el tipo tiene motivos activos", async () => {
