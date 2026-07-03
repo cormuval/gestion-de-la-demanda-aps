@@ -105,9 +105,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </nav>
 
                 <div className="border-t p-4">
-                    <div className="mb-3">
+                    <div className="mb-3 space-y-2">
                         <p className="truncate text-sm font-medium">{user.nombre}</p>
-                        <div className="mt-1 flex items-center gap-2">
+                        <p className="truncate text-xs text-muted-foreground">{user.centro_nombre || "Sin centro"}</p>
+                        <div className="flex items-center gap-2">
                             <Badge variant="muted">{user.rol.nombre}</Badge>
                         </div>
                     </div>

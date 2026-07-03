@@ -28,9 +28,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             return true;
         },
         async jwt({ token, user }) {
-            if (user?.email) {
+            const email = user?.email ?? token.email;
+            if (email) {
                 const funcionario = await prisma.funcionario.findUnique({
-                    where: { email: user.email },
+                    where: { email },
                     select: {
                         rut: true,
                         nombre: true,
@@ -54,9 +55,16 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                     }
                 });
                 if (funcionario) {
+                    const centro = funcionario.centro_id
+                        ? await prisma.centro.findUnique({
+                              where: { id_centro: funcionario.centro_id },
+                              select: { nombre_centro: true }
+                          })
+                        : null;
                     token.rut = funcionario.rut;
                     token.nombre = funcionario.nombre;
                     token.centro_id = funcionario.centro_id;
+                    token.centro_nombre = centro?.nombre_centro ?? null;
                     token.rol = { id: funcionario.role.id_rol, nombre: funcionario.role.nombre_rol };
                     token.menu = funcionario.role.menus.map(
                         (m): MenuItem => ({ id: m.id_menu, nombre: m.nombre, descripcion: m.descripcion, ruta: m.ruta, imagen: m.imagen })
@@ -70,6 +78,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 session.user.rut = (token.rut ?? "") as string;
                 session.user.nombre = (token.nombre ?? "") as string;
                 session.user.centro_id = (token.centro_id ?? null) as string | null;
+                session.user.centro_nombre = (token.centro_nombre ?? null) as string | null;
                 session.user.rol = (token.rol ?? { id: 0, nombre: "" }) as { id: number; nombre: string };
                 session.user.menu = (token.menu ?? []) as MenuItem[];
             }

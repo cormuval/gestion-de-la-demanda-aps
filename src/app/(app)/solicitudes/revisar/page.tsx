@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, Check, Filter, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
+import { CalendarPlus, Check, Edit, Eye, Filter, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getRevisionCatalogos } from "@/modules/solicitudes/actions/getRevisionCatalogos.action";
 import { getSolicitudes } from "@/modules/solicitudes/actions/getSolicitudes.action";
 import { gestionarSolicitud } from "@/modules/solicitudes/actions/gestionarSolicitud.action";
+import { getOtrasSolicitudes } from "@/modules/solicitudes/actions/getOtrasSolicitudes.action";
+import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 // schemas
 import {
     ACCION_REALIZAR_SOLICITUD,
@@ -16,6 +18,7 @@ import {
     TIPO_PRESTACION_EXAMENES,
     TIPO_PRESTACION_PROFESIONAL
 } from "@/modules/solicitudes/schemas/revision.schema";
+import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -24,12 +27,14 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
 // types
 import type { SolicitudFiltros } from "@/modules/solicitudes/schemas/solicitud.schema";
 
 type SolicitudesResponse = Awaited<ReturnType<typeof getSolicitudes>>;
 type SolicitudRow = SolicitudesResponse["solicitudes"][number];
 type RevisionCatalogos = Awaited<ReturnType<typeof getRevisionCatalogos>>;
+type OtrasSolicitudesResponse = Awaited<ReturnType<typeof getOtrasSolicitudes>>;
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
 type PrioridadClinica = (typeof PRIORIDADES_CLINICAS)[number];
 type RazonRechazo = (typeof RAZONES_RECHAZO)[number];
@@ -43,7 +48,22 @@ type CitaForm = {
 };
 
 const emptyResponse: SolicitudesResponse = { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 };
-const emptyCatalogos: RevisionCatalogos = { tiposSolicitud: [], motivos: [], profesionales: [], prestaciones: [] };
+const emptyCatalogos: RevisionCatalogos = { tiposSolicitud: [], motivos: [], profesionales: [], prestaciones: [], centros: [] };
+const emptyUsuarioForm: UsuarioEditFormState = {
+    rut: "",
+    nombre: "",
+    apellido: "",
+    nombre_social: "",
+    correo_contacto: "",
+    sector: "",
+    genero: "",
+    fecha_nacimiento: "",
+    telefono: "",
+    telefono_alternativo: "",
+    gestante: "",
+    discapacidad: "",
+    centro_id: ""
+};
 
 function emptyCita(): CitaForm {
     return {
@@ -56,8 +76,38 @@ function emptyCita(): CitaForm {
     };
 }
 
+function toDateInput(value: Date | string | null): string {
+    if (!value) return "";
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString().slice(0, 10);
+}
+
+function asUsuarioOption<T extends readonly string[]>(options: T, value: string | null | undefined): T[number] | "" {
+    return options.includes(value ?? "") ? (value as T[number]) : "";
+}
+
+function toUsuarioForm(usuario: SolicitudRow["usuario"]): UsuarioEditFormState {
+    const genero = asUsuarioOption(GENEROS_USUARIO, usuario?.genero);
+    return {
+        rut: usuario?.rut ?? "",
+        nombre: usuario?.nombre ?? "",
+        apellido: usuario?.apellido ?? "",
+        nombre_social: usuario?.nombre_social ?? "",
+        correo_contacto: usuario?.correo_contacto ?? "",
+        sector: usuario?.sector ?? "",
+        genero,
+        fecha_nacimiento: toDateInput(usuario?.fecha_nacimiento ?? null),
+        telefono: usuario?.telefono ?? "",
+        telefono_alternativo: usuario?.telefono_alternativo ?? "",
+        gestante: genero === "Femenino" ? asUsuarioOption(GESTANTE_USUARIO, usuario?.gestante) : "No aplica",
+        discapacidad: asUsuarioOption(DISCAPACIDAD_USUARIO, usuario?.discapacidad),
+        centro_id: usuario?.centro_id ?? ""
+    };
+}
+
 export default function RevisarSolicitudesPage() {
-    const [filters, setFilters] = useState<SolicitudFiltros>({ rut: "", tipoSolicitudId: "", motivoId: "", fechaDesde: "", fechaHasta: "", page: 1 });
+    const [filters, setFilters] = useState<SolicitudFiltros>({ rut: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", page: 1 });
     const [data, setData] = useState<SolicitudesResponse>(emptyResponse);
     const [catalogos, setCatalogos] = useState<RevisionCatalogos>(emptyCatalogos);
     const [loading, setLoading] = useState(false);
@@ -68,6 +118,12 @@ export default function RevisarSolicitudesPage() {
     const [razonRechazo, setRazonRechazo] = useState<RazonRechazo | "">("");
     const [observacionRechazo, setObservacionRechazo] = useState("");
     const [citas, setCitas] = useState<CitaForm[]>([emptyCita()]);
+    const [otrasSolicitudBase, setOtrasSolicitudBase] = useState<SolicitudRow | null>(null);
+    const [otrasSolicitudes, setOtrasSolicitudes] = useState<OtrasSolicitudesResponse["solicitudes"]>([]);
+    const [loadingOtras, setLoadingOtras] = useState(false);
+    const [usuarioForm, setUsuarioForm] = useState<UsuarioEditFormState>(emptyUsuarioForm);
+    const [editingUsuario, setEditingUsuario] = useState<SolicitudRow | null>(null);
+    const [savingUsuario, setSavingUsuario] = useState(false);
 
     useEffect(() => {
         getRevisionCatalogos()
@@ -120,6 +176,61 @@ export default function RevisarSolicitudesPage() {
         setCitas([emptyCita()]);
     }
 
+    async function openOtrasSolicitudes(solicitud: SolicitudRow) {
+        setActionsOpen(null);
+        setOtrasSolicitudBase(solicitud);
+        setLoadingOtras(true);
+        try {
+            const result = await getOtrasSolicitudes(solicitud.rut_usuario, solicitud.id_solicitud);
+            setOtrasSolicitudes(result.solicitudes);
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Error al consultar otras solicitudes");
+        } finally {
+            setLoadingOtras(false);
+        }
+    }
+
+    function openEditarUsuario(solicitud: SolicitudRow) {
+        setActionsOpen(null);
+        setEditingUsuario(solicitud);
+        setUsuarioForm(toUsuarioForm(solicitud.usuario));
+    }
+
+    function updateUsuarioField(field: keyof UsuarioEditFormState, value: string) {
+        setUsuarioForm((current) => ({
+            ...current,
+            [field]: value,
+            ...(field === "genero" && value !== "Femenino" ? { gestante: "No aplica" } : {})
+        }));
+    }
+
+    async function onGuardarUsuario(event: React.FormEvent) {
+        event.preventDefault();
+        if (!usuarioForm.genero || !usuarioForm.discapacidad) {
+            toast.error("Completa genero y discapacidad del usuario");
+            return;
+        }
+        setSavingUsuario(true);
+        try {
+            const genero = usuarioForm.genero;
+            const discapacidad = usuarioForm.discapacidad;
+            await actualizarUsuario({
+                ...usuarioForm,
+                genero,
+                discapacidad,
+                gestante: genero === "Femenino" && usuarioForm.gestante ? usuarioForm.gestante : "No aplica"
+            });
+            toast.success("Usuario actualizado");
+            setEditingUsuario(null);
+            await loadSolicitudes(filters);
+            if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Error al guardar usuario");
+        } finally {
+            setSavingUsuario(false);
+        }
+    }
+
     async function confirmarRechazo(event: React.FormEvent) {
         event.preventDefault();
         if (!rechazoSolicitud) return;
@@ -134,6 +245,7 @@ export default function RevisarSolicitudesPage() {
             toast.success("Solicitud rechazada");
             setRechazoSolicitud(null);
             await loadSolicitudes(filters);
+            if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al rechazar solicitud");
         } finally {
@@ -165,6 +277,7 @@ export default function RevisarSolicitudesPage() {
             toast.success("Solicitud realizada");
             setRealizarSolicitud(null);
             await loadSolicitudes(filters);
+            if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al realizar solicitud");
         } finally {
@@ -213,7 +326,7 @@ export default function RevisarSolicitudesPage() {
                     <CardDescription>Consulta por RUT, tipo, motivo y fecha de ingreso.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form className="grid gap-4 md:grid-cols-5" onSubmit={handleSubmit}>
+                    <form className="grid gap-4 md:grid-cols-4 xl:grid-cols-8" onSubmit={handleSubmit}>
                         <Field label="RUT">
                             <Input value={filters.rut ?? ""} onChange={(e) => updateFilter("rut", e.target.value)} />
                         </Field>
@@ -237,13 +350,22 @@ export default function RevisarSolicitudesPage() {
                                 ))}
                             </Select>
                         </Field>
+                        <Field label="Sector">
+                            <Input value={filters.sector ?? ""} onChange={(e) => updateFilter("sector", e.target.value)} />
+                        </Field>
+                        <Field label="Edad desde">
+                            <Input type="number" min={0} value={filters.edadDesde ?? ""} onChange={(e) => updateFilter("edadDesde", e.target.value)} />
+                        </Field>
+                        <Field label="Edad hasta">
+                            <Input type="number" min={0} value={filters.edadHasta ?? ""} onChange={(e) => updateFilter("edadHasta", e.target.value)} />
+                        </Field>
                         <Field label="Desde">
                             <Input type="date" value={filters.fechaDesde ?? ""} onChange={(e) => updateFilter("fechaDesde", e.target.value)} />
                         </Field>
                         <Field label="Hasta">
                             <Input type="date" value={filters.fechaHasta ?? ""} onChange={(e) => updateFilter("fechaHasta", e.target.value)} />
                         </Field>
-                        <div className="md:col-span-5">
+                        <div className="md:col-span-4 xl:col-span-8">
                             <Button disabled={loading}>
                                 <Filter size={16} />
                                 {loading ? "Consultando..." : "Aplicar filtros"}
@@ -262,18 +384,18 @@ export default function RevisarSolicitudesPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="overflow-x-auto rounded-md border">
-                        <table className="w-full min-w-[1200px] text-left text-sm">
+                        <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
                             <thead className="bg-muted text-muted-foreground">
                                 <tr>
-                                    <th className="px-3 py-2 font-medium">ID</th>
-                                    <th className="px-3 py-2 font-medium">Fecha</th>
-                                    <th className="px-3 py-2 font-medium">RUT</th>
-                                    <th className="px-3 py-2 font-medium">Nombre usuario</th>
-                                    <th className="px-3 py-2 font-medium">Tipo solicitud</th>
-                                    <th className="px-3 py-2 font-medium">Motivo</th>
-                                    <th className="px-3 py-2 font-medium">Priorizacion administrativa</th>
-                                    <th className="px-3 py-2 font-medium">Descripcion</th>
-                                    <th className="px-3 py-2 font-medium">Acciones</th>
+                                    <th className="w-[92px] px-3 py-2 font-medium">ID</th>
+                                    <th className="w-[90px] px-3 py-2 font-medium">Fecha</th>
+                                    <th className="w-[110px] px-3 py-2 font-medium">RUT</th>
+                                    <th className="w-[150px] px-3 py-2 font-medium">Nombre usuario</th>
+                                    <th className="w-[180px] px-3 py-2 font-medium">Tipo solicitud</th>
+                                    <th className="w-[170px] px-3 py-2 font-medium">Motivo</th>
+                                    <th className="w-[95px] px-3 py-2 font-medium">Prioridad</th>
+                                    <th className="w-[230px] px-3 py-2 font-medium">Descripcion</th>
+                                    <th className="w-[160px] px-3 py-2 font-medium">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -286,7 +408,9 @@ export default function RevisarSolicitudesPage() {
                                 ) : (
                                     data.solicitudes.map((s) => (
                                         <tr key={s.id_solicitud} className="border-t">
-                                            <td className="px-3 py-3 font-medium">{s.id_solicitud}</td>
+                                            <td className="truncate px-3 py-3 font-medium" title={s.id_solicitud}>
+                                                {s.id_solicitud}
+                                            </td>
                                             <td className="px-3 py-3">{new Date(s.fecha_inicio).toLocaleDateString("es-CL")}</td>
                                             <td className="px-3 py-3">{s.rut_usuario}</td>
                                             <td className="px-3 py-3">
@@ -297,14 +421,14 @@ export default function RevisarSolicitudesPage() {
                                             <td className="px-3 py-3">
                                                 <Badge variant="muted">{s.priorizacion_admin ?? "-"}</Badge>
                                             </td>
-                                            <td className="max-w-[260px] px-3 py-3">{s.descripcion || "-"}</td>
+                                            <td className="px-3 py-3">{s.descripcion || "-"}</td>
                                             <td className="relative px-3 py-3">
-                                                <Button type="button" variant="outline" onClick={() => setActionsOpen((current) => (current === s.id_solicitud ? null : s.id_solicitud))}>
+                                                <Button type="button" variant="outline" className="w-full justify-center" onClick={() => setActionsOpen((current) => (current === s.id_solicitud ? null : s.id_solicitud))}>
                                                     <MoreHorizontal size={16} />
                                                     Gestionar
                                                 </Button>
                                                 {actionsOpen === s.id_solicitud && (
-                                                    <div className="absolute right-3 z-20 mt-2 w-52 rounded-md border bg-background p-2 shadow-lg">
+                                                    <div className="absolute right-3 z-20 mt-2 w-60 rounded-md border bg-background p-2 shadow-lg">
                                                         <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openRealizar(s)}>
                                                             <Check size={16} />
                                                             Realizar solicitud
@@ -312,6 +436,14 @@ export default function RevisarSolicitudesPage() {
                                                         <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openRechazo(s)}>
                                                             <X size={16} />
                                                             Rechazar solicitud
+                                                        </Button>
+                                                        <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openOtrasSolicitudes(s)}>
+                                                            <Eye size={16} />
+                                                            Otras solicitudes
+                                                        </Button>
+                                                        <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openEditarUsuario(s)}>
+                                                            <Edit size={16} />
+                                                            Editar usuario
                                                         </Button>
                                                     </div>
                                                 )}
@@ -360,6 +492,32 @@ export default function RevisarSolicitudesPage() {
                     onRemove={removeCita}
                     onClose={() => setRealizarSolicitud(null)}
                     onSubmit={confirmarRealizar}
+                />
+            )}
+
+            {otrasSolicitudBase && (
+                <OtrasSolicitudesModal
+                    solicitudBase={otrasSolicitudBase}
+                    solicitudes={otrasSolicitudes}
+                    loading={loadingOtras}
+                    onClose={() => {
+                        setOtrasSolicitudBase(null);
+                        setOtrasSolicitudes([]);
+                    }}
+                    onRealizar={openRealizar}
+                    onRechazar={openRechazo}
+                    onEditarUsuario={openEditarUsuario}
+                />
+            )}
+
+            {editingUsuario && (
+                <UsuarioEditModal
+                    form={usuarioForm}
+                    centros={catalogos.centros}
+                    saving={savingUsuario}
+                    onChange={updateUsuarioField}
+                    onClose={() => setEditingUsuario(null)}
+                    onSubmit={onGuardarUsuario}
                 />
             )}
         </div>
@@ -427,6 +585,93 @@ function RechazoModal({
                         <Button disabled={saving}>{saving ? "Guardando..." : "Confirmar rechazo"}</Button>
                     </div>
                 </form>
+            </div>
+        </div>
+    );
+}
+
+function OtrasSolicitudesModal({
+    solicitudBase,
+    solicitudes,
+    loading,
+    onClose,
+    onRealizar,
+    onRechazar,
+    onEditarUsuario
+}: {
+    solicitudBase: SolicitudRow;
+    solicitudes: SolicitudRow[];
+    loading: boolean;
+    onClose: () => void;
+    onRealizar: (solicitud: SolicitudRow) => void;
+    onRechazar: (solicitud: SolicitudRow) => void;
+    onEditarUsuario: (solicitud: SolicitudRow) => void;
+}) {
+    return (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+            <div className="max-h-[86vh] w-full max-w-5xl overflow-y-auto rounded-md border bg-background shadow-lg">
+                <div className="flex items-start justify-between gap-4 border-b p-5">
+                    <div>
+                        <h2 className="text-lg font-semibold">Otras solicitudes en curso</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            RUT {solicitudBase.rut_usuario}. Solo se muestran solicitudes pendientes de validacion.
+                        </p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
+                        <X size={18} />
+                    </Button>
+                </div>
+                <div className="p-5">
+                    {loading ? (
+                        <p className="text-sm text-muted-foreground">Consultando solicitudes...</p>
+                    ) : solicitudes.length === 0 ? (
+                        <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">No hay otras solicitudes pendientes para este RUT.</div>
+                    ) : (
+                        <div className="overflow-x-auto rounded-md border">
+                            <table className="w-full min-w-[900px] table-fixed text-left text-sm">
+                                <thead className="bg-muted text-muted-foreground">
+                                    <tr>
+                                        <th className="w-[100px] px-3 py-2 font-medium">ID</th>
+                                        <th className="w-[90px] px-3 py-2 font-medium">Fecha</th>
+                                        <th className="w-[170px] px-3 py-2 font-medium">Tipo</th>
+                                        <th className="w-[160px] px-3 py-2 font-medium">Motivo</th>
+                                        <th className="px-3 py-2 font-medium">Descripcion</th>
+                                        <th className="w-[250px] px-3 py-2 font-medium">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {solicitudes.map((solicitud) => (
+                                        <tr key={solicitud.id_solicitud} className="border-t">
+                                            <td className="truncate px-3 py-3 font-medium" title={solicitud.id_solicitud}>
+                                                {solicitud.id_solicitud}
+                                            </td>
+                                            <td className="px-3 py-3">{new Date(solicitud.fecha_inicio).toLocaleDateString("es-CL")}</td>
+                                            <td className="px-3 py-3">{solicitud.tipoSolicitud?.nombre_tipo_solicitud || "-"}</td>
+                                            <td className="px-3 py-3">{solicitud.motivo?.nombre_motivo || "-"}</td>
+                                            <td className="px-3 py-3">{solicitud.descripcion || "-"}</td>
+                                            <td className="px-3 py-3">
+                                                <div className="flex flex-wrap gap-2">
+                                                    <Button type="button" variant="outline" onClick={() => onRealizar(solicitud)}>
+                                                        <Check size={16} />
+                                                        Realizar
+                                                    </Button>
+                                                    <Button type="button" variant="outline" onClick={() => onRechazar(solicitud)}>
+                                                        <X size={16} />
+                                                        Rechazar
+                                                    </Button>
+                                                    <Button type="button" variant="outline" onClick={() => onEditarUsuario(solicitud)}>
+                                                        <Edit size={16} />
+                                                        Usuario
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

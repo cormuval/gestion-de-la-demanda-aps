@@ -12,6 +12,9 @@ vi.mock("@/shared/lib/prisma", () => ({
         prestacion: {
             findFirst: vi.fn()
         },
+        profesional: {
+            findFirst: vi.fn()
+        },
         cita: {
             createMany: vi.fn()
         }
@@ -40,8 +43,9 @@ beforeEach(() => {
     });
     (prisma.$queryRaw as any).mockResolvedValue([{ nombre_centro: "Centro De Salud Familiar Esperanza" }]);
     (prisma.$transaction as any).mockImplementation(async (callback: any) => callback(prisma));
-    (prisma.solicitud.findFirst as any).mockResolvedValue({ id_solicitud: "SOL-1", rut_usuario: "12345678-5" });
+    (prisma.solicitud.findFirst as any).mockResolvedValue({ id_solicitud: "SOL-1", rut_usuario: "12345678-5", usuario: { priorizacion_administrativa: 10 } });
     (prisma.solicitud.update as any).mockResolvedValue({ id_solicitud: "SOL-1", accion: "Realizar solicitud" });
+    (prisma.profesional.findFirst as any).mockResolvedValue({ id_profesional: 17 });
     (prisma.cita.createMany as any).mockResolvedValue({ count: 1 });
 });
 
@@ -61,7 +65,8 @@ describe("gestionarSolicitud", () => {
                     rut_gestor: "22.222.222-2",
                     accion: "Rechazar solicitud",
                     razon_rechazo: "Solicitud repetida",
-                    observacion_rechazo: "Ya fue ingresada"
+                    observacion_rechazo: "Ya fue ingresada",
+                    estado_solicitud: "Rechazado"
                 })
             })
         );
@@ -101,9 +106,10 @@ describe("gestionarSolicitud", () => {
                     rut_usuario: "12345678-5",
                     rut_gestor: "22.222.222-2",
                     tipo_prestacion: "Agendar una hora de exámenes",
+                    profesional_id: 17,
                     estado_cita: "Sin llamadas",
                     priorizacion_clinica: "Alta",
-                    priorizacion: 60,
+                    priorizacion: 70,
                     centro_id: "650"
                 })
             ]
@@ -133,7 +139,28 @@ describe("gestionarSolicitud", () => {
                 where: expect.objectContaining({ id_prestacion: 3, profesional_id: 2 })
             })
         );
-        expect((prisma.cita.createMany as any).mock.calls[0][0].data[0].priorizacion).toBe(80);
+        expect((prisma.cita.createMany as any).mock.calls[0][0].data[0].priorizacion).toBe(90);
+    });
+
+    it("aplica tope 100 a la priorizacion de cita", async () => {
+        (prisma.solicitud.findFirst as any).mockResolvedValue({ id_solicitud: "SOL-1", rut_usuario: "12345678-5", usuario: { priorizacion_administrativa: 45 } });
+
+        await gestionarSolicitud({
+            id_solicitud: "SOL-1",
+            accion: "Realizar solicitud",
+            citas: [
+                {
+                    tipo_prestacion: "Agendar una hora de exámenes",
+                    profesional_id: null,
+                    prestacion_id: null,
+                    fecha_estimada_atencion: "2026-07-03",
+                    observacion: "",
+                    priorizacion_clinica: "Urgente"
+                }
+            ]
+        });
+
+        expect((prisma.cita.createMany as any).mock.calls[0][0].data[0].priorizacion).toBe(100);
     });
 
     it("rechaza solicitudes que no esten pendientes para el centro", async () => {

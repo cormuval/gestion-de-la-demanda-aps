@@ -9,6 +9,7 @@ declare module "next-auth" {
             rut: string;
             nombre: string;
             centro_id: string | null;
+            centro_nombre: string | null;
             rol: { id: number; nombre: string };
             menu: MenuItem[];
         };
@@ -20,6 +21,7 @@ declare module "next-auth/jwt" {
         rut?: string;
         nombre?: string;
         centro_id?: string | null;
+        centro_nombre?: string | null;
         rol?: { id: number; nombre: string };
         menu?: MenuItem[];
     }

@@ -41,7 +41,7 @@ export async function getRevisionCatalogos() {
     const nombreCentro = await getNombreCentro(centroId);
     const centroColumna = getColumnaTipoSolicitudPorCentro(nombreCentro);
 
-    const [tiposSolicitud, motivos, profesionales, prestaciones] = await Promise.all([
+    const [tiposSolicitud, motivos, profesionales, prestaciones, centros] = await Promise.all([
         prisma.tipoSolicitud.findMany({
             where: { estado: "1" },
             select: { id_tipo_solicitud: true, nombre_tipo_solicitud: true },
@@ -61,8 +61,13 @@ export async function getRevisionCatalogos() {
             where: { estado: { in: ["Activo", "1"] }, profesional: { estado: { in: ["Activo", "1"] }, ...buildCentroWhere(centroColumna) } },
             select: { id_prestacion: true, profesional_id: true, nombre_prestacion: true },
             orderBy: { nombre_prestacion: "asc" }
-        })
+        }),
+        prisma.$queryRaw<{ id_centro: string; nombre_centro: string | null }[]>`
+            SELECT id_centro, nombre_centro
+            FROM centros
+            ORDER BY nombre_centro
+        `
     ]);
 
-    return { tiposSolicitud, motivos, profesionales, prestaciones };
+    return { tiposSolicitud, motivos, profesionales, prestaciones, centros };
 }

@@ -20,6 +20,8 @@ import {
     gestionarSolicitudSchema
 } from "../schemas/revision.schema";
 
+const PROFESIONAL_EXAMENES_ID = 17;
+
 async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string> {
     if (centroSesion) return centroSesion;
 
@@ -60,6 +62,10 @@ function validarFechaEstimada(value: string): Date {
     return fecha;
 }
 
+function calcularPriorizacionCita(priorizacionClinica: keyof typeof PRIORIZACION_CLINICA_NUMERICA, priorizacionAdministrativa: number | null | undefined): number {
+    return Math.min(100, PRIORIZACION_CLINICA_NUMERICA[priorizacionClinica] + (priorizacionAdministrativa ?? 0));
+}
+
 export async function gestionarSolicitud(input: GestionarSolicitudInput) {
     const user = await requireSessionUser();
     if (!puedeAccederSolicitudes(user.rol.nombre)) throw new Error("No tienes permiso para solicitudes");
@@ -78,7 +84,11 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
                 estado_solicitud: "En Curso",
                 centro_id: centroId
             },
-            select: { id_solicitud: true, rut_usuario: true }
+            select: {
+                id_solicitud: true,
+                rut_usuario: true,
+                usuario: { select: { priorizacion_administrativa: true } }
+            }
         });
         if (!solicitud) throw new Error("La solicitud no esta pendiente de validacion o no pertenece a tu centro");
 
@@ -90,7 +100,8 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
                     accion: ACCION_RECHAZAR_SOLICITUD,
                     fecha_validacion: fechaValidacion,
                     razon_rechazo: data.razon_rechazo,
-                    observacion_rechazo: data.observacion_rechazo || null
+                    observacion_rechazo: data.observacion_rechazo || null,
+                    estado_solicitud: "Rechazado"
                 },
                 select: { id_solicitud: true, accion: true }
             });
@@ -118,6 +129,13 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
                 if (!prestacion) throw new Error("La prestacion no pertenece a un profesional activo del centro");
                 profesionalId = prestacion.profesional_id;
                 prestacionId = prestacion.id_prestacion;
+            } else {
+                const profesionalExamenes = await tx.profesional.findFirst({
+                    where: { id_profesional: PROFESIONAL_EXAMENES_ID, estado: { in: ["Activo", "1"] } },
+                    select: { id_profesional: true }
+                });
+                if (!profesionalExamenes) throw new Error("El profesional de examenes no existe o no esta activo");
+                profesionalId = PROFESIONAL_EXAMENES_ID;
             }
 
             citas.push({
@@ -132,7 +150,7 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
                 observacion: cita.observacion || null,
                 estado_cita: ESTADO_CITA_INICIAL,
                 priorizacion_clinica: cita.priorizacion_clinica,
-                priorizacion: PRIORIZACION_CLINICA_NUMERICA[cita.priorizacion_clinica],
+                priorizacion: calcularPriorizacionCita(cita.priorizacion_clinica, solicitud.usuario.priorizacion_administrativa),
                 centro_id: centroId,
                 fecha_creacion: fechaValidacion,
                 razon_rechazo: null

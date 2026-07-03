@@ -22,6 +22,9 @@ export interface SolicitudFiltros {
     estado?: string;
     tipoSolicitudId?: string;
     motivoId?: string;
+    sector?: string;
+    edadDesde?: string;
+    edadHasta?: string;
     centroId?: string;
     fechaDesde?: string;
     fechaHasta?: string;
