@@ -76,6 +76,7 @@ describe("crearSolicitud", () => {
             disponibilidad_llamada: "Solo AM",
             priorizacion_admin: 2.5,
             ultimo_control: "36",
+            accion: "En espera de validación",
             usuario: {
                 rut: "12345678-5",
                 nombre: "Paciente",
@@ -98,6 +99,7 @@ describe("crearSolicitud", () => {
         expect(arg.data.centro_id).toBe("650");
         expect(arg.data.priorizacion_admin).toBe(2.5);
         expect(arg.data.ultimo_control).toEqual(expect.any(String));
+        expect(arg.data.accion).toBe("En espera de validación");
         expect(prisma.solicitud.findFirst).toHaveBeenCalledWith(
             expect.objectContaining({
                 where: expect.objectContaining({

@@ -114,6 +114,7 @@ export async function crearSolicitud(input: CrearSolicitudInput) {
             disponibilidad_llamada: data.disponibilidad_llamada || null,
             priorizacion_admin: usuario.priorizacion_administrativa,
             ultimo_control: edadIngreso === null ? null : String(edadIngreso),
+            accion: "En espera de validación",
             estado_solicitud: "En Curso",
             fecha_inicio: fechaIngreso,
             centro_id: centroId
@@ -127,6 +128,7 @@ export async function crearSolicitud(input: CrearSolicitudInput) {
             disponibilidad_llamada: true,
             priorizacion_admin: true,
             ultimo_control: true,
+            accion: true,
             usuario: {
                 select: {
                     rut: true,

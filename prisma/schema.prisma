@@ -46,6 +46,7 @@ model Funcionario {
   solicitudesOrientador Solicitud[] @relation("SolicitudesOrientador")
   solicitudesGestor     Solicitud[] @relation("SolicitudesGestor")
   llamadasComunicador   Llamada[]   @relation("LlamadasComunicador")
+  citasGestor           Cita[]      @relation("CitasGestor")
 
   @@index([rol_id])
   @@map("funcionarios")
@@ -69,6 +70,7 @@ model Usuario {
   centro_id              String?     @db.VarChar(50)
   policonsultante        String?     @db.VarChar(50)
   solicitudes            Solicitud[]
+  citas                  Cita[]
 
   @@map("usuarios")
 }
@@ -144,6 +146,7 @@ model Solicitud {
   gestor                 Funcionario? @relation("SolicitudesGestor", fields: [rut_gestor], references: [rut])
   llamadas               Llamada[]
   estadisticas           Estadistica[]
+  citas                  Cita[]
 
   @@index([rut_usuario])
   @@index([estado_solicitud])
@@ -180,6 +183,7 @@ model Prestacion {
   nombre_prestacion String  @db.VarChar(100)
   estado            String  @default("Activo") @db.VarChar(50)
   profesional       Profesional @relation(fields: [profesional_id], references: [id_profesional])
+  citas             Cita[]
 
   @@index([profesional_id])
   @@map("prestaciones")
@@ -207,8 +211,39 @@ model Profesional {
   desarrollo           String? @db.VarChar(1)
   prestaciones         Prestacion[]
   estadisticas         Estadistica[]
+  citas                Cita[]
 
   @@map("profesionales")
+}
+
+model Cita {
+  id_cita                  String       @id @db.VarChar(50)
+  solicitud_id             String       @db.VarChar(50)
+  rut_usuario              String       @db.VarChar(50)
+  rut_gestor               String?      @db.VarChar(50)
+  tipo_prestacion          String       @db.VarChar(100)
+  profesional_id           Int?
+  prestacion_id            Int?
+  fecha_estimada_atencion  DateTime?    @db.Date
+  observacion              String?      @db.VarChar(500)
+  estado_cita              String?      @db.VarChar(50)
+  priorizacion_clinica     String?      @db.VarChar(50)
+  priorizacion             Int?
+  centro_id                String?      @db.VarChar(50)
+  fecha_creacion           DateTime     @default(now())
+  razon_rechazo            String?      @db.VarChar(150)
+  solicitud                Solicitud    @relation(fields: [solicitud_id], references: [id_solicitud])
+  usuario                  Usuario      @relation(fields: [rut_usuario], references: [rut])
+  gestor                   Funcionario? @relation("CitasGestor", fields: [rut_gestor], references: [rut])
+  profesional              Profesional? @relation(fields: [profesional_id], references: [id_profesional])
+  prestacion               Prestacion?  @relation(fields: [prestacion_id], references: [id_prestacion])
+
+  @@index([solicitud_id])
+  @@index([rut_usuario])
+  @@index([rut_gestor])
+  @@index([profesional_id])
+  @@index([prestacion_id])
+  @@map("citas")
 }
 
 model Estadistica {

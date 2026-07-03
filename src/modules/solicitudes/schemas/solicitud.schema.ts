@@ -20,7 +20,10 @@ export type CrearSolicitudInput = z.infer<typeof crearSolicitudSchema>;
 export interface SolicitudFiltros {
     rut?: string;
     estado?: string;
+    tipoSolicitudId?: string;
+    motivoId?: string;
     centroId?: string;
     fechaDesde?: string;
     fechaHasta?: string;
+    page?: number;
 }
