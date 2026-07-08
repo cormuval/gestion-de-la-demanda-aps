@@ -33,7 +33,8 @@ Modulos: `solicitudes`, `comunicador` (citas+llamados unificados), `dashboard`, 
 ## Entorno local
 
 1. `cp .env.example .env`; completar `AUTH_GOOGLE_ID/SECRET`, `AUTH_SECRET` (`npx auth secret`), `DATABASE_URL` (puerto 3308).
-2. `npm run services:up && npm run db:generate && npm run db:push && npm run db:seed`
+2. `npm run services:up && npm run db:generate && npm run db:push && npm run db:seed && npm run db:seed:ref`
+   - `db:seed`: roles, menus, funcionarios demo. `db:seed:ref`: datos de referencia reales (centros, profesionales, prestaciones, tipos, motivos) desde `prisma/seed-data/referencia.sql`.
 3. `npm run dev` → http://localhost:3000
 - Login Google requiere redirect URI `http://localhost:3000/api/auth/callback/google` registrado en el cliente OAuth.
 

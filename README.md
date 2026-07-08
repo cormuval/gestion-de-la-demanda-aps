@@ -35,8 +35,10 @@ Convenciones y arquitectura detalladas: ver [AGENTS.md](./AGENTS.md).
    ```
 4. Prepara la base:
    ```bash
-   npm run db:generate && npm run db:push && npm run db:seed
+   npm run db:generate && npm run db:push && npm run db:seed && npm run db:seed:ref
    ```
+   - `db:seed` crea roles, menus y funcionarios demo.
+   - `db:seed:ref` carga datos de referencia reales (centros, profesionales, prestaciones, tipos de solicitud y motivos) desde `prisma/seed-data/referencia.sql`.
 5. Inicia la app:
    ```bash
    npm run dev

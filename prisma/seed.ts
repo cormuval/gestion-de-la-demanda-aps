@@ -91,7 +91,7 @@ async function main() {
                 rol_id: role.id_rol,
                 estado: "Activo",
                 codigo: roleName.toUpperCase().replaceAll(" ", "_"),
-                centro_id: "CENTRO-01",
+                centro_id: "501",
                 programa_asociado: "Demanda",
                 invitacion_app: "Si",
                 password_hash
@@ -121,7 +121,7 @@ async function main() {
             genero: "No informado",
             telefono: "+56912345678",
             correo_contacto: "paciente.demo@local",
-            centro_id: "CENTRO-01"
+            centro_id: "501"
         }
     });
 
@@ -138,7 +138,7 @@ async function main() {
             disponibilidad_llamada: "Manana",
             priorizacion_admin: 1,
             estado_solicitud: "En Curso",
-            centro_id: "CENTRO-01"
+            centro_id: "501"
         }
     });
 
@@ -152,7 +152,7 @@ async function main() {
             rut_comunicador: "33.333.333-3",
             respuesta_usuario: "Sin llamadas",
             observacion: "Gestion demo pendiente.",
-            centro_id: "CENTRO-01"
+            centro_id: "501"
         }
     });
 }

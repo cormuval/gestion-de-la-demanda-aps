@@ -13,6 +13,7 @@
         "db:generate": "prisma generate",
         "db:push": "prisma db push",
         "db:seed": "prisma db seed",
+        "db:seed:ref": "prisma db execute --file prisma/seed-data/referencia.sql --schema prisma/schema.prisma",
         "db:studio": "prisma studio",
         "services:up": "docker compose up -d mysql",
         "services:down": "docker compose down"
