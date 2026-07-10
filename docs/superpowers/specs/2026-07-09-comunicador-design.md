@@ -258,3 +258,21 @@ src/app/(app)/comunicador/page.tsx   (Server Component: tabla + filtros)
 - Al cerrar la **última** citación pendiente de una solicitud, `estado_solicitud` pasa a `Realizado`; mientras queden citaciones pendientes, permanece `En Curso`. El cambio es atómico con el registro de la llamada.
 - Teléfonos y correo se muestran con los fallbacks exactos del documento.
 - No quedan referencias a la relación `Llamada ↔ Solicitud`.
+
+## 13. Deuda técnica / pendientes (próxima iteración)
+
+Registrado tras la implementación y la revisión final de rama. Nada de esto bloquea el uso del núcleo del módulo (cola, registro de llamadas, autocierre, cierre en cascada), pero debe atenderse en una iteración futura.
+
+### Del módulo comunicador
+- **Modal multi-cita (v0 oculto).** El `MultiCitaPanel` se desactivó en la página porque quedaba inalcanzable bajo el overlay del modal y su acción solo resolvía citas de la página/filtro actual de la cola. Los archivos (`components/MultiCitaPanel.tsx`, `actions/getCitasPendientesPaciente.action.ts`) se conservan. **Pendiente:** integrarlo dentro del propio modal (o por encima del overlay) y construir la cita objetivo desde la respuesta de `getCitasPendientesPaciente` (no desde `data.filas`).
+- **Filtro/listado de solicitudes "Realizado" en revisión.** La ripple planificada (§9) quedó obsoleta: la página `/solicitudes/revisar` (reescrita por el equipo) ya no tiene filtro de estado y `getSolicitudes` hardcodea `estado_solicitud = "En Curso"`. **Pendiente (decisión de producto + backend):** definir dónde/ cómo se ven las solicitudes cerradas (`Realizado`) y hacer el wire-up en `getSolicitudes`.
+- **Normalización de RUT vs almacenamiento.** `normalizarRut` quita puntos (`12345678-9`) pero los `usuarios.rut` sembrados usan puntos (`12.345.678-9`), por lo que los lookups por RUT (incluido `getContactoPaciente`) no matchean con datos punteados. Es el **mismo patrón preexistente** de `getUsuarioPorRut`/`getPendientes`. **Pendiente:** unificar la convención de RUT (almacenar normalizado o normalizar la comparación en BD) de forma transversal.
+- **`N+1` en `getCitasPendientesPaciente`.** Hace un `llamada.count` por cita en un loop. **Pendiente:** reemplazar por un `groupBy`.
+- **`AuditLogger` en actions de lectura.** `getCitasPendientesPaciente` y `getFiltrosComunicador` no auditan (sí lo hace `getCitasPendientes`). **Pendiente:** decidir consistencia de auditoría en el camino de lectura.
+- **Constantes de dominio.** El literal `"Realizado"` en `registrarLlamada` debería ser una constante compartida (p. ej. `ESTADO_SOLICITUD` en `types/comunicador.ts`). (El literal `"No contesta"` del SQL ya se pasó a `RESPUESTA_LLAMADA.NO_CONTESTA`.)
+- **Cobertura de tests.** Falta test para `registrarLlamada` de: `observacion` vacío → `null`, y `hora_agendada` presente con respuesta ≠ "Cita Aceptada" → `null`.
+- **Copy en ingreso.** La card de "citas pendientes" en `solicitudes/ingresar` enumera solo `Sin llamadas / No contesta (1) / (2)`; ahora `ESTADOS_PENDIENTES` también incluye `Solo llamada de aviso`. **Pendiente:** alinear el texto.
+
+### Fuera del alcance del módulo (contexto, código del equipo)
+- **Red preexistente heredada de `main`** (no introducida por este módulo, no corregida aquí): 6 errores de `tsc` en `src/modules/solicitudes/actions/guardarUsuario.action.test.ts` (string vs literal-union en `genero`/`discapacidad`) y 3 tests que fallan en `src/modules/solicitudes/actions/gestionarSolicitud.action.test.ts` por una `fecha_estimada_atencion` fija caducada ("anterior a hoy"). Impiden un "verde" a nivel de repo hasta que el equipo los atienda.
+- **RBAC a nivel de campo + rol Super Admin** (documento técnico §4): se mantiene fuera de alcance como tarea transversal (falta la matriz de las imágenes fuente).
