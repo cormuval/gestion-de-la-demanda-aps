@@ -144,7 +144,6 @@ model Solicitud {
   motivo                 Motivo?     @relation(fields: [motivo_id], references: [id_motivo])
   orientador             Funcionario? @relation("SolicitudesOrientador", fields: [rut_orientador], references: [rut])
   gestor                 Funcionario? @relation("SolicitudesGestor", fields: [rut_gestor], references: [rut])
-  llamadas               Llamada[]
   estadisticas           Estadistica[]
   citas                  Cita[]
 
@@ -158,16 +157,16 @@ model Solicitud {
 }
 
 model Llamada {
-  id_llamada        String      @id @db.VarChar(50)
-  cita_id           String?     @db.VarChar(50)
-  rut_usuario       String      @db.VarChar(50)
-  rut_comunicador   String?     @db.VarChar(50)
-  respuesta_usuario String      @default("Sin llamadas") @db.VarChar(50)
-  observacion       String?     @db.VarChar(350)
+  id_llamada        String       @id @db.VarChar(50)
+  cita_id           String       @db.VarChar(50)
+  rut_usuario       String       @db.VarChar(50)
+  rut_comunicador   String?      @db.VarChar(50)
+  respuesta_usuario String       @default("Sin llamadas") @db.VarChar(50)
+  observacion       String?      @db.VarChar(350)
   hora_agendada     DateTime?
   fecha_llamada     DateTime?
-  centro_id         String?     @db.VarChar(50)
-  solicitud         Solicitud?  @relation(fields: [cita_id], references: [id_solicitud])
+  centro_id         String?      @db.VarChar(50)
+  cita              Cita         @relation(fields: [cita_id], references: [id_cita])
   comunicador       Funcionario? @relation("LlamadasComunicador", fields: [rut_comunicador], references: [rut])
 
   @@index([cita_id])
@@ -237,12 +236,15 @@ model Cita {
   gestor                   Funcionario? @relation("CitasGestor", fields: [rut_gestor], references: [rut])
   profesional              Profesional? @relation(fields: [profesional_id], references: [id_profesional])
   prestacion               Prestacion?  @relation(fields: [prestacion_id], references: [id_prestacion])
+  llamadas                 Llamada[]
 
   @@index([solicitud_id])
   @@index([rut_usuario])
   @@index([rut_gestor])
   @@index([profesional_id])
   @@index([prestacion_id])
+  @@index([centro_id, estado_cita])
+  @@index([rut_usuario, estado_cita])
   @@map("citas")
 }
 
