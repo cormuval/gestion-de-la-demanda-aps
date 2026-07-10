@@ -5,15 +5,12 @@ import { toast } from "sonner";
 // actions
 import { getCitasPendientes, CitaFila } from "@/modules/comunicador/actions/getCitasPendientes.action";
 import { getFiltrosComunicador } from "@/modules/comunicador/actions/getFiltrosComunicador.action";
-import { getUsuarioPorRut } from "@/modules/solicitudes/actions/getUsuarioPorRut.action";
+import { getContactoPaciente } from "@/modules/comunicador/actions/getContactoPaciente.action";
 // components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { CitasFiltros, CitasFiltrosUI, FILTROS_INICIALES } from "@/modules/comunicador/components/CitasFiltros";
 import { CitasPendientesTabla } from "@/modules/comunicador/components/CitasPendientesTabla";
 import { RegistrarLlamadaModal } from "@/modules/comunicador/components/RegistrarLlamadaModal";
-import { MultiCitaPanel } from "@/modules/comunicador/components/MultiCitaPanel";
-// utils
-import { formatearTelefonos, formatearCorreo } from "@/modules/comunicador/utils/contacto";
 
 type Opciones = Awaited<ReturnType<typeof getFiltrosComunicador>>;
 
@@ -56,13 +53,10 @@ export default function ComunicadorPage() {
     async function abrirGestion(cita: CitaFila) {
         setCitaSel(cita);
         try {
-            const { usuario } = await getUsuarioPorRut(cita.rut_usuario);
-            setContacto({
-                telefonos: formatearTelefonos(usuario?.telefono, usuario?.telefono_alternativo),
-                correo: formatearCorreo(usuario?.correo_contacto)
-            });
+            const contacto = await getContactoPaciente(cita.rut_usuario);
+            setContacto(contacto);
         } catch {
-            setContacto({ telefonos: formatearTelefonos(null, null), correo: formatearCorreo(null) });
+            setContacto({ telefonos: "Sin telefono(s) registrados", correo: "Correo electrónico de contacto no registrado" });
         }
     }
 
@@ -120,18 +114,6 @@ export default function ComunicadorPage() {
                         cargar();
                     }}
                 />
-            )}
-            {citaSel && (
-                <div className="fixed bottom-4 right-4 z-20 w-80 rounded-lg border bg-card p-3 shadow-lg">
-                    <MultiCitaPanel
-                        rutUsuario={citaSel.rut_usuario}
-                        citaActualId={citaSel.id_cita}
-                        onGestionar={(id) => {
-                            const otra = data.filas.find((f) => f.id_cita === id);
-                            if (otra) abrirGestion(otra);
-                        }}
-                    />
-                </div>
             )}
         </div>
     );

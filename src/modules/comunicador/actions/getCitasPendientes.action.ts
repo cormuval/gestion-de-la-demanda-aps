@@ -12,7 +12,7 @@ import { citasFiltrosSchema } from "../schemas/llamada.schema";
 import { rangoTemporalidad } from "../utils/temporalidad";
 import { rangoEdadAFechaNacimiento } from "../utils/rangoEdadAFechaNacimiento";
 // types
-import { ESTADO_CITA, ESTADOS_PENDIENTES, ORDEN_ESTADOS_PENDIENTES } from "../types/comunicador";
+import { ESTADOS_PENDIENTES, ORDEN_ESTADOS_PENDIENTES, RESPUESTA_LLAMADA } from "../types/comunicador";
 
 const POR_PAGINA = 100;
 
@@ -83,7 +83,7 @@ export async function getCitasPendientes(filtros: unknown): Promise<{ filas: Cit
             pr.nombre_prestacion AS prestacion,
             c.fecha_estimada_atencion AS fecha_estimada_atencion,
             c.estado_cita AS estado_cita,
-            (SELECT COUNT(*) FROM llamadas ll WHERE ll.cita_id = c.id_cita AND ll.respuesta_usuario = 'No contesta') AS intentos
+            (SELECT COUNT(*) FROM llamadas ll WHERE ll.cita_id = c.id_cita AND ll.respuesta_usuario = ${RESPUESTA_LLAMADA.NO_CONTESTA}) AS intentos
         FROM citas c
         JOIN usuarios u ON u.rut = c.rut_usuario
         JOIN solicitudes s ON s.id_solicitud = c.solicitud_id
