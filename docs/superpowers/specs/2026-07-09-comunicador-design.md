@@ -16,6 +16,7 @@ Implementar el **Módulo del Comunicador**: donde un funcionario con rol de comu
 - Cola de citas pendientes por centro, priorizada.
 - Registro de llamadas con máquina de estados de la cita.
 - Autocierre por incontactabilidad (3 "No contesta").
+- **Cierre en cascada de la solicitud:** cuando se gestiona la última citación pendiente de una solicitud, la solicitud se cierra (`estado_solicitud` → `Realizado`).
 - Modal multi-cita: gestionar en un mismo llamado las demás citas pendientes del paciente.
 - Reglas de presentación de contacto (teléfonos/correo) portadas del documento.
 
@@ -116,6 +117,15 @@ Función pura `computeEstadoCita(estadoActual, intentosNoContestaPrevios, respue
 
 Registrar una llamada sobre una cita ya terminal debe rechazarse con error de negocio.
 
+### 4.5. Ciclo de vida de la Solicitud (cierre en cascada)
+
+Una solicitud aceptada (`accion = "Realizar solicitud"`) genera 1+ citaciones (`Cita`) y **permanece `estado_solicitud = "En Curso"` mientras tenga al menos una citación en estado pendiente** (§4.4).
+
+- Cada vez que una citación transiciona a un estado **terminal**, se evalúa la solicitud a la que pertenece (`Cita.solicitud_id`): se cuentan sus citaciones aún en estados pendientes.
+- Si el conteo llega a **0** (todas terminales), la solicitud se cierra: `estado_solicitud = "Realizado"`, **sin importar el desenlace** de cada citación (aceptadas y/o rechazadas).
+- Este cierre ocurre de forma **atómica** dentro de la misma transacción que registra la llamada y actualiza la citación (§6).
+- No afecta el camino de rechazo de la solicitud completa (`gestionarSolicitud` con `accion = "Rechazar solicitud"` → `estado_solicitud = "Rechazado"`, sin citaciones), que es previo a este módulo.
+
 ## 5. Flujo / UX (`/comunicador`)
 
 1. **Cola de citas pendientes** — Server Component; filtra por `centro_id` de la sesión; ordena por `priorizacion` desc y luego `fecha_estimada_atencion` asc. Cada fila muestra: nombre y RUT del paciente, **teléfonos** y **correo** (con fallbacks §7), prestación/profesional, fecha estimada, prioridad, `estado_cita` y número de intentos "No contesta".
@@ -133,8 +143,10 @@ Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAcce
   2. Cuenta `intentosNoContestaPrevios` (`llamadas` de la cita con `respuesta_usuario == "No contesta"`).
   3. Crea la `Llamada` (`id_llamada = LLAM-<uuid>`, `rut_comunicador = sesión`, `centro_id = cita.centro_id`, `fecha_llamada = now`, `hora_agendada` si aplica).
   4. Calcula el nuevo estado con `computeEstadoCita(...)` y actualiza `Cita.estado_cita`.
-  5. `AuditLogger.logDataAccess("UPDATE", ...)`.
+  5. **Cierre en cascada (§4.5):** si el nuevo `estado_cita` es terminal, cuenta las citaciones de la misma `solicitud_id` que sigan en estados pendientes; si el conteo es 0, actualiza `Solicitud.estado_solicitud = "Realizado"`.
+  6. `AuditLogger.logDataAccess("UPDATE", ...)`.
   - `input` (Zod): `cita_id`, `respuesta` (enum §4.1), `observacion?`, `hora_agendada?`.
+  - Devuelve el nuevo `estado_cita` y si la solicitud fue cerrada (`solicitudRealizada: boolean`) para el feedback de UI.
 
 ## 7. Reglas de negocio portadas (documento, bloque A validado)
 
@@ -155,6 +167,7 @@ Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAcce
 
 - **`getPendientes` (módulo solicitudes/ingreso):** hoy arma "citas pendientes" leyendo `llamadas → solicitud`. Al repuntar la FK a `Cita`, se **reescribe** para leer las `Cita` pendientes del paciente (`estado_cita` en el conjunto de pendientes) en vez de `llamadas`. Su test se actualiza en consecuencia.
 - Cualquier `include`/relación que asumiera `Llamada ↔ Solicitud` se ajusta a `Llamada ↔ Cita`.
+- **Nuevo valor `estado_solicitud = "Realizado"`:** al cerrar la última citación. Las solicitudes `Realizado` dejan de aparecer como pendientes en el ingreso (que filtra `En Curso`), comportamiento correcto. La pantalla de revisión (`/solicitudes/revisar`) hoy ofrece el filtro `"Finalizada"`; se debe **añadir/alinear** la opción `"Realizado"` en ese selector para que las solicitudes cerradas por el comunicador sean filtrables.
 
 ## 10. Estructura de carpetas
 
@@ -172,7 +185,7 @@ src/app/(app)/comunicador/page.tsx   (Server Component: cola)
 
 - **`estadoCita.ts`** — unit tests de todas las transiciones: No contesta 1/2/3 (autocierre), comodín aviso (desde `Sin llamadas` y desde `No contesta`), aceptada, cada rechazo; y que un estado terminal se rechaza.
 - **`contacto.ts`** — casos de teléfonos (ambos/uno/ninguno) y correo (con/sin).
-- **`registrarLlamada.action`** — Prisma mockeado: acceso por rol, cita inexistente/terminal, transición correcta, conteo de intentos.
+- **`registrarLlamada.action`** — Prisma mockeado: acceso por rol, cita inexistente/terminal, transición correcta, conteo de intentos, y **cierre en cascada** de la solicitud (cierra `Realizado` cuando era la última citación pendiente; permanece `En Curso` si quedan otras).
 - **`getCitasPendientes` / `getCitasPendientesPaciente`** — filtro por centro y estados pendientes.
 
 ## 12. Criterios de aceptación
@@ -182,5 +195,6 @@ src/app/(app)/comunicador/page.tsx   (Server Component: cola)
 - Tres "No contesta" cierran la cita como `Cita Rechazada (Sin respuesta)`.
 - Una "Llamada de aviso" no altera un estado `No contesta (1/2)` ni cuenta como intento; desde `Sin llamadas` deja `Solo llamada de aviso`.
 - El modal muestra las demás citas pendientes del paciente y permite gestionarlas.
+- Al cerrar la **última** citación pendiente de una solicitud, `estado_solicitud` pasa a `Realizado`; mientras queden citaciones pendientes, permanece `En Curso`. El cambio es atómico con el registro de la llamada.
 - Teléfonos y correo se muestran con los fallbacks exactos del documento.
 - No quedan referencias a la relación `Llamada ↔ Solicitud`.
