@@ -164,6 +164,14 @@ Al estilo del módulo de solicitudes. Los dos primeros filtros son parte de v0:
 
 Solo se listan estados **pendientes**: los estados terminales (cerrados) no aparecen ni en la tabla ni en este filtro.
 
+**c) Filtros adicionales** (clásicos; todos opcionales y combinables entre sí y con (a)/(b) mediante AND):
+- **Profesión** — select de profesionales activos del centro; filtra por `cita.profesional_id`.
+- **Prestación** — select **dependiente** de la profesión seleccionada (prestaciones activas de ese profesional, patrón análogo a tipo→motivo del módulo de solicitudes); filtra por `cita.prestacion_id`.
+- **Edad** — rango numérico `edad mínima` / `edad máxima` del paciente; se traduce a límites de `usuario.fecha_nacimiento` en la consulta mediante la util pura `rangoEdadAFechaNacimiento(min, max, hoy)` (testeable).
+- **Rango de fecha estimada** — `desde` / `hasta` sobre `cita.fecha_estimada_atencion`. Se combina (AND) con el filtro de **Temporalidad** (a) si ambos están activos.
+
+Las opciones de Profesión/Prestación se cargan con una action de apoyo (`getFiltrosComunicador`) o reutilizando los catálogos activos del centro ya existentes.
+
 ### 5.3. Registrar llamada (modal/panel)
 
 El modal muestra los datos de contacto del paciente — **teléfonos** y **correo** con los fallbacks exactos de §7 — para que el comunicador realice el llamado. Luego selecciona la **respuesta** (§4.1). Campos del formulario según la respuesta:
@@ -180,7 +188,8 @@ Al gestionar una cita, muestra las **demás citas pendientes del mismo paciente*
 
 Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAccederComunicador`) y `AuditLogger`.
 
-- **`getCitasPendientes(filtros, paginacion)`** — citas del `centro_id` de la sesión con `estado_cita` en el conjunto de pendientes; aplica los filtros de **temporalidad** y **estado** (§5.2); incluye `usuario`, `profesional`, `prestacion` y `solicitud` (para `disponibilidad_llamada`); ordena según §5.1 **a nivel de BD** (orden por `estado_cita` en cascada + `priorizacion` desc). Devuelve la página (≤100 filas), el `total` para paginar, y el conteo de intentos por cita. El orden en cascada por estado se resuelve en la consulta (p. ej. `ORDER BY FIELD(estado_cita, 'No contesta (2)','No contesta (1)','Solo llamada de aviso','Sin llamadas'), priorizacion DESC`).
+- **`getFiltrosComunicador()`** — opciones para los selects de filtro: profesionales activos del centro y sus prestaciones (para el filtro dependiente Profesión→Prestación).
+- **`getCitasPendientes(filtros, paginacion)`** — citas del `centro_id` de la sesión con `estado_cita` en el conjunto de pendientes; aplica **todos** los filtros de §5.2 (temporalidad, estado, profesión, prestación, edad, rango de fecha estimada); incluye `usuario`, `profesional`, `prestacion` y `solicitud` (para `disponibilidad_llamada`); ordena según §5.1 **a nivel de BD** (orden por `estado_cita` en cascada + `priorizacion` desc). Devuelve la página (≤100 filas), el `total` para paginar, y el conteo de intentos por cita. El orden en cascada por estado se resuelve en la consulta (p. ej. `ORDER BY FIELD(estado_cita, 'No contesta (2)','No contesta (1)','Solo llamada de aviso','Sin llamadas'), priorizacion DESC`).
 - **`getCitasPendientesPaciente(rutUsuario, citaActualId)`** — citas pendientes del paciente en el centro, excluyendo `citaActualId` (para el modal multi-cita).
 - **`registrarLlamada(input)`** — dentro de `prisma.$transaction`:
   1. Carga la cita (debe existir, pertenecer al centro de la sesión y **no** estar en estado terminal).
@@ -218,11 +227,11 @@ Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAcce
 
 ```
 src/modules/comunicador/
-  actions/    getCitasPendientes.action.ts · getCitasPendientesPaciente.action.ts · registrarLlamada.action.ts (+ tests)
+  actions/    getCitasPendientes.action.ts · getCitasPendientesPaciente.action.ts · getFiltrosComunicador.action.ts · registrarLlamada.action.ts (+ tests)
   components/ CitasPendientesTabla.tsx · CitasFiltros.tsx · RegistrarLlamadaModal.tsx · MultiCitaPanel.tsx
   schemas/    llamada.schema.ts
   types/      comunicador.ts (estados, respuestas, opciones de temporalidad as const)
-  utils/      estadoCita.ts (+ test) · contacto.ts (+ test) · temporalidad.ts (+ test)
+  utils/      estadoCita.ts (+ test) · contacto.ts (+ test) · temporalidad.ts (+ test) · rangoEdadAFechaNacimiento.ts (+ test)
 src/app/(app)/comunicador/page.tsx   (Server Component: tabla + filtros)
 ```
 
@@ -231,6 +240,7 @@ src/app/(app)/comunicador/page.tsx   (Server Component: tabla + filtros)
 - **`estadoCita.ts`** — unit tests de todas las transiciones: No contesta 1/2/3 (autocierre), comodín aviso (desde `Sin llamadas` y desde `No contesta`), aceptada, cada rechazo; y que un estado terminal se rechaza.
 - **`contacto.ts`** — casos de teléfonos (ambos/uno/ninguno) y correo (con/sin).
 - **`temporalidad.ts`** — límites de cada partición (próximos `hoy−15..hoy+30`, futuros `≥hoy+31`, atrasados `<hoy−15`), incluyendo los bordes exactos.
+- **`rangoEdadAFechaNacimiento.ts`** — traducción de rango de edad (mín/máx) a límites de `fecha_nacimiento`, incluyendo solo-mín, solo-máx y bordes de cumpleaños.
 - **`llamada.schema`** — `hora_agendada` obligatoria solo con `respuesta == "Cita Aceptada"`; opcional/ignorada en el resto; `observacion` opcional siempre.
 - **`registrarLlamada.action`** — Prisma mockeado: acceso por rol, cita inexistente/terminal, transición correcta, conteo de intentos, y **cierre en cascada** de la solicitud (cierra `Realizado` cuando era la última citación pendiente; permanece `En Curso` si quedan otras).
 - **`getCitasPendientes` / `getCitasPendientesPaciente`** — filtro por centro y estados pendientes.
@@ -239,7 +249,7 @@ src/app/(app)/comunicador/page.tsx   (Server Component: tabla + filtros)
 
 - `npm run lint`, `npx tsc --noEmit`, `npm test` en verde.
 - Un comunicador ve, en **tabla paginada (100/página)**, las citas pendientes de su centro con las columnas de §5.1, ordenadas por defecto por estado en cascada (`No contesta (2)`→`(1)`→`Solo llamada de aviso`→`Sin llamadas`) y `priorizacion` desc dentro de cada grupo.
-- Los filtros de **temporalidad** (próximos/futuros/atrasados según §5.2) y **estado** funcionan y solo listan estados pendientes.
+- Los filtros de **temporalidad**, **estado**, **profesión**, **prestación**, **edad** (rango) y **rango de fecha estimada** (§5.2) funcionan, son combinables (AND) y solo listan estados pendientes. Prestación depende de la profesión seleccionada.
 - En el registro: `observacion` está disponible y es opcional en todas las respuestas; `hora_agendada` aparece y es **obligatoria únicamente** en `"Cita Aceptada"`.
 - Registrar una llamada transiciona el `estado_cita` según §4.
 - Tres "No contesta" cierran la cita como `Cita Rechazada (Sin respuesta)`.
