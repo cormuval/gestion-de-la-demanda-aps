@@ -107,7 +107,7 @@ function toUsuarioForm(usuario: SolicitudRow["usuario"]): UsuarioEditFormState {
 }
 
 export default function RevisarSolicitudesPage() {
-    const [filters, setFilters] = useState<SolicitudFiltros>({ rut: "", estado: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", page: 1 });
+    const [filters, setFilters] = useState<SolicitudFiltros>({ rut: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", page: 1 });
     const [data, setData] = useState<SolicitudesResponse>(emptyResponse);
     const [catalogos, setCatalogos] = useState<RevisionCatalogos>(emptyCatalogos);
     const [loading, setLoading] = useState(false);
@@ -329,13 +329,6 @@ export default function RevisarSolicitudesPage() {
                     <form className="grid gap-4 md:grid-cols-4 xl:grid-cols-8" onSubmit={handleSubmit}>
                         <Field label="RUT">
                             <Input value={filters.rut ?? ""} onChange={(e) => updateFilter("rut", e.target.value)} />
-                        </Field>
-                        <Field label="Estado">
-                            <Select value={filters.estado ?? ""} onChange={(e) => updateFilter("estado", e.target.value)}>
-                                <option value="">Todos</option>
-                                <option value="En Curso">En Curso</option>
-                                <option value="Realizado">Realizado</option>
-                            </Select>
                         </Field>
                         <Field label="Tipo solicitud">
                             <Select value={filters.tipoSolicitudId ?? ""} onChange={(e) => updateFilter("tipoSolicitudId", e.target.value)}>
