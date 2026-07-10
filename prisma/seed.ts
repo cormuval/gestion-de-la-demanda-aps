@@ -142,12 +142,28 @@ async function main() {
         }
     });
 
+    await prisma.cita.upsert({
+        where: { id_cita: "CITA-DEMO-001" },
+        update: {},
+        create: {
+            id_cita: "CITA-DEMO-001",
+            solicitud_id: "SOL-DEMO-001",
+            rut_usuario: "12.345.678-9",
+            rut_gestor: "22.222.222-2",
+            tipo_prestacion: "Agendar una hora con profesional",
+            fecha_estimada_atencion: null,
+            estado_cita: "Sin llamadas",
+            priorizacion: 1,
+            centro_id: "501"
+        }
+    });
+
     await prisma.llamada.upsert({
         where: { id_llamada: "LLAM-DEMO-001" },
         update: {},
         create: {
             id_llamada: "LLAM-DEMO-001",
-            cita_id: "SOL-DEMO-001",
+            cita_id: "CITA-DEMO-001",
             rut_usuario: "12.345.678-9",
             rut_comunicador: "33.333.333-3",
             respuesta_usuario: "Sin llamadas",

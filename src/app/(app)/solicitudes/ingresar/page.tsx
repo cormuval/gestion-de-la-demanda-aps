@@ -331,8 +331,8 @@ export default function IngresarSolicitudPage() {
                             {pendientes.citasPendientes.length === 0 ? (
                                 <EmptyState text="No hay citas o llamadas pendientes para este RUT." />
                             ) : (
-                                pendientes.citasPendientes.map((l) => (
-                                    <PendingRow key={l.id_llamada} title={l.id_llamada} badge={l.respuesta_usuario} description={l.observacion || l.solicitud?.descripcion} />
+                                pendientes.citasPendientes.map((c) => (
+                                    <PendingRow key={c.id_cita} title={c.id_cita} badge={c.estado_cita ?? "Sin estado"} description={c.observacion || c.solicitud?.descripcion} />
                                 ))
                             )}
                         </CardContent>
