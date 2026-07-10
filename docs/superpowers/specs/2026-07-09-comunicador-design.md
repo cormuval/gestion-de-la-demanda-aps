@@ -128,15 +128,59 @@ Una solicitud aceptada (`accion = "Realizar solicitud"`) genera 1+ citaciones (`
 
 ## 5. Flujo / UX (`/comunicador`)
 
-1. **Cola de citas pendientes** — Server Component; filtra por `centro_id` de la sesión; ordena por `priorizacion` desc y luego `fecha_estimada_atencion` asc. Cada fila muestra: nombre y RUT del paciente, **teléfonos** y **correo** (con fallbacks §7), prestación/profesional, fecha estimada, prioridad, `estado_cita` y número de intentos "No contesta".
-2. **Registrar llamada** (modal/panel): el comunicador selecciona la **respuesta** (§4.1), `observacion` opcional (máx 350) y `hora_agendada` opcional. `hora_agendada` se captura en `"Cita Aceptada"` (fecha/hora acordada de atención). Al guardar → Server Action transaccional (§6) y refresco de la cola.
-3. **Modal multi-cita:** al gestionar una cita, muestra las **demás citas pendientes del mismo paciente** (mismo centro), permitiendo registrar llamadas sobre ellas sin salir del flujo (patrón análogo a `getOtrasSolicitudes` + modal ya existentes en el módulo de revisión).
+### 5.1. Vista principal — tabla de citaciones pendientes
+
+Server Component; filtra por `centro_id` de la sesión y muestra **solo citas en estados pendientes** (§4.4). Presentación en **tabla paginada**: 100 filas por página, con **paginación en el servidor** para no sobrecargar cliente ni servidor.
+
+**Columnas (v0):**
+- **Código** — `id_cita` (abreviado si es muy largo).
+- **Priorización** — `cita.priorizacion`.
+- **Disponibilidad** — disponibilidad del paciente para el llamado, desde `solicitud.disponibilidad_llamada`.
+- **RUT del usuario** — `rut_usuario`.
+- **Profesión** — `profesional.nombre`.
+- **Prestación** — `prestacion.nombre_prestacion` (vacío para citaciones de exámenes).
+- **Fecha estimada** — `fecha_estimada_atencion`.
+
+**Orden por defecto (en cascada, aplicado a nivel de BD para paginar correctamente):**
+1. Por `estado_cita`, en este orden: `No contesta (2)` → `No contesta (1)` → `Solo llamada de aviso` → `Sin llamadas`.
+2. Dentro de cada grupo: `priorizacion` **descendente**.
+
+La tabla permite además reordenar por columnas (orden en cascada) a solicitud del usuario; el anterior es el orden inicial.
+
+### 5.2. Filtros
+
+Al estilo del módulo de solicitudes. Los dos primeros filtros son parte de v0:
+
+**a) Temporalidad** — select dinámico; clasifica por `fecha_estimada_atencion` respecto de hoy:
+- **Todas**
+- **Agendamientos próximos** — fecha estimada entre `hoy − 15 días` y `hoy + 30 días` (inclusive).
+- **Agendamientos futuros** — fecha estimada `≥ hoy + 31 días`.
+- **Agendamientos atrasados** — fecha estimada `< hoy − 15 días` (más de 15 días de atraso).
+
+(Las tres particiones son contiguas y no se solapan.) Se implementa como util pura `rangoTemporalidad(opcion, hoy)` (testeable) que produce el `where` de fechas.
+
+**b) Estado de la citación** — select:
+- **Todas** · **Sin llamadas** · **No contesta (1)** · **No contesta (2)** · **Solo llamada de aviso**
+
+Solo se listan estados **pendientes**: los estados terminales (cerrados) no aparecen ni en la tabla ni en este filtro.
+
+### 5.3. Registrar llamada (modal/panel)
+
+El modal muestra los datos de contacto del paciente — **teléfonos** y **correo** con los fallbacks exactos de §7 — para que el comunicador realice el llamado. Luego selecciona la **respuesta** (§4.1). Campos del formulario según la respuesta:
+- **`observacion`** (máx 350) — se muestra y es **opcional** para **todas** las respuestas.
+- **`hora_agendada`** (fecha/hora acordada de atención) — se muestra y es **obligatoria solo** cuando la respuesta es `"Cita Aceptada"`; para el resto **no se muestra** y se ignora.
+
+Al guardar → Server Action transaccional (§6) y refresco de la tabla.
+
+### 5.4. Modal multi-cita
+
+Al gestionar una cita, muestra las **demás citas pendientes del mismo paciente** (mismo centro), permitiendo registrar llamadas sobre ellas sin salir del flujo (patrón análogo a `getOtrasSolicitudes` + modal ya existentes en el módulo de revisión).
 
 ## 6. Server Actions (`src/modules/comunicador/actions/`)
 
 Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAccederComunicador`) y `AuditLogger`.
 
-- **`getCitasPendientes()`** — citas del `centro_id` de la sesión con `estado_cita` en el conjunto de pendientes; incluye `usuario`, `profesional`, `prestacion`; ordenadas por `priorizacion` desc, `fecha_estimada_atencion` asc. Devuelve además el conteo de intentos por cita.
+- **`getCitasPendientes(filtros, paginacion)`** — citas del `centro_id` de la sesión con `estado_cita` en el conjunto de pendientes; aplica los filtros de **temporalidad** y **estado** (§5.2); incluye `usuario`, `profesional`, `prestacion` y `solicitud` (para `disponibilidad_llamada`); ordena según §5.1 **a nivel de BD** (orden por `estado_cita` en cascada + `priorizacion` desc). Devuelve la página (≤100 filas), el `total` para paginar, y el conteo de intentos por cita. El orden en cascada por estado se resuelve en la consulta (p. ej. `ORDER BY FIELD(estado_cita, 'No contesta (2)','No contesta (1)','Solo llamada de aviso','Sin llamadas'), priorizacion DESC`).
 - **`getCitasPendientesPaciente(rutUsuario, citaActualId)`** — citas pendientes del paciente en el centro, excluyendo `citaActualId` (para el modal multi-cita).
 - **`registrarLlamada(input)`** — dentro de `prisma.$transaction`:
   1. Carga la cita (debe existir, pertenecer al centro de la sesión y **no** estar en estado terminal).
@@ -145,7 +189,7 @@ Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAcce
   4. Calcula el nuevo estado con `computeEstadoCita(...)` y actualiza `Cita.estado_cita`.
   5. **Cierre en cascada (§4.5):** si el nuevo `estado_cita` es terminal, cuenta las citaciones de la misma `solicitud_id` que sigan en estados pendientes; si el conteo es 0, actualiza `Solicitud.estado_solicitud = "Realizado"`.
   6. `AuditLogger.logDataAccess("UPDATE", ...)`.
-  - `input` (Zod): `cita_id`, `respuesta` (enum §4.1), `observacion?`, `hora_agendada?`.
+  - `input` (Zod): `cita_id`, `respuesta` (enum §4.1), `observacion?` (opcional en todas las respuestas), y `hora_agendada` **obligatoria si `respuesta == "Cita Aceptada"`** e ignorada en el resto (validación condicional con `superRefine`).
   - Devuelve el nuevo `estado_cita` y si la solicitud fue cerrada (`solicitudRealizada: boolean`) para el feedback de UI.
 
 ## 7. Reglas de negocio portadas (documento, bloque A validado)
@@ -153,6 +197,7 @@ Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAcce
 - **Contacto (utils):**
   - `formatearTelefonos(t1, t2)`: si ambos existen → `` `${t1} - ${t2}` ``; si solo uno → ese; si ambos nulos → `"Sin telefono(s) registrados"`.
   - `formatearCorreo(correoContacto)`: si existe → ese; si nulo → literal exacto `"Correo electrónico de contacto no registrado"`.
+  - Se usan en el modal de registro de llamada (§5.3).
 - **Priorización / edad:** se reutiliza `src/modules/solicitudes/utils/priorizacion.ts` (validado). La `priorizacion` de la cita ya viene calculada desde `gestionarSolicitud`; el comunicador solo la muestra/ordena.
 - **RUT:** `normalizarRut` (util existente) para búsquedas por paciente.
 - **Multi-tenancy:** todo el filtrado por `centro_id` ocurre en el servidor (Server Components / Server Actions) antes de enviar datos al cliente. El `centro_id` proviene de la sesión.
@@ -174,24 +219,29 @@ Todas con `'use server'`, validación Zod, control de acceso por rol (`puedeAcce
 ```
 src/modules/comunicador/
   actions/    getCitasPendientes.action.ts · getCitasPendientesPaciente.action.ts · registrarLlamada.action.ts (+ tests)
-  components/ CitasPendientesTabla.tsx · RegistrarLlamadaModal.tsx · MultiCitaPanel.tsx
+  components/ CitasPendientesTabla.tsx · CitasFiltros.tsx · RegistrarLlamadaModal.tsx · MultiCitaPanel.tsx
   schemas/    llamada.schema.ts
-  types/      comunicador.ts (estados, respuestas as const)
-  utils/      estadoCita.ts (+ test) · contacto.ts (+ test)
-src/app/(app)/comunicador/page.tsx   (Server Component: cola)
+  types/      comunicador.ts (estados, respuestas, opciones de temporalidad as const)
+  utils/      estadoCita.ts (+ test) · contacto.ts (+ test) · temporalidad.ts (+ test)
+src/app/(app)/comunicador/page.tsx   (Server Component: tabla + filtros)
 ```
 
 ## 11. Testing
 
 - **`estadoCita.ts`** — unit tests de todas las transiciones: No contesta 1/2/3 (autocierre), comodín aviso (desde `Sin llamadas` y desde `No contesta`), aceptada, cada rechazo; y que un estado terminal se rechaza.
 - **`contacto.ts`** — casos de teléfonos (ambos/uno/ninguno) y correo (con/sin).
+- **`temporalidad.ts`** — límites de cada partición (próximos `hoy−15..hoy+30`, futuros `≥hoy+31`, atrasados `<hoy−15`), incluyendo los bordes exactos.
+- **`llamada.schema`** — `hora_agendada` obligatoria solo con `respuesta == "Cita Aceptada"`; opcional/ignorada en el resto; `observacion` opcional siempre.
 - **`registrarLlamada.action`** — Prisma mockeado: acceso por rol, cita inexistente/terminal, transición correcta, conteo de intentos, y **cierre en cascada** de la solicitud (cierra `Realizado` cuando era la última citación pendiente; permanece `En Curso` si quedan otras).
 - **`getCitasPendientes` / `getCitasPendientesPaciente`** — filtro por centro y estados pendientes.
 
 ## 12. Criterios de aceptación
 
 - `npm run lint`, `npx tsc --noEmit`, `npm test` en verde.
-- Un comunicador ve la cola priorizada de su centro y registra llamadas que transicionan el `estado_cita` según §4.
+- Un comunicador ve, en **tabla paginada (100/página)**, las citas pendientes de su centro con las columnas de §5.1, ordenadas por defecto por estado en cascada (`No contesta (2)`→`(1)`→`Solo llamada de aviso`→`Sin llamadas`) y `priorizacion` desc dentro de cada grupo.
+- Los filtros de **temporalidad** (próximos/futuros/atrasados según §5.2) y **estado** funcionan y solo listan estados pendientes.
+- En el registro: `observacion` está disponible y es opcional en todas las respuestas; `hora_agendada` aparece y es **obligatoria únicamente** en `"Cita Aceptada"`.
+- Registrar una llamada transiciona el `estado_cita` según §4.
 - Tres "No contesta" cierran la cita como `Cita Rechazada (Sin respuesta)`.
 - Una "Llamada de aviso" no altera un estado `No contesta (1/2)` ni cuenta como intento; desde `Sin llamadas` deja `Solo llamada de aviso`.
 - El modal muestra las demás citas pendientes del paciente y permite gestionarlas.
