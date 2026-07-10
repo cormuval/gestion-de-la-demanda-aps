@@ -6,8 +6,8 @@ import { puedeAccederSolicitudes } from "@/shared/lib/access";
 import { AuditLogger } from "@/shared/lib/logger";
 // utils
 import { normalizarRut } from "../utils/rut";
-
-const ESTADOS_CITAS_PENDIENTES = ["Sin llamadas", "No contesta (1)", "No contesta (2)"];
+// types
+import { ESTADOS_PENDIENTES } from "@/modules/comunicador/types/comunicador";
 
 export async function getPendientes(rutUsuario: string) {
     const user = await requireSessionUser();
@@ -22,10 +22,10 @@ export async function getPendientes(rutUsuario: string) {
             include: { tipoSolicitud: true, motivo: true },
             orderBy: { fecha_inicio: "desc" }
         }),
-        prisma.llamada.findMany({
-            where: { rut_usuario: rut, respuesta_usuario: { in: ESTADOS_CITAS_PENDIENTES } },
-            include: { solicitud: { include: { tipoSolicitud: true, motivo: true } }, comunicador: true },
-            orderBy: [{ fecha_llamada: "desc" }, { id_llamada: "desc" }]
+        prisma.cita.findMany({
+            where: { rut_usuario: rut, estado_cita: { in: [...ESTADOS_PENDIENTES] } },
+            include: { solicitud: { include: { tipoSolicitud: true, motivo: true } }, profesional: true, prestacion: true },
+            orderBy: [{ priorizacion: "desc" }, { fecha_creacion: "desc" }]
         })
     ]);
 
