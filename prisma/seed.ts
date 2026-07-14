@@ -10,35 +10,29 @@ type MenuTuple = [nombre: string, ruta: string, descripcion: string];
 const roleMenus: Record<string, MenuTuple[]> = {
     Administrador: [
         ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Gestion de Citas", "/comunicador", "Agenda y seguimiento de citas"],
-        ["Llamados", "/comunicador", "Gestion de llamadas"],
+        ["Llamadas", "/comunicador", "Gestion de llamadas"],
         ["Dashboard", "/dashboard", "Indicadores principales"],
         ["Configuracion", "/configuracion/usuarios-roles", "Usuarios, roles y catalogos"]
     ],
     Orientador: [
         ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Gestion de Citas", "/comunicador", "Agenda y seguimiento de citas"]
+        ["Llamadas", "/comunicador", "Gestion de llamadas"]
     ],
-    Comunicador: [["Llamados", "/comunicador", "Gestion de llamadas"]],
+    Comunicador: [["Llamadas", "/comunicador", "Gestion de llamadas"]],
     SOME: [
         ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Gestion de Citas", "/comunicador", "Agenda y seguimiento de citas"],
-        ["Llamados", "/comunicador", "Gestion de llamadas"],
+        ["Llamadas", "/comunicador", "Gestion de llamadas"],
         ["Dashboard", "/dashboard", "Indicadores principales"],
         ["Usuarios y Roles", "/configuracion/usuarios-roles", "Configuracion permitida para SOME"]
     ],
     "Orientador y Comunicador": [
         ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Llamados", "/comunicador", "Gestion de llamadas"]
+        ["Llamadas", "/comunicador", "Gestion de llamadas"]
     ],
-    "Gestor y Comunicador": [
-        ["Gestion de Citas", "/comunicador", "Agenda y seguimiento de citas"],
-        ["Llamados", "/comunicador", "Gestion de llamadas"]
-    ],
+    "Gestor y Comunicador": [["Llamadas", "/comunicador", "Gestion de llamadas"]],
     Full: [
         ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Gestion de Citas", "/comunicador", "Agenda y seguimiento de citas"],
-        ["Llamados", "/comunicador", "Gestion de llamadas"],
+        ["Llamadas", "/comunicador", "Gestion de llamadas"],
         ["Dashboard", "/dashboard", "Indicadores principales"]
     ]
 };
