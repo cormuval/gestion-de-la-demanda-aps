@@ -5,6 +5,10 @@ const prisma = new PrismaClient();
 
 const PASSWORD = "demo123";
 
+// Datos demo (funcionarios .local + paciente/solicitud/cita/llamada de prueba).
+// En produccion se desactiva con SEED_DEMO=false; por defecto activo (no cambia dev).
+const SEED_DEMO = process.env.SEED_DEMO !== "false";
+
 type MenuTuple = [nombre: string, ruta: string, descripcion: string];
 
 const roleMenus: Record<string, MenuTuple[]> = {
@@ -37,21 +41,32 @@ const roleMenus: Record<string, MenuTuple[]> = {
     ]
 };
 
-const funcionarios: [rut: string, email: string, nombre: string, roleName: string][] = [
+type FuncionarioTuple = [rut: string, email: string, nombre: string, roleName: string];
+
+// Funcionarios reales: se siembran siempre (dev y produccion).
+const funcionariosReales: FuncionarioTuple[] = [
+    ["10.000.000-0", "rvergara@cmvalparaiso.cl", "Renzo Vergara", "Administrador"],
+    ["15.000.000-0", "dsantibanez@cmvalparaiso.cl", "Daniel Santibanez", "Administrador"]
+];
+
+// Funcionarios demo (.local): solo cuando SEED_DEMO esta activo.
+const funcionariosDemo: FuncionarioTuple[] = [
     ["11.111.111-1", "admin@demo.local", "Administrador Demo", "Administrador"],
     ["22.222.222-2", "orientador@demo.local", "Orientador Demo", "Orientador"],
     ["33.333.333-3", "comunicador@demo.local", "Comunicador Demo", "Comunicador"],
     ["44.444.444-4", "some@demo.local", "SOME Demo", "SOME"],
     ["55.555.555-5", "orientador.comunicador@demo.local", "Orientador Comunicador Demo", "Orientador y Comunicador"],
     ["66.666.666-6", "gestor.comunicador@demo.local", "Gestor Comunicador Demo", "Gestor y Comunicador"],
-    ["77.777.777-7", "full@demo.local", "Full Demo", "Full"],
-    ["10.000.000-0", "rvergara@cmvalparaiso.cl", "Renzo Vergara", "Administrador"],
-    ["15.000.000-0", "dsantibanez@cmvalparaiso.cl", "Daniel Santibanez", "Administrador"]
+    ["77.777.777-7", "full@demo.local", "Full Demo", "Full"]
 ];
 
 async function main() {
+    console.log(`Seed: modo ${SEED_DEMO ? "completo (roles + menus + funcionarios reales + demo)" : "produccion (roles + menus + funcionarios reales)"}`);
+
     const password_hash = await bcrypt.hash(PASSWORD, 10);
     const roleByName = new Map<string, { id_rol: number }>();
+
+    const funcionarios = SEED_DEMO ? [...funcionariosReales, ...funcionariosDemo] : funcionariosReales;
 
     const roleNames = Object.keys(roleMenus);
     for (const roleName of roleNames) {
@@ -93,6 +108,11 @@ async function main() {
         });
     }
 
+    if (!SEED_DEMO) {
+        return;
+    }
+
+    // ----- Datos demo (solo con SEED_DEMO): dependen de funcionarios .local -----
     const tipoSolicitud = await prisma.tipoSolicitud.upsert({
         where: { id_tipo_solicitud: 1 },
         update: { nombre_tipo_solicitud: "Atencion general", estado: "Activo" },

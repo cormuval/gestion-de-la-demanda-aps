@@ -1,0 +1,59 @@
+name: Deploy Produccion
+
+# Se ejecuta en el runner self-hosted instalado en el servidor de produccion
+# (label `produccion`). Al vivir en el mismo host, se conecta a MySQL por
+# localhost (el usuario `gestion-demanda` es solo-localhost).
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+        inputs:
+            seed_referencia:
+                description: "Cargar/actualizar datos de referencia (centros, prestaciones, tipos, motivos)"
+                type: boolean
+                default: false
+
+# Un deploy a la vez; no cancelar uno en curso (evita dejar la BD a medio migrar).
+concurrency:
+    group: deploy-produccion
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        runs-on: [self-hosted, produccion]
+        environment: produccion
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Generar .env desde secret
+              env:
+                  ENV_PRODUCTION: ${{ secrets.ENV_PRODUCTION }}
+              run: printf '%s\n' "$ENV_PRODUCTION" > .env
+
+            - name: Instalar dependencias
+              run: npm ci
+
+            - name: Generar Prisma Client
+              run: npm run db:generate
+
+            - name: Aplicar migraciones
+              run: npx prisma migrate deploy
+
+            - name: Seed estructural (roles, menus, funcionarios reales)
+              env:
+                  SEED_DEMO: "false"
+              run: npm run db:seed
+
+            - name: Seed de referencia (solo si se activa manualmente)
+              if: ${{ github.event_name == 'workflow_dispatch' && inputs.seed_referencia }}
+              run: npm run db:seed:ref
+
+            - name: Build
+              run: npm run build
+
+            - name: Publicar con pm2
+              run: |
+                  pm2 startOrReload ecosystem.config.js --update-env
+                  pm2 save
