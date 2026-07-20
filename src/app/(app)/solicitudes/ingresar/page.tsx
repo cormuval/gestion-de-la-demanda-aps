@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Pencil, Plus, Printer, Search, X } from "lucide-react";
+import { Pencil, Plus, Printer, Search, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getCatalogos } from "@/modules/catalogos/actions/getCatalogos.action";
@@ -13,7 +13,7 @@ import { crearSolicitud } from "@/modules/solicitudes/actions/crearSolicitud.act
 // schemas
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
-import { Badge } from "@/shared/components/ui/badge";
+import { PendientesCascada } from "@/modules/solicitudes/components/PendientesCascada";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
@@ -294,51 +294,7 @@ export default function IngresarSolicitudPage() {
                 </CardContent>
             </Card>
 
-            {pendientes && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Solicitudes pendientes</CardTitle>
-                            <CardDescription>Estado de solicitud En Curso.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {pendientes.solicitudesPendientes.length === 0 ? (
-                                <EmptyState text="No hay solicitudes En Curso para este RUT." />
-                            ) : (
-                                pendientes.solicitudesPendientes.map((s) => (
-                                    <PendingRow
-                                        key={s.id_solicitud}
-                                        title={s.id_solicitud}
-                                        badge={s.estado_solicitud}
-                                        description={[
-                                            `Fecha inicio: ${formatFecha(s.fecha_inicio)}`,
-                                            `Tipo solicitud: ${s.tipoSolicitud?.nombre_tipo_solicitud || "-"}`,
-                                            `Motivo: ${s.motivo?.nombre_motivo || "-"}`
-                                        ].join(" · ")}
-                                        detail={s.descripcion}
-                                    />
-                                ))
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Citas pendientes</CardTitle>
-                            <CardDescription>Estados de llamada pendientes definidos para la primera etapa.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {pendientes.citasPendientes.length === 0 ? (
-                                <EmptyState text="No hay citas o llamadas pendientes para este RUT." />
-                            ) : (
-                                pendientes.citasPendientes.map((c) => (
-                                    <PendingRow key={c.id_cita} title={c.id_cita} badge={c.estado_cita ?? "Sin estado"} description={c.observacion || c.solicitud?.descripcion} />
-                                ))
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+            {pendientes && <PendientesCascada pendientes={pendientes} />}
 
             {usuarioConfirmado && (
                 <Card>
@@ -702,33 +658,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     );
 }
 
-function EmptyState({ text }: { text: string }) {
-    return (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            <CheckCircle2 size={16} />
-            {text}
-        </div>
-    );
-}
-
-function formatFecha(value: Date | string): string {
-    return new Date(value).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function PendingRow({ title, badge, description, detail }: { title: string; badge: string; description?: string | null; detail?: string | null }) {
-    return (
-        <div className="rounded-md border p-3">
-            <div className="flex items-start justify-between gap-3">
-                <div>
-                    <p className="text-sm font-medium">{title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{description || "Sin observacion"}</p>
-                    {detail && <p className="mt-1 text-sm text-muted-foreground">{detail}</p>}
-                </div>
-                <Badge variant="warning">
-                    <AlertTriangle size={12} />
-                    {badge}
-                </Badge>
-            </div>
-        </div>
-    );
-}

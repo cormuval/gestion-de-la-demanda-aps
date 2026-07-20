@@ -27,6 +27,8 @@ export const citasFiltrosSchema = z.object({
     edadMax: z.coerce.number().int().min(0).max(150).optional(),
     fechaDesde: z.string().trim().optional(),
     fechaHasta: z.string().trim().optional(),
+    rut: z.string().trim().optional(),
+    sector: z.string().trim().optional(),
     pagina: z.coerce.number().int().min(1).default(1)
 });
 
