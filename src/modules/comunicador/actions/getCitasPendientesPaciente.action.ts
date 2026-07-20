@@ -5,8 +5,9 @@ import { requireSessionUser } from "@/shared/lib/auth";
 import { puedeAccederComunicador } from "@/shared/lib/access";
 // utils
 import { normalizarRut } from "@/modules/solicitudes/utils/rut";
+import { rangoTemporalidad } from "../utils/temporalidad";
 // types
-import { ESTADOS_PENDIENTES } from "../types/comunicador";
+import { ESTADOS_PENDIENTES, TEMPORALIDAD } from "../types/comunicador";
 
 export interface CitaPacienteFila {
     id_cita: string;
@@ -23,12 +24,15 @@ export async function getCitasPendientesPaciente(rutUsuario: string, citaActualI
     if (!puedeAccederComunicador(user.rol.nombre)) throw new Error("No tienes permiso para el comunicador");
     if (!user.centro_id) throw new Error("El funcionario no tiene centro asignado");
 
+    const rango = rangoTemporalidad(TEMPORALIDAD.PROXIMOS, new Date());
+
     const citas = await prisma.cita.findMany({
         where: {
             rut_usuario: normalizarRut(rutUsuario),
             centro_id: user.centro_id,
             id_cita: { not: citaActualId },
-            estado_cita: { in: [...ESTADOS_PENDIENTES] }
+            estado_cita: { in: [...ESTADOS_PENDIENTES] },
+            fecha_estimada_atencion: { gte: rango?.gte, lte: rango?.lte }
         },
         include: { profesional: true, prestacion: true },
         orderBy: { priorizacion: "desc" }

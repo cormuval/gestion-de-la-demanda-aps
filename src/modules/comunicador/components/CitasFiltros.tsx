@@ -20,6 +20,8 @@ export interface CitasFiltrosUI {
     edadMax: string;
     fechaDesde: string;
     fechaHasta: string;
+    rut: string;
+    sector: string;
 }
 
 export const FILTROS_INICIALES: CitasFiltrosUI = {
@@ -30,7 +32,9 @@ export const FILTROS_INICIALES: CitasFiltrosUI = {
     edadMin: "",
     edadMax: "",
     fechaDesde: "",
-    fechaHasta: ""
+    fechaHasta: "",
+    rut: "",
+    sector: ""
 };
 
 type Opciones = Awaited<ReturnType<typeof getFiltrosComunicador>>;
@@ -108,6 +112,12 @@ export function CitasFiltros({ opciones, valor, onCambio, onAplicar }: {
             </Field>
             <Field label="Fecha hasta">
                 <Input type="date" value={valor.fechaHasta} onChange={(e) => set("fechaHasta", e.target.value)} />
+            </Field>
+            <Field label="RUT paciente">
+                <Input value={valor.rut} onChange={(e) => set("rut", e.target.value)} placeholder="Ej: 12345678" />
+            </Field>
+            <Field label="Sector">
+                <Input value={valor.sector} onChange={(e) => set("sector", e.target.value)} placeholder="Ej: Amarillo, 1, 2" />
             </Field>
             <div className="md:col-span-4">
                 <Button type="submit">

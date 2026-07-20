@@ -28,4 +28,16 @@ describe("citasFiltrosSchema", () => {
         expect(r.profesional_id).toBe(3);
         expect(r.edadMin).toBe(20);
     });
+
+    it("acepta y recorta rut y sector", () => {
+        const r = citasFiltrosSchema.parse({ rut: "  12.345.678-9 ", sector: "  Amarillo " });
+        expect(r.rut).toBe("12.345.678-9");
+        expect(r.sector).toBe("Amarillo");
+    });
+
+    it("rut y sector son opcionales", () => {
+        const r = citasFiltrosSchema.parse({});
+        expect(r.rut).toBeUndefined();
+        expect(r.sector).toBeUndefined();
+    });
 });

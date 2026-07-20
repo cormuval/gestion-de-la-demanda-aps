@@ -1,6 +1,8 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+// lib
+import { cn } from "@/shared/lib/utils";
 // components
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -10,13 +12,14 @@ function abreviar(codigo: string): string {
     return codigo.length > 14 ? `${codigo.slice(0, 12)}…` : codigo;
 }
 
-export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina, onGestionar }: {
+export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina, onGestionar, renderAcciones }: {
     filas: CitaFila[];
     total: number;
     pagina: number;
     porPagina: number;
     onPagina: (p: number) => void;
     onGestionar: (cita: CitaFila) => void;
+    renderAcciones?: (cita: CitaFila) => React.ReactNode;
 }) {
     const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
     return (
@@ -45,7 +48,7 @@ export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina
                             </tr>
                         ) : (
                             filas.map((c) => (
-                                <tr key={c.id_cita} className="border-t">
+                                <tr key={c.id_cita} className={cn("border-t", c.tiene_llamada_hoy && "bg-primary/5")}>
                                     <td className="px-3 py-3 font-medium" title={c.id_cita}>{abreviar(c.id_cita)}</td>
                                     <td className="px-3 py-3">{c.priorizacion ?? "—"}</td>
                                     <td className="px-3 py-3">{c.disponibilidad || "—"}</td>
@@ -60,9 +63,12 @@ export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina
                                         </Badge>
                                     </td>
                                     <td className="px-3 py-3">
-                                        <Button size="sm" onClick={() => onGestionar(c)}>
-                                            Llamar
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button size="sm" onClick={() => onGestionar(c)}>
+                                                Llamar
+                                            </Button>
+                                            {renderAcciones?.(c)}
+                                        </div>
                                     </td>
                                 </tr>
                             ))
