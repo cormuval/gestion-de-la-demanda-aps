@@ -48,7 +48,7 @@ export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina
                             </tr>
                         ) : (
                             filas.map((c) => (
-                                <tr key={c.id_cita} className={cn("border-t", c.tiene_llamada_hoy && "bg-primary/5")}>
+                                <tr key={c.id_cita} className={cn("border-t", c.tiene_llamada_hoy && "bg-primary/15")}>
                                     <td className="px-3 py-3 font-medium" title={c.id_cita}>{abreviar(c.id_cita)}</td>
                                     <td className="px-3 py-3">{c.priorizacion ?? "—"}</td>
                                     <td className="px-3 py-3">{c.disponibilidad || "—"}</td>

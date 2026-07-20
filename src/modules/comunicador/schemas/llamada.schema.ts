@@ -22,7 +22,7 @@ export const citasFiltrosSchema = z.object({
     temporalidad: z.string().trim().optional(),
     estado: z.string().trim().optional(),
     profesional_id: z.coerce.number().int().positive().optional(),
-    prestacion_id: z.coerce.number().int().positive().optional(),
+    prestacion: z.string().trim().optional(),
     edadMin: z.coerce.number().int().min(0).max(150).optional(),
     edadMax: z.coerce.number().int().min(0).max(150).optional(),
     fechaDesde: z.string().trim().optional(),
