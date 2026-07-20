@@ -40,4 +40,9 @@ describe("citasFiltrosSchema", () => {
         expect(r.rut).toBeUndefined();
         expect(r.sector).toBeUndefined();
     });
+
+    it("acepta prestacion por nombre (texto) y la recorta", () => {
+        const r = citasFiltrosSchema.parse({ prestacion: "  Control Niño Sano " });
+        expect(r.prestacion).toBe("Control Niño Sano");
+    });
 });

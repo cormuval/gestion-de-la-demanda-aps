@@ -15,7 +15,7 @@ export interface CitasFiltrosUI {
     temporalidad: string;
     estado: string;
     profesional_id: string;
-    prestacion_id: string;
+    prestacion: string;
     edadMin: string;
     edadMax: string;
     fechaDesde: string;
@@ -28,7 +28,7 @@ export const FILTROS_INICIALES: CitasFiltrosUI = {
     temporalidad: "Todas",
     estado: "",
     profesional_id: "",
-    prestacion_id: "",
+    prestacion: "",
     edadMin: "",
     edadMax: "",
     fechaDesde: "",
@@ -45,13 +45,18 @@ export function CitasFiltros({ opciones, valor, onCambio, onAplicar }: {
     onCambio: (f: CitasFiltrosUI) => void;
     onAplicar: () => void;
 }) {
-    const prestacionesFiltradas = useMemo(() => {
-        if (!valor.profesional_id) return opciones.prestaciones;
-        return opciones.prestaciones.filter((p) => String(p.profesional_id) === String(valor.profesional_id));
+    // Nombres de prestación únicos (deduplicados). Si hay profesional seleccionado, solo los suyos.
+    const prestacionesUnicas = useMemo(() => {
+        const base = valor.profesional_id
+            ? opciones.prestaciones.filter((p) => String(p.profesional_id) === String(valor.profesional_id))
+            : opciones.prestaciones;
+        const nombres = Array.from(new Set(base.map((p) => p.nombre)));
+        nombres.sort((a, b) => a.localeCompare(b, "es"));
+        return nombres;
     }, [opciones.prestaciones, valor.profesional_id]);
 
     function set(campo: keyof CitasFiltrosUI, v: string) {
-        onCambio({ ...valor, [campo]: v, ...(campo === "profesional_id" ? { prestacion_id: "" } : {}) });
+        onCambio({ ...valor, [campo]: v, ...(campo === "profesional_id" ? { prestacion: "" } : {}) });
     }
 
     return (
@@ -92,11 +97,11 @@ export function CitasFiltros({ opciones, valor, onCambio, onAplicar }: {
                 </Select>
             </Field>
             <Field label="Prestación">
-                <Select value={valor.prestacion_id} onChange={(e) => set("prestacion_id", e.target.value)}>
+                <Select value={valor.prestacion} onChange={(e) => set("prestacion", e.target.value)}>
                     <option value="">Todas</option>
-                    {prestacionesFiltradas.map((p) => (
-                        <option key={p.id} value={p.id}>
-                            {p.nombre}
+                    {prestacionesUnicas.map((nombre) => (
+                        <option key={nombre} value={nombre}>
+                            {nombre}
                         </option>
                     ))}
                 </Select>
