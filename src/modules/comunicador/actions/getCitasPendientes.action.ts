@@ -48,7 +48,7 @@ export async function getCitasPendientes(filtros: unknown): Promise<{ filas: Cit
     ];
 
     if (f.profesional_id) condiciones.push(Prisma.sql`c.profesional_id = ${f.profesional_id}`);
-    if (f.prestacion_id) condiciones.push(Prisma.sql`c.prestacion_id = ${f.prestacion_id}`);
+    if (f.prestacion) condiciones.push(Prisma.sql`c.prestacion_id IN (SELECT id_prestacion FROM prestaciones WHERE nombre_prestacion = ${f.prestacion})`);
 
     // RUT: coincidencia parcial, ignorando puntos y guion en ambos lados.
     if (f.rut) {

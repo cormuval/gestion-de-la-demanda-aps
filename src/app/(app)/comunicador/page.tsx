@@ -42,7 +42,7 @@ export default function ComunicadorPage() {
                 temporalidad: aplicados.temporalidad,
                 estado: aplicados.estado,
                 profesional_id: aplicados.profesional_id || undefined,
-                prestacion_id: aplicados.prestacion_id || undefined,
+                prestacion: aplicados.prestacion || undefined,
                 edadMin: aplicados.edadMin || undefined,
                 edadMax: aplicados.edadMax || undefined,
                 fechaDesde: aplicados.fechaDesde || undefined,
