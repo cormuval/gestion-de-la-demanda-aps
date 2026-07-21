@@ -1,0 +1,229 @@
+"use server";
+
+// lib
+import { requireSessionUser } from "@/shared/lib/auth";
+import { prisma } from "@/shared/lib/prisma";
+
+const ACCION_REALIZAR_SOLICITUD = "Realizar solicitud";
+const ACCION_RECHAZAR_SOLICITUD = "Rechazar solicitud";
+
+export interface DashboardDiaSerie {
+    fecha: string;
+    dia: number;
+    solicitudesIngresadas: number;
+    solicitudesRechazadas: number;
+    solicitudesRealizadas: number;
+    citasCreadas: number;
+    llamadasRealizadas: number;
+}
+
+export interface DashboardSolicitudDetalle {
+    id_solicitud: string;
+    fecha_inicio: Date;
+    rut_usuario: string;
+    tipo_solicitud: string;
+    motivo: string | null;
+    estado_solicitud: string;
+}
+
+export interface DashboardGestionDetalle {
+    id_solicitud: string;
+    fecha_validacion: Date | null;
+    rut_usuario: string;
+    accion: string | null;
+    razon_rechazo: string | null;
+    citas_creadas: number;
+}
+
+export interface DashboardLlamadaDetalle {
+    id_llamada: string;
+    fecha_llamada: Date | null;
+    rut_usuario: string;
+    cita_id: string;
+    respuesta_usuario: string;
+    observacion: string | null;
+}
+
+export interface DashboardFuncionarioData {
+    mes: string;
+    funcionario: {
+        rut: string;
+        nombre: string;
+        rol: string;
+        centro: string | null;
+    };
+    totales: {
+        solicitudesIngresadas: number;
+        solicitudesRechazadas: number;
+        solicitudesRealizadas: number;
+        citasCreadas: number;
+        llamadasRealizadas: number;
+    };
+    serie: DashboardDiaSerie[];
+    detalles: {
+        solicitudesIngresadas: DashboardSolicitudDetalle[];
+        gestiones: DashboardGestionDetalle[];
+        llamadas: DashboardLlamadaDetalle[];
+    };
+}
+
+function parseMes(input?: string): { mes: string; desde: Date; hasta: Date; dias: number } {
+    const ahora = new Date();
+    const fallback = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}`;
+    const mes = input && /^\d{4}-\d{2}$/.test(input) ? input : fallback;
+    const [year, month] = mes.split("-").map(Number);
+    const desde = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const hasta = new Date(year, month, 1, 0, 0, 0, 0);
+    const dias = new Date(year, month, 0).getDate();
+
+    if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) {
+        return parseMes(fallback);
+    }
+
+    return { mes, desde, hasta, dias };
+}
+
+function fechaKey(value: Date | null): string | null {
+    if (!value) return null;
+    return value.toISOString().slice(0, 10);
+}
+
+function buildSerie(mes: string, dias: number): DashboardDiaSerie[] {
+    return Array.from({ length: dias }, (_, index) => {
+        const dia = index + 1;
+        return {
+            fecha: `${mes}-${String(dia).padStart(2, "0")}`,
+            dia,
+            solicitudesIngresadas: 0,
+            solicitudesRechazadas: 0,
+            solicitudesRealizadas: 0,
+            citasCreadas: 0,
+            llamadasRealizadas: 0
+        };
+    });
+}
+
+export async function getDashboardFuncionario(mesInput?: string): Promise<DashboardFuncionarioData> {
+    const user = await requireSessionUser();
+    const { mes, desde, hasta, dias } = parseMes(mesInput);
+
+    const [solicitudesIngresadas, gestiones, llamadas] = await Promise.all([
+        prisma.solicitud.findMany({
+            where: {
+                rut_orientador: user.rut,
+                fecha_inicio: { gte: desde, lt: hasta }
+            },
+            orderBy: { fecha_inicio: "desc" },
+            select: {
+                id_solicitud: true,
+                fecha_inicio: true,
+                rut_usuario: true,
+                estado_solicitud: true,
+                tipoSolicitud: { select: { nombre_tipo_solicitud: true } },
+                motivo: { select: { nombre_motivo: true } }
+            }
+        }),
+        prisma.solicitud.findMany({
+            where: {
+                rut_gestor: user.rut,
+                accion: { in: [ACCION_RECHAZAR_SOLICITUD, ACCION_REALIZAR_SOLICITUD] },
+                fecha_validacion: { gte: desde, lt: hasta }
+            },
+            orderBy: { fecha_validacion: "desc" },
+            select: {
+                id_solicitud: true,
+                fecha_validacion: true,
+                rut_usuario: true,
+                accion: true,
+                razon_rechazo: true,
+                citas: { select: { id_cita: true } }
+            }
+        }),
+        prisma.llamada.findMany({
+            where: {
+                rut_comunicador: user.rut,
+                fecha_llamada: { gte: desde, lt: hasta }
+            },
+            orderBy: { fecha_llamada: "desc" },
+            select: {
+                id_llamada: true,
+                fecha_llamada: true,
+                rut_usuario: true,
+                cita_id: true,
+                respuesta_usuario: true,
+                observacion: true
+            }
+        })
+    ]);
+
+    const serie = buildSerie(mes, dias);
+    const seriePorFecha = new Map(serie.map((dia) => [dia.fecha, dia]));
+
+    for (const solicitud of solicitudesIngresadas) {
+        const dia = seriePorFecha.get(fechaKey(solicitud.fecha_inicio) ?? "");
+        if (dia) dia.solicitudesIngresadas += 1;
+    }
+
+    for (const gestion of gestiones) {
+        const dia = seriePorFecha.get(fechaKey(gestion.fecha_validacion) ?? "");
+        if (!dia) continue;
+        if (gestion.accion === ACCION_RECHAZAR_SOLICITUD) dia.solicitudesRechazadas += 1;
+        if (gestion.accion === ACCION_REALIZAR_SOLICITUD) {
+            dia.solicitudesRealizadas += 1;
+            dia.citasCreadas += gestion.citas.length;
+        }
+    }
+
+    for (const llamada of llamadas) {
+        const dia = seriePorFecha.get(fechaKey(llamada.fecha_llamada) ?? "");
+        if (dia) dia.llamadasRealizadas += 1;
+    }
+
+    const solicitudesRechazadas = gestiones.filter((gestion) => gestion.accion === ACCION_RECHAZAR_SOLICITUD).length;
+    const solicitudesRealizadas = gestiones.filter((gestion) => gestion.accion === ACCION_REALIZAR_SOLICITUD).length;
+    const citasCreadas = gestiones.reduce((total, gestion) => total + (gestion.accion === ACCION_REALIZAR_SOLICITUD ? gestion.citas.length : 0), 0);
+
+    return {
+        mes,
+        funcionario: {
+            rut: user.rut,
+            nombre: user.nombre,
+            rol: user.rol.nombre,
+            centro: user.centro_nombre
+        },
+        totales: {
+            solicitudesIngresadas: solicitudesIngresadas.length,
+            solicitudesRechazadas,
+            solicitudesRealizadas,
+            citasCreadas,
+            llamadasRealizadas: llamadas.length
+        },
+        serie,
+        detalles: {
+            solicitudesIngresadas: solicitudesIngresadas.map((solicitud) => ({
+                id_solicitud: solicitud.id_solicitud,
+                fecha_inicio: solicitud.fecha_inicio,
+                rut_usuario: solicitud.rut_usuario,
+                tipo_solicitud: solicitud.tipoSolicitud.nombre_tipo_solicitud,
+                motivo: solicitud.motivo?.nombre_motivo ?? null,
+                estado_solicitud: solicitud.estado_solicitud
+            })),
+            gestiones: gestiones.map((gestion) => ({
+                id_solicitud: gestion.id_solicitud,
+                fecha_validacion: gestion.fecha_validacion,
+                rut_usuario: gestion.rut_usuario,
+                accion: gestion.accion,
+                razon_rechazo: gestion.razon_rechazo,
+                citas_creadas: gestion.accion === ACCION_REALIZAR_SOLICITUD ? gestion.citas.length : 0
+            })),
+            llamadas: llamadas.map((llamada) => ({
+                id_llamada: llamada.id_llamada,
+                fecha_llamada: llamada.fecha_llamada,
+                rut_usuario: llamada.rut_usuario,
+                cita_id: llamada.cita_id,
+                respuesta_usuario: llamada.respuesta_usuario,
+                observacion: llamada.observacion
+            }))
+        }
+    };
+}
