@@ -26,6 +26,16 @@ export interface DashboardSolicitudDetalle {
     estado_solicitud: string;
 }
 
+export interface DashboardCitaGestionada {
+    id_cita: string;
+    fecha_estimada_atencion: Date | null;
+    tipo_prestacion: string;
+    estado_cita: string | null;
+    priorizacion_clinica: string | null;
+    estamento: string | null;
+    prestacion: string | null;
+}
+
 export interface DashboardGestionDetalle {
     id_solicitud: string;
     fecha_validacion: Date | null;
@@ -33,6 +43,7 @@ export interface DashboardGestionDetalle {
     accion: string | null;
     razon_rechazo: string | null;
     citas_creadas: number;
+    citas: DashboardCitaGestionada[];
 }
 
 export interface DashboardLlamadaDetalle {
@@ -42,6 +53,9 @@ export interface DashboardLlamadaDetalle {
     cita_id: string;
     respuesta_usuario: string;
     observacion: string | null;
+    estamento: string | null;
+    prestacion: string | null;
+    tipo_prestacion: string | null;
 }
 
 export interface DashboardFuncionarioData {
@@ -136,7 +150,18 @@ export async function getDashboardFuncionario(mesInput?: string): Promise<Dashbo
                 rut_usuario: true,
                 accion: true,
                 razon_rechazo: true,
-                citas: { select: { id_cita: true } }
+                citas: {
+                    orderBy: { fecha_creacion: "asc" },
+                    select: {
+                        id_cita: true,
+                        fecha_estimada_atencion: true,
+                        tipo_prestacion: true,
+                        estado_cita: true,
+                        priorizacion_clinica: true,
+                        profesional: { select: { nombre: true } },
+                        prestacion: { select: { nombre_prestacion: true } }
+                    }
+                }
             }
         }),
         prisma.llamada.findMany({
@@ -151,7 +176,14 @@ export async function getDashboardFuncionario(mesInput?: string): Promise<Dashbo
                 rut_usuario: true,
                 cita_id: true,
                 respuesta_usuario: true,
-                observacion: true
+                observacion: true,
+                cita: {
+                    select: {
+                        tipo_prestacion: true,
+                        profesional: { select: { nombre: true } },
+                        prestacion: { select: { nombre_prestacion: true } }
+                    }
+                }
             }
         })
     ]);
@@ -214,7 +246,19 @@ export async function getDashboardFuncionario(mesInput?: string): Promise<Dashbo
                 rut_usuario: gestion.rut_usuario,
                 accion: gestion.accion,
                 razon_rechazo: gestion.razon_rechazo,
-                citas_creadas: gestion.accion === ACCION_REALIZAR_SOLICITUD ? gestion.citas.length : 0
+                citas_creadas: gestion.accion === ACCION_REALIZAR_SOLICITUD ? gestion.citas.length : 0,
+                citas:
+                    gestion.accion === ACCION_REALIZAR_SOLICITUD
+                        ? gestion.citas.map((cita) => ({
+                              id_cita: cita.id_cita,
+                              fecha_estimada_atencion: cita.fecha_estimada_atencion,
+                              tipo_prestacion: cita.tipo_prestacion,
+                              estado_cita: cita.estado_cita,
+                              priorizacion_clinica: cita.priorizacion_clinica,
+                              estamento: cita.profesional?.nombre ?? null,
+                              prestacion: cita.prestacion?.nombre_prestacion ?? null
+                          }))
+                        : []
             })),
             llamadas: llamadas.map((llamada) => ({
                 id_llamada: llamada.id_llamada,
@@ -222,7 +266,10 @@ export async function getDashboardFuncionario(mesInput?: string): Promise<Dashbo
                 rut_usuario: llamada.rut_usuario,
                 cita_id: llamada.cita_id,
                 respuesta_usuario: llamada.respuesta_usuario,
-                observacion: llamada.observacion
+                observacion: llamada.observacion,
+                estamento: llamada.cita.profesional?.nombre ?? null,
+                prestacion: llamada.cita.prestacion?.nombre_prestacion ?? null,
+                tipo_prestacion: llamada.cita.tipo_prestacion
             }))
         }
     };

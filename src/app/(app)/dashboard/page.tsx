@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarCheck, ClipboardList, PhoneCall, UserCheck, XCircle } from "lucide-react";
+import { CalendarCheck, ClipboardList, Eye, PhoneCall, UserCheck, X, XCircle } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { toast } from "sonner";
 // actions
 import { getDashboardFuncionario, type DashboardDiaSerie, type DashboardFuncionarioData } from "@/modules/dashboard/actions/getDashboardFuncionario.action";
 // components
 import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/shared/components/ui/chart";
 import { Input } from "@/shared/components/ui/input";
@@ -149,6 +150,8 @@ export default function DashboardPage() {
     const [mes, setMes] = useState(currentMonth());
     const [data, setData] = useState<DashboardFuncionarioData>(emptyDashboard);
     const [activeMetric, setActiveMetric] = useState<SerieKey>("solicitudesIngresadas");
+    const [gestionCitas, setGestionCitas] = useState<DashboardFuncionarioData["detalles"]["gestiones"][number] | null>(null);
+    const [llamadaDetalle, setLlamadaDetalle] = useState<DashboardFuncionarioData["detalles"]["llamadas"][number] | null>(null);
     const [loading, setLoading] = useState(true);
 
     const cargar = useCallback(async () => {
@@ -215,9 +218,12 @@ export default function DashboardPage() {
 
             <div className="space-y-6">
                 <DetalleSolicitudes data={data} />
-                <DetalleGestiones data={data} />
-                <DetalleLlamadas data={data} />
+                <DetalleGestiones data={data} onVerCitas={setGestionCitas} />
+                <DetalleLlamadas data={data} onVerDetalle={setLlamadaDetalle} />
             </div>
+
+            {gestionCitas && <CitasGestionadasModal gestion={gestionCitas} onClose={() => setGestionCitas(null)} />}
+            {llamadaDetalle && <DetalleLlamadaModal llamada={llamadaDetalle} onClose={() => setLlamadaDetalle(null)} />}
         </div>
     );
 }
@@ -260,7 +266,7 @@ function DetalleSolicitudes({ data }: { data: DashboardFuncionarioData }) {
     );
 }
 
-function DetalleGestiones({ data }: { data: DashboardFuncionarioData }) {
+function DetalleGestiones({ data, onVerCitas }: { data: DashboardFuncionarioData; onVerCitas: (gestion: DashboardFuncionarioData["detalles"]["gestiones"][number]) => void }) {
     return (
         <Card>
             <CardHeader>
@@ -269,7 +275,7 @@ function DetalleGestiones({ data }: { data: DashboardFuncionarioData }) {
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[760px] table-fixed text-left text-sm">
+                    <table className="w-full min-w-[900px] table-fixed text-left text-sm">
                         <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th className="w-[120px] px-3 py-2 font-medium">Fecha</th>
@@ -277,6 +283,7 @@ function DetalleGestiones({ data }: { data: DashboardFuncionarioData }) {
                                 <th className="w-[130px] px-3 py-2 font-medium">RUT paciente</th>
                                 <th className="w-[150px] px-3 py-2 font-medium">Acción</th>
                                 <th className="w-[90px] px-3 py-2 font-medium">Citas</th>
+                                <th className="w-[150px] px-3 py-2 font-medium">Citas gestionadas</th>
                                 <th className="px-3 py-2 font-medium">Rechazo</th>
                             </tr>
                         </thead>
@@ -288,10 +295,20 @@ function DetalleGestiones({ data }: { data: DashboardFuncionarioData }) {
                                     <td className="px-3 py-3">{gestion.rut_usuario}</td>
                                     <td className="px-3 py-3">{gestion.accion}</td>
                                     <td className="px-3 py-3">{gestion.citas_creadas}</td>
+                                    <td className="px-3 py-3">
+                                        {gestion.citas_creadas > 0 ? (
+                                            <Button type="button" variant="outline" size="sm" onClick={() => onVerCitas(gestion)}>
+                                                <Eye size={14} />
+                                                Visualizar
+                                            </Button>
+                                        ) : (
+                                            "-"
+                                        )}
+                                    </td>
                                     <td className="px-3 py-3">{gestion.razon_rechazo || "-"}</td>
                                 </tr>
                             ))}
-                            {data.detalles.gestiones.length === 0 && <EmptyRow colSpan={6} />}
+                            {data.detalles.gestiones.length === 0 && <EmptyRow colSpan={7} />}
                         </tbody>
                     </table>
                 </div>
@@ -300,7 +317,7 @@ function DetalleGestiones({ data }: { data: DashboardFuncionarioData }) {
     );
 }
 
-function DetalleLlamadas({ data }: { data: DashboardFuncionarioData }) {
+function DetalleLlamadas({ data, onVerDetalle }: { data: DashboardFuncionarioData; onVerDetalle: (llamada: DashboardFuncionarioData["detalles"]["llamadas"][number]) => void }) {
     return (
         <Card>
             <CardHeader>
@@ -309,15 +326,17 @@ function DetalleLlamadas({ data }: { data: DashboardFuncionarioData }) {
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[980px] table-fixed text-left text-sm">
+                    <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
                         <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th className="w-[150px] px-3 py-2 font-medium">Fecha</th>
                                 <th className="w-[190px] px-3 py-2 font-medium">Llamada</th>
                                 <th className="w-[130px] px-3 py-2 font-medium">RUT paciente</th>
                                 <th className="w-[190px] px-3 py-2 font-medium">Cita</th>
+                                <th className="w-[160px] px-3 py-2 font-medium">Estamento</th>
+                                <th className="w-[220px] px-3 py-2 font-medium">Prestación llamada</th>
                                 <th className="w-[150px] px-3 py-2 font-medium">Respuesta</th>
-                                <th className="px-3 py-2 font-medium">Observación</th>
+                                <th className="w-[120px] px-3 py-2 font-medium">Detalle</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -327,11 +346,18 @@ function DetalleLlamadas({ data }: { data: DashboardFuncionarioData }) {
                                     <td className="px-3 py-3 font-medium">{llamada.id_llamada}</td>
                                     <td className="px-3 py-3">{llamada.rut_usuario}</td>
                                     <td className="px-3 py-3">{llamada.cita_id}</td>
+                                    <td className="px-3 py-3">{llamada.estamento || "-"}</td>
+                                    <td className="px-3 py-3">{llamada.prestacion || llamada.tipo_prestacion || "-"}</td>
                                     <td className="px-3 py-3">{llamada.respuesta_usuario}</td>
-                                    <td className="px-3 py-3">{llamada.observacion || "-"}</td>
+                                    <td className="px-3 py-3">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => onVerDetalle(llamada)}>
+                                            <Eye size={14} />
+                                            Ver
+                                        </Button>
+                                    </td>
                                 </tr>
                             ))}
-                            {data.detalles.llamadas.length === 0 && <EmptyRow colSpan={6} />}
+                            {data.detalles.llamadas.length === 0 && <EmptyRow colSpan={8} />}
                         </tbody>
                     </table>
                 </div>
@@ -347,5 +373,87 @@ function EmptyRow({ colSpan }: { colSpan: number }) {
                 Sin registros para el mes seleccionado.
             </td>
         </tr>
+    );
+}
+
+function ModalShell({ title, description, onClose, children }: { title: string; description: string; onClose: () => void; children: React.ReactNode }) {
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true">
+            <div className="max-h-[85vh] w-full max-w-5xl overflow-hidden rounded-lg border bg-background shadow-lg">
+                <div className="flex items-start justify-between gap-4 border-b p-5">
+                    <div>
+                        <h2 className="text-lg font-semibold">{title}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
+                        <X size={18} />
+                    </Button>
+                </div>
+                <div className="max-h-[calc(85vh-96px)] overflow-y-auto p-5">{children}</div>
+            </div>
+        </div>
+    );
+}
+
+function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncionarioData["detalles"]["gestiones"][number]; onClose: () => void }) {
+    return (
+        <ModalShell title="Citas gestionadas" description={`Solicitud ${gestion.id_solicitud} · ${gestion.rut_usuario}`} onClose={onClose}>
+            <div className="overflow-x-auto rounded-md border">
+                <table className="w-full min-w-[980px] table-fixed text-left text-sm">
+                    <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                        <tr>
+                            <th className="w-[190px] px-3 py-2 font-medium">Cita</th>
+                            <th className="w-[120px] px-3 py-2 font-medium">Fecha estimada</th>
+                            <th className="w-[210px] px-3 py-2 font-medium">Tipo</th>
+                            <th className="w-[170px] px-3 py-2 font-medium">Estamento</th>
+                            <th className="w-[220px] px-3 py-2 font-medium">Prestación</th>
+                            <th className="w-[110px] px-3 py-2 font-medium">Prioridad</th>
+                            <th className="w-[130px] px-3 py-2 font-medium">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {gestion.citas.map((cita) => (
+                            <tr key={cita.id_cita} className="border-t">
+                                <td className="px-3 py-3 font-medium">{cita.id_cita}</td>
+                                <td className="px-3 py-3">{formatFecha(cita.fecha_estimada_atencion)}</td>
+                                <td className="px-3 py-3">{cita.tipo_prestacion}</td>
+                                <td className="px-3 py-3">{cita.estamento || "-"}</td>
+                                <td className="px-3 py-3">{cita.prestacion || cita.tipo_prestacion}</td>
+                                <td className="px-3 py-3">{cita.priorizacion_clinica || "-"}</td>
+                                <td className="px-3 py-3"><Badge variant="muted">{cita.estado_cita || "-"}</Badge></td>
+                            </tr>
+                        ))}
+                        {gestion.citas.length === 0 && <EmptyRow colSpan={7} />}
+                    </tbody>
+                </table>
+            </div>
+        </ModalShell>
+    );
+}
+
+function DetalleLlamadaModal({ llamada, onClose }: { llamada: DashboardFuncionarioData["detalles"]["llamadas"][number]; onClose: () => void }) {
+    return (
+        <ModalShell title="Detalle llamada" description={`Llamada ${llamada.id_llamada}`} onClose={onClose}>
+            <dl className="grid gap-4 md:grid-cols-2">
+                <DetailItem label="Fecha llamada" value={formatFechaHora(llamada.fecha_llamada)} />
+                <DetailItem label="RUT paciente" value={llamada.rut_usuario} />
+                <DetailItem label="Cita" value={llamada.cita_id} />
+                <DetailItem label="Respuesta" value={llamada.respuesta_usuario} />
+                <DetailItem label="Estamento" value={llamada.estamento || "-"} />
+                <DetailItem label="Prestación llamada" value={llamada.prestacion || llamada.tipo_prestacion || "-"} />
+                <div className="md:col-span-2">
+                    <DetailItem label="Observación" value={llamada.observacion || "-"} />
+                </div>
+            </dl>
+        </ModalShell>
+    );
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-md border p-3">
+            <dt className="text-xs font-medium uppercase text-muted-foreground">{label}</dt>
+            <dd className="mt-1 text-sm">{value}</dd>
+        </div>
     );
 }
