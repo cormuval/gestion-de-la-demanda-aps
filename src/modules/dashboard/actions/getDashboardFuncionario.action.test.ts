@@ -48,7 +48,26 @@ describe("getDashboardFuncionario", () => {
                     rut_usuario: "12.345.678-9",
                     accion: "Realizar solicitud",
                     razon_rechazo: null,
-                    citas: [{ id_cita: "CITA-1" }, { id_cita: "CITA-2" }]
+                    citas: [
+                        {
+                            id_cita: "CITA-1",
+                            fecha_estimada_atencion: new Date("2026-08-03T00:00:00"),
+                            tipo_prestacion: "Agendar una hora con profesional",
+                            estado_cita: "Sin llamadas",
+                            priorizacion_clinica: "Alta",
+                            profesional: { nombre: "Médico" },
+                            prestacion: { nombre_prestacion: "Consulta De Morbilidad" }
+                        },
+                        {
+                            id_cita: "CITA-2",
+                            fecha_estimada_atencion: new Date("2026-08-04T00:00:00"),
+                            tipo_prestacion: "Agendar una hora de exámenes",
+                            estado_cita: "Sin llamadas",
+                            priorizacion_clinica: "Media",
+                            profesional: { nombre: "Examenes" },
+                            prestacion: null
+                        }
+                    ]
                 },
                 {
                     id_solicitud: "SOL-GES-2",
@@ -66,7 +85,12 @@ describe("getDashboardFuncionario", () => {
                 rut_usuario: "12.345.678-9",
                 cita_id: "CITA-1",
                 respuesta_usuario: "No contesta",
-                observacion: null
+                observacion: null,
+                cita: {
+                    tipo_prestacion: "Agendar una hora con profesional",
+                    profesional: { nombre: "Médico" },
+                    prestacion: { nombre_prestacion: "Consulta De Morbilidad" }
+                }
             }
         ]);
 
@@ -110,7 +134,27 @@ describe("getDashboardFuncionario", () => {
         expect(result.detalles.gestiones[0]).toEqual(
             expect.objectContaining({
                 id_solicitud: "SOL-GES-1",
-                citas_creadas: 2
+                citas_creadas: 2,
+                citas: [
+                    expect.objectContaining({
+                        id_cita: "CITA-1",
+                        estamento: "Médico",
+                        prestacion: "Consulta De Morbilidad"
+                    }),
+                    expect.objectContaining({
+                        id_cita: "CITA-2",
+                        estamento: "Examenes",
+                        prestacion: null
+                    })
+                ]
+            })
+        );
+        expect(result.detalles.llamadas[0]).toEqual(
+            expect.objectContaining({
+                id_llamada: "LLAM-1",
+                estamento: "Médico",
+                prestacion: "Consulta De Morbilidad",
+                tipo_prestacion: "Agendar una hora con profesional"
             })
         );
         expect(result.serie.find((dia) => dia.fecha === "2026-07-05")?.solicitudesRealizadas).toBe(1);
