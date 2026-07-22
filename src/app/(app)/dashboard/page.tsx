@@ -11,11 +11,20 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/shared/components/ui/chart";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+
+function defaultDashboardRange(): Pick<DashboardFuncionarioData, "rangoDias" | "desde" | "hasta"> {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const desde = new Date(hoy);
+    desde.setDate(hoy.getDate() - 29);
+    const hasta = new Date(hoy);
+    hasta.setDate(hoy.getDate() + 1);
+
+    return { rangoDias: 30, desde, hasta };
+}
 
 const emptyDashboard: DashboardFuncionarioData = {
-    mes: currentMonth(),
+    ...defaultDashboardRange(),
     funcionario: { rut: "", nombre: "", rol: "", centro: null },
     totales: {
         solicitudesIngresadas: 0,
@@ -37,12 +46,8 @@ const seriesConfig = [
 ] as const;
 
 type SerieKey = (typeof seriesConfig)[number]["key"];
+type RangoDias = 30 | 60 | 90;
 const chartConfig = Object.fromEntries(seriesConfig.map((item) => [item.key, { label: item.label, color: item.color }])) satisfies ChartConfig;
-
-function currentMonth(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
 
 function formatFecha(value: Date | string | null): string {
     if (!value) return "-";
@@ -52,6 +57,12 @@ function formatFecha(value: Date | string | null): string {
 function formatFechaHora(value: Date | string | null): string {
     if (!value) return "-";
     return new Date(value).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatRango(desde: Date | string, hasta: Date | string): string {
+    const hastaInclusivo = new Date(hasta);
+    hastaInclusivo.setDate(hastaInclusivo.getDate() - 1);
+    return `${formatFecha(desde)} al ${formatFecha(hastaInclusivo)}`;
 }
 
 function TotalCard({ title, value, icon: Icon }: { title: string; value: number; icon: typeof ClipboardList }) {
@@ -109,7 +120,9 @@ function SerieChart({ serie, activeKey, onActiveKeyChange, totales }: {
                             axisLine={false}
                             tickMargin={8}
                             minTickGap={18}
-                            tickFormatter={(value: string) => String(Number(value.slice(8, 10)))}
+                            tickFormatter={(value: string) =>
+                                new Date(`${value}T00:00:00`).toLocaleDateString("es-CL", { day: "2-digit", month: "short" })
+                            }
                         />
                         <ChartTooltip
                             cursor={false}
@@ -138,7 +151,7 @@ function SerieChart({ serie, activeKey, onActiveKeyChange, totales }: {
                 </ChartContainer>
                 {!hasData && (
                     <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-muted-foreground">
-                        Sin actividad registrada para el mes seleccionado
+                        Sin actividad registrada para el rango seleccionado
                     </div>
                 )}
             </div>
@@ -147,7 +160,7 @@ function SerieChart({ serie, activeKey, onActiveKeyChange, totales }: {
 }
 
 export default function DashboardPage() {
-    const [mes, setMes] = useState(currentMonth());
+    const [rangoDias, setRangoDias] = useState<RangoDias>(30);
     const [data, setData] = useState<DashboardFuncionarioData>(emptyDashboard);
     const [activeMetric, setActiveMetric] = useState<SerieKey>("solicitudesIngresadas");
     const [gestionCitas, setGestionCitas] = useState<DashboardFuncionarioData["detalles"]["gestiones"][number] | null>(null);
@@ -157,13 +170,13 @@ export default function DashboardPage() {
     const cargar = useCallback(async () => {
         setLoading(true);
         try {
-            setData(await getDashboardFuncionario(mes));
+            setData(await getDashboardFuncionario(rangoDias));
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Error al cargar el dashboard");
         } finally {
             setLoading(false);
         }
-    }, [mes]);
+    }, [rangoDias]);
 
     useEffect(() => {
         cargar();
@@ -189,12 +202,23 @@ export default function DashboardPage() {
                 <div>
                     <h1 className="text-2xl font-semibold tracking-normal">Dashboard</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Métricas mensuales de {data.funcionario.nombre || "funcionario activo"} por solicitudes, gestiones, citas y llamadas.
+                        Métricas de los últimos {data.rangoDias} días de {data.funcionario.nombre || "funcionario activo"} por solicitudes, gestiones, citas y llamadas.
                     </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatRango(data.desde, data.hasta)}</p>
                 </div>
-                <div className="w-full max-w-xs space-y-2">
-                    <Label>Mes</Label>
-                    <Input type="month" value={mes} onChange={(event) => setMes(event.target.value || currentMonth())} />
+                <div className="grid w-full max-w-sm grid-cols-3 overflow-hidden rounded-md border">
+                    {[30, 60, 90].map((dias) => (
+                        <button
+                            key={dias}
+                            type="button"
+                            className={`border-r px-3 py-2 text-sm font-medium transition-colors last:border-r-0 hover:bg-muted/60 ${
+                                rangoDias === dias ? "bg-primary text-primary-foreground hover:bg-primary" : "bg-background"
+                            }`}
+                            onClick={() => setRangoDias(dias as RangoDias)}
+                        >
+                            {dias} días
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -209,7 +233,9 @@ export default function DashboardPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Serie diaria</CardTitle>
-                    <CardDescription>Total mensual: {gestionesResumen}. {loading ? "Actualizando..." : "Datos filtrados por funcionario activo."}</CardDescription>
+                    <CardDescription>
+                        Últimos {data.rangoDias} días: {gestionesResumen}. {loading ? "Actualizando..." : "Datos filtrados por funcionario activo."}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <SerieChart serie={data.serie} activeKey={activeMetric} onActiveKeyChange={setActiveMetric} totales={totalesPorSerie} />
@@ -370,7 +396,7 @@ function EmptyRow({ colSpan }: { colSpan: number }) {
     return (
         <tr>
             <td className="px-3 py-6 text-center text-muted-foreground" colSpan={colSpan}>
-                Sin registros para el mes seleccionado.
+                Sin registros para el rango seleccionado.
             </td>
         </tr>
     );

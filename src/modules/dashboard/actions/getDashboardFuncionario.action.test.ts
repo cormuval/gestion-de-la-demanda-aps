@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/shared/lib/prisma", () => ({
     prisma: {
@@ -17,6 +17,8 @@ import { getDashboardFuncionario } from "./getDashboardFuncionario.action";
 
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-22T12:00:00"));
     (requireSessionUser as any).mockResolvedValue({
         rut: "22.222.222-2",
         email: "gestor@demo.local",
@@ -28,8 +30,12 @@ beforeEach(() => {
     });
 });
 
+afterEach(() => {
+    vi.useRealTimers();
+});
+
 describe("getDashboardFuncionario", () => {
-    it("filtra métricas del mes por RUT del funcionario activo", async () => {
+    it("filtra métricas de los últimos 30 días por RUT del funcionario activo", async () => {
         (prisma.solicitud.findMany as any)
             .mockResolvedValueOnce([
                 {
@@ -94,14 +100,14 @@ describe("getDashboardFuncionario", () => {
             }
         ]);
 
-        const result = await getDashboardFuncionario("2026-07");
+        const result = await getDashboardFuncionario(30);
 
         expect(prisma.solicitud.findMany).toHaveBeenNthCalledWith(
             1,
             expect.objectContaining({
                 where: {
                     rut_orientador: "22.222.222-2",
-                    fecha_inicio: { gte: new Date("2026-07-01T00:00:00"), lt: new Date("2026-08-01T00:00:00") }
+                    fecha_inicio: { gte: new Date("2026-06-23T00:00:00"), lt: new Date("2026-07-23T00:00:00") }
                 }
             })
         );
@@ -111,7 +117,7 @@ describe("getDashboardFuncionario", () => {
                 where: {
                     rut_gestor: "22.222.222-2",
                     accion: { in: ["Rechazar solicitud", "Realizar solicitud"] },
-                    fecha_validacion: { gte: new Date("2026-07-01T00:00:00"), lt: new Date("2026-08-01T00:00:00") }
+                    fecha_validacion: { gte: new Date("2026-06-23T00:00:00"), lt: new Date("2026-07-23T00:00:00") }
                 }
             })
         );
@@ -119,11 +125,14 @@ describe("getDashboardFuncionario", () => {
             expect.objectContaining({
                 where: {
                     rut_comunicador: "22.222.222-2",
-                    fecha_llamada: { gte: new Date("2026-07-01T00:00:00"), lt: new Date("2026-08-01T00:00:00") }
+                    fecha_llamada: { gte: new Date("2026-06-23T00:00:00"), lt: new Date("2026-07-23T00:00:00") }
                 }
             })
         );
 
+        expect(result.rangoDias).toBe(30);
+        expect(result.desde).toEqual(new Date("2026-06-23T00:00:00"));
+        expect(result.hasta).toEqual(new Date("2026-07-23T00:00:00"));
         expect(result.totales).toEqual({
             solicitudesIngresadas: 1,
             solicitudesRechazadas: 1,
@@ -162,13 +171,31 @@ describe("getDashboardFuncionario", () => {
         expect(result.serie.find((dia) => dia.fecha === "2026-07-07")?.llamadasRealizadas).toBe(1);
     });
 
-    it("usa el mes actual cuando el input no tiene formato YYYY-MM", async () => {
+    it.each([
+        { dias: 60, desde: "2026-05-24T00:00:00" },
+        { dias: 90, desde: "2026-04-24T00:00:00" }
+    ])("construye serie diaria continua para $dias días", async ({ dias, desde }) => {
         (prisma.solicitud.findMany as any).mockResolvedValue([]);
         (prisma.llamada.findMany as any).mockResolvedValue([]);
 
-        const result = await getDashboardFuncionario("mes-invalido");
+        const result = await getDashboardFuncionario(dias);
 
-        expect(result.mes).toMatch(/^\d{4}-\d{2}$/);
+        expect(result.rangoDias).toBe(dias);
+        expect(result.desde).toEqual(new Date(desde));
+        expect(result.hasta).toEqual(new Date("2026-07-23T00:00:00"));
+        expect(result.serie).toHaveLength(dias);
+        expect(result.serie[0].fecha).toBe(desde.slice(0, 10));
+        expect(result.serie.at(-1)?.fecha).toBe("2026-07-22");
+    });
+
+    it("usa 30 días cuando el input no está permitido", async () => {
+        (prisma.solicitud.findMany as any).mockResolvedValue([]);
+        (prisma.llamada.findMany as any).mockResolvedValue([]);
+
+        const result = await getDashboardFuncionario(45);
+
+        expect(result.rangoDias).toBe(30);
+        expect(result.serie).toHaveLength(30);
         expect(result.totales.llamadasRealizadas).toBe(0);
     });
 });

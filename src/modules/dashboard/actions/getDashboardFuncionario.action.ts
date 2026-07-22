@@ -6,6 +6,9 @@ import { prisma } from "@/shared/lib/prisma";
 
 const ACCION_REALIZAR_SOLICITUD = "Realizar solicitud";
 const ACCION_RECHAZAR_SOLICITUD = "Rechazar solicitud";
+const RANGOS_DIAS = [30, 60, 90] as const;
+
+export type DashboardRangoDias = (typeof RANGOS_DIAS)[number];
 
 export interface DashboardDiaSerie {
     fecha: string;
@@ -59,7 +62,9 @@ export interface DashboardLlamadaDetalle {
 }
 
 export interface DashboardFuncionarioData {
-    mes: string;
+    rangoDias: DashboardRangoDias;
+    desde: Date;
+    hasta: Date;
     funcionario: {
         rut: string;
         nombre: string;
@@ -81,33 +86,41 @@ export interface DashboardFuncionarioData {
     };
 }
 
-function parseMes(input?: string): { mes: string; desde: Date; hasta: Date; dias: number } {
-    const ahora = new Date();
-    const fallback = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}`;
-    const mes = input && /^\d{4}-\d{2}$/.test(input) ? input : fallback;
-    const [year, month] = mes.split("-").map(Number);
-    const desde = new Date(year, month - 1, 1, 0, 0, 0, 0);
-    const hasta = new Date(year, month, 1, 0, 0, 0, 0);
-    const dias = new Date(year, month, 0).getDate();
+function parseRangoDias(input?: number): DashboardRangoDias {
+    return RANGOS_DIAS.includes(input as DashboardRangoDias) ? (input as DashboardRangoDias) : 30;
+}
 
-    if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) {
-        return parseMes(fallback);
-    }
-
-    return { mes, desde, hasta, dias };
+function dateKey(value: Date): string {
+    return [
+        value.getFullYear(),
+        String(value.getMonth() + 1).padStart(2, "0"),
+        String(value.getDate()).padStart(2, "0")
+    ].join("-");
 }
 
 function fechaKey(value: Date | null): string | null {
     if (!value) return null;
-    return value.toISOString().slice(0, 10);
+    return dateKey(value);
 }
 
-function buildSerie(mes: string, dias: number): DashboardDiaSerie[] {
-    return Array.from({ length: dias }, (_, index) => {
-        const dia = index + 1;
+function buildRango(rangoDiasInput?: number): { rangoDias: DashboardRangoDias; desde: Date; hasta: Date } {
+    const rangoDias = parseRangoDias(rangoDiasInput);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const desde = new Date(hoy);
+    desde.setDate(hoy.getDate() - (rangoDias - 1));
+    const hasta = new Date(hoy);
+    hasta.setDate(hoy.getDate() + 1);
+    return { rangoDias, desde, hasta };
+}
+
+function buildSerie(desde: Date, rangoDias: DashboardRangoDias): DashboardDiaSerie[] {
+    return Array.from({ length: rangoDias }, (_, index) => {
+        const fecha = new Date(desde);
+        fecha.setDate(desde.getDate() + index);
         return {
-            fecha: `${mes}-${String(dia).padStart(2, "0")}`,
-            dia,
+            fecha: dateKey(fecha),
+            dia: fecha.getDate(),
             solicitudesIngresadas: 0,
             solicitudesRechazadas: 0,
             solicitudesRealizadas: 0,
@@ -117,9 +130,9 @@ function buildSerie(mes: string, dias: number): DashboardDiaSerie[] {
     });
 }
 
-export async function getDashboardFuncionario(mesInput?: string): Promise<DashboardFuncionarioData> {
+export async function getDashboardFuncionario(rangoDiasInput?: number): Promise<DashboardFuncionarioData> {
     const user = await requireSessionUser();
-    const { mes, desde, hasta, dias } = parseMes(mesInput);
+    const { rangoDias, desde, hasta } = buildRango(rangoDiasInput);
 
     const [solicitudesIngresadas, gestiones, llamadas] = await Promise.all([
         prisma.solicitud.findMany({
@@ -188,7 +201,7 @@ export async function getDashboardFuncionario(mesInput?: string): Promise<Dashbo
         })
     ]);
 
-    const serie = buildSerie(mes, dias);
+    const serie = buildSerie(desde, rangoDias);
     const seriePorFecha = new Map(serie.map((dia) => [dia.fecha, dia]));
 
     for (const solicitud of solicitudesIngresadas) {
@@ -216,7 +229,9 @@ export async function getDashboardFuncionario(mesInput?: string): Promise<Dashbo
     const citasCreadas = gestiones.reduce((total, gestion) => total + (gestion.accion === ACCION_REALIZAR_SOLICITUD ? gestion.citas.length : 0), 0);
 
     return {
-        mes,
+        rangoDias,
+        desde,
+        hasta,
         funcionario: {
             rut: user.rut,
             nombre: user.nombre,
