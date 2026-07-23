@@ -3,16 +3,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/shared/lib/prisma", () => ({
     prisma: { cita: { findMany: vi.fn() }, llamada: { count: vi.fn() } }
 }));
-vi.mock("@/shared/lib/auth", () => ({ requireSessionUser: vi.fn() }));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/modules/solicitudes/utils/rut", () => ({ normalizarRut: (r: string) => r }));
 
 import { getCitasPendientesPaciente } from "./getCitasPendientesPaciente.action";
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" }, menu: [] });
+    (requirePermiso as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" } });
     (prisma.cita.findMany as any).mockResolvedValue([]);
     (prisma.llamada.count as any).mockResolvedValue(0);
 });

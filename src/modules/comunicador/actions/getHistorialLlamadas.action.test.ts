@@ -7,23 +7,24 @@ vi.mock("@/shared/lib/prisma", () => ({
         cita: { findUnique: vi.fn() }
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({ requireSessionUser: vi.fn() }));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/shared/lib/logger", () => ({ AuditLogger: { logDataAccess: vi.fn() } }));
 
 import { getHistorialLlamadas } from "./getHistorialLlamadas.action";
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" }, menu: [] });
+    (requirePermiso as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" } });
     (prisma.cita.findUnique as any).mockResolvedValue({ centro_id: "501" });
 });
 
 describe("getHistorialLlamadas", () => {
-    it("rechaza rol sin acceso al comunicador", async () => {
-        (requireSessionUser as any).mockResolvedValue({ rut: "1-9", email: "o@x.cl", nombre: "O", centro_id: "501", rol: { id: 2, nombre: "Orientador" }, menu: [] });
+    it("propaga el rechazo cuando falta el permiso", async () => {
+        (requirePermiso as any).mockRejectedValue(new Error("No tienes permiso para esta operacion"));
         await expect(getHistorialLlamadas("CITA-1")).rejects.toThrow("No tienes permiso");
+        expect(prisma.cita.findUnique).not.toHaveBeenCalled();
     });
 
     it("mapea las llamadas y resuelve el nombre del comunicador", async () => {
