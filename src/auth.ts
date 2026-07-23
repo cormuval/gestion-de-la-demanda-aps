@@ -4,8 +4,6 @@ import { authConfig } from "./auth.config";
 import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
 import { esEstadoActivo } from "@/shared/lib/access";
-// types
-import { MenuItem } from "@/shared/types/session";
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
     ...authConfig,
@@ -18,10 +16,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             }
             const funcionario = await prisma.funcionario.findUnique({
                 where: { email: user.email },
-                select: { rut: true, nombre: true, estado: true }
+                select: { rut: true, nombre: true, estado: true, role: { select: { estado: true } } }
             });
-            if (!funcionario || !esEstadoActivo(funcionario.estado)) {
-                await AuditLogger.logAuth("LOGIN", false, { name: user.name ?? "Desconocido" }, { error: "Funcionario no encontrado o inactivo", details: `Email: ${user.email}` });
+            if (!funcionario || !esEstadoActivo(funcionario.estado) || !esEstadoActivo(funcionario.role.estado)) {
+                await AuditLogger.logAuth("LOGIN", false, { name: user.name ?? "Desconocido" }, { error: "Funcionario o rol no encontrado o inactivo", details: `Email: ${user.email}` });
                 return false;
             }
             await AuditLogger.logAuth("LOGIN", true, { id: user.email, name: user.name ?? funcionario.nombre, rut: funcionario.rut }, { details: "Proveedor: google" });
@@ -36,22 +34,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                         rut: true,
                         nombre: true,
                         centro_id: true,
-                        role: {
-                            select: {
-                                id_rol: true,
-                                nombre_rol: true,
-                                menus: {
-                                    select: {
-                                        id_menu: true,
-                                        nombre: true,
-                                        descripcion: true,
-                                        ruta: true,
-                                        imagen: true
-                                    },
-                                    orderBy: { id_menu: "asc" }
-                                }
-                            }
-                        }
+                        role: { select: { id_rol: true, nombre_rol: true } }
                     }
                 });
                 if (funcionario) {
@@ -66,9 +49,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                     token.centro_id = funcionario.centro_id;
                     token.centro_nombre = centro?.nombre_centro ?? null;
                     token.rol = { id: funcionario.role.id_rol, nombre: funcionario.role.nombre_rol };
-                    token.menu = funcionario.role.menus.map(
-                        (m): MenuItem => ({ id: m.id_menu, nombre: m.nombre, descripcion: m.descripcion, ruta: m.ruta, imagen: m.imagen })
-                    );
                 }
             }
             return token;
@@ -80,7 +60,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 session.user.centro_id = (token.centro_id ?? null) as string | null;
                 session.user.centro_nombre = (token.centro_nombre ?? null) as string | null;
                 session.user.rol = (token.rol ?? { id: 0, nombre: "" }) as { id: number; nombre: string };
-                session.user.menu = (token.menu ?? []) as MenuItem[];
             }
             return session;
         }
