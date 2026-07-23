@@ -10,15 +10,13 @@ vi.mock("@/shared/lib/prisma", () => ({
         }
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
-}));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/shared/lib/logger", () => ({
     AuditLogger: { logDataAccess: vi.fn() }
 }));
 
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { actualizarUsuario, crearUsuario } from "./guardarUsuario.action";
 
 // `as const` mantiene los literales de las uniones (genero, gestante, discapacidad);
@@ -41,13 +39,13 @@ const usuarioInput = {
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({
+    (requirePermiso as any).mockResolvedValue({
         rut: "22.222.222-2",
         email: "o@demo.local",
         nombre: "Orientador",
         centro_id: "650",
-        rol: { id: 2, nombre: "Orientador" },
-        menu: []
+        centro_nombre: "CESFAM",
+        rol: { id: 2, nombre: "Orientador" }
     });
     (prisma.$queryRaw as any).mockResolvedValue([{ id_centro: "650" }]);
 });

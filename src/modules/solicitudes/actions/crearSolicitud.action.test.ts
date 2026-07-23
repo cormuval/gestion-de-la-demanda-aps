@@ -11,16 +11,14 @@ vi.mock("@/shared/lib/prisma", () => ({
         solicitud: { create: vi.fn(), findFirst: vi.fn() }
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
-}));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/shared/lib/logger", () => ({
     AuditLogger: { logDataAccess: vi.fn() }
 }));
 
 import { crearSolicitud } from "./crearSolicitud.action";
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 
 const baseInput = {
     rut_usuario: "12.345.678-5",
@@ -31,13 +29,13 @@ const baseInput = {
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({
+    (requirePermiso as any).mockResolvedValue({
         rut: "22.222.222-2",
         email: "o@demo.local",
         nombre: "Orientador",
         centro_id: "650",
-        rol: { id: 2, nombre: "Orientador" },
-        menu: []
+        centro_nombre: "CESFAM",
+        rol: { id: 2, nombre: "Orientador" }
     });
     (prisma.$queryRaw as any).mockResolvedValue([{ nombre_centro: "Centro De Salud Familiar Esperanza" }]);
     (prisma.tipoSolicitud.findFirst as any).mockResolvedValue({ id_tipo_solicitud: 1 });
@@ -48,7 +46,7 @@ beforeEach(() => {
 
 describe("crearSolicitud", () => {
     it("rechaza si el rol no tiene acceso", async () => {
-        (requireSessionUser as any).mockResolvedValue({ rut: "33.333.333-3", email: "c@demo.local", nombre: "Comunicador", rol: { id: 3, nombre: "Comunicador" }, menu: [] });
+        (requirePermiso as any).mockRejectedValue(new Error("No tienes permiso para esta operacion"));
         await expect(crearSolicitud(baseInput as any)).rejects.toThrow("No tienes permiso");
     });
 

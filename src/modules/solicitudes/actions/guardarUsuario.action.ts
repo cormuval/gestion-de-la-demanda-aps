@@ -2,8 +2,7 @@
 
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederSolicitudes } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 // schemas
 import { usuarioSolicitudSchema, UsuarioSolicitudInput } from "../schemas/usuario.schema";
@@ -11,9 +10,7 @@ import { usuarioSolicitudSchema, UsuarioSolicitudInput } from "../schemas/usuari
 import { validarCentro, toUsuarioData, persistirActualizacionUsuario, USUARIO_SELECT } from "./usuarioUpdate";
 
 async function requireSolicitudesUser() {
-    const user = await requireSessionUser();
-    if (!puedeAccederSolicitudes(user.rol.nombre)) throw new Error("No tienes permiso para solicitudes");
-    return user;
+    return requirePermiso("solicitudes.crear");
 }
 
 export async function crearUsuario(input: UsuarioSolicitudInput) {

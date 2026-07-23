@@ -2,7 +2,7 @@
 
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 
 export interface CentroOption {
     id_centro: string;
@@ -10,7 +10,7 @@ export interface CentroOption {
 }
 
 export async function getCentros(): Promise<CentroOption[]> {
-    await requireSessionUser();
+    await requirePermiso("solicitudes.ver");
     return prisma.$queryRaw<CentroOption[]>`
         SELECT id_centro, nombre_centro
         FROM centros
