@@ -10,7 +10,7 @@ export interface CentroOption {
 }
 
 export async function getCentros(): Promise<CentroOption[]> {
-    await requirePermiso("solicitudes.ver");
+    await requirePermiso("solicitudes.ver", "comunicador.ver");
     return prisma.$queryRaw<CentroOption[]>`
         SELECT id_centro, nombre_centro
         FROM centros
