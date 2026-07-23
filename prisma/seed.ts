@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { CLAVES_PERMISOS, type Permiso } from "../src/config/permisos";
 
 const prisma = new PrismaClient();
 
@@ -39,6 +40,16 @@ const roleMenus: Record<string, MenuTuple[]> = {
         ["Llamadas", "/comunicador", "Gestion de llamadas"],
         ["Dashboard", "/dashboard", "Indicadores principales"]
     ]
+};
+
+const rolePermisos: Record<string, Permiso[]> = {
+    Administrador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"],
+    Orientador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
+    Comunicador: ["comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
+    SOME: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"],
+    "Orientador y Comunicador": ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
+    "Gestor y Comunicador": ["comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
+    Full: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"]
 };
 
 type FuncionarioTuple = [rut: string, email: string, nombre: string, roleName: string];
@@ -86,6 +97,25 @@ async function main() {
                 data: { nombre, ruta, descripcion, imagen: null, role_id: role.id_rol }
             });
         }
+    }
+
+    await prisma.rolPermiso.deleteMany();
+    for (const [roleName, permisos] of Object.entries(rolePermisos)) {
+        const role = roleByName.get(roleName);
+        if (!role) continue;
+        await prisma.rolPermiso.createMany({
+            data: permisos.map((permiso) => ({ rol_id: role.id_rol, permiso })),
+            skipDuplicates: true
+        });
+    }
+    console.log(`Seed: permisos sembrados para ${Object.keys(rolePermisos).length} roles`);
+
+    const huerfanos = await prisma.rolPermiso.findMany({
+        where: { permiso: { notIn: CLAVES_PERMISOS } },
+        select: { rol_id: true, permiso: true }
+    });
+    for (const fila of huerfanos) {
+        console.warn(`WARN  Permiso desconocido en BD: rol ${fila.rol_id} -> "${fila.permiso}" (se ignora al leer)`);
     }
 
     for (const [rut, email, nombre, roleName] of funcionarios) {
