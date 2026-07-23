@@ -23,6 +23,8 @@ import type { Permiso } from "@/config/permisos";
 
 // actions: catalogos
 import { getCatalogos } from "./catalogos/actions/getCatalogos.action";
+// actions: dashboard
+import { getDashboardFuncionario } from "./dashboard/actions/getDashboardFuncionario.action";
 // actions: comunicador
 import { actualizarUsuarioComunicador } from "./comunicador/actions/actualizarUsuarioComunicador.action";
 import { getCitasPendientes } from "./comunicador/actions/getCitasPendientes.action";
@@ -71,11 +73,14 @@ interface CasoPermiso {
 }
 
 // La tabla es la especificacion: se derivo leyendo el guard (primera linea de cada
-// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 27
+// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 28
 // Server Actions repartidas en catalogos, comunicador, configuracion y solicitudes.
 const tabla: CasoPermiso[] = [
     // catalogos
     { nombre: "getCatalogos", invocar: () => getCatalogos(), permisos: ["solicitudes.ver"] },
+
+    // dashboard
+    { nombre: "getDashboardFuncionario", invocar: () => getDashboardFuncionario(), permisos: ["dashboard.ver"] },
 
     // comunicador
     {
@@ -164,8 +169,8 @@ beforeEach(() => {
 });
 
 describe("permiso exigido por cada Server Action", () => {
-    it("cubre las 27 Server Actions del sistema", () => {
-        expect(tabla.length).toBe(27);
+    it("cubre las 28 Server Actions del sistema", () => {
+        expect(tabla.length).toBe(28);
     });
 
     for (const caso of tabla) {

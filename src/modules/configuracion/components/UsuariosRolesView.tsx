@@ -415,50 +415,66 @@ export function UsuariosRolesView() {
                     )}
 
                     {activeTab === "funcionarios" && (
-                        <Table headers={["RUT", "Email", "Nombre", "Rol", "Centro", "Programa", "Estado", "Acciones"]}>
-                            {data.funcionarios.map((funcionario) => (
-                                <tr key={funcionario.rut} className="border-t">
-                                    <td className="px-3 py-3 font-medium">{funcionario.rut}</td>
-                                    <td className="px-3 py-3">{funcionario.email}</td>
-                                    <td className="px-3 py-3">{funcionario.nombre}</td>
-                                    <td className="px-3 py-3">{funcionario.role.nombre_rol}</td>
-                                    <td className="px-3 py-3">{nombreCentro(funcionario.centro_id)}</td>
-                                    <td className="px-3 py-3">{funcionario.programa_asociado || "-"}</td>
-                                    <td className="px-3 py-3"><EstadoBadge active={funcionario.estado === "Activo"} /></td>
-                                    <td className="px-3 py-3">
-                                        <RowActions
-                                            active={funcionario.estado === "Activo"}
-                                            onEdit={() => {
-                                                setFuncionarioForm({
-                                                    rut: funcionario.rut,
-                                                    email: funcionario.email,
-                                                    nombre: funcionario.nombre,
-                                                    rol_id: String(funcionario.rol_id),
-                                                    centro_id: funcionario.centro_id ?? "",
-                                                    programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
-                                                    estado: funcionario.estado === "Activo" ? "Activo" : "Inactivo"
-                                                });
-                                                setEditingFuncionarioRut(funcionario.rut);
-                                                setModal("funcionarios");
-                                            }}
-                                            onToggle={() =>
-                                                guardarFuncionario({
-                                                    rut: funcionario.rut,
-                                                    email: funcionario.email,
-                                                    nombre: funcionario.nombre,
-                                                    rol_id: funcionario.rol_id,
-                                                    centro_id: funcionario.centro_id ?? "",
-                                                    programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
-                                                    estado: funcionario.estado === "Activo" ? "Inactivo" : "Activo"
-                                                })
-                                                    .then(() => loadData())
-                                                    .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))
-                                            }
-                                        />
-                                    </td>
-                                </tr>
-                            ))}
-                        </Table>
+                        <div className="overflow-x-auto rounded-md border">
+                            <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
+                                <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                                    <tr>
+                                        <th className="w-[120px] px-3 py-2 font-medium">RUT</th>
+                                        <th className="w-[260px] px-3 py-2 font-medium">Email</th>
+                                        <th className="w-[210px] px-3 py-2 font-medium">Nombre</th>
+                                        <th className="w-[150px] px-3 py-2 font-medium">Rol</th>
+                                        <th className="w-[210px] px-3 py-2 font-medium">Centro</th>
+                                        <th className="w-[150px] px-3 py-2 font-medium">Programa</th>
+                                        <th className="w-[100px] px-3 py-2 font-medium">Estado</th>
+                                        <th className="w-[150px] px-3 py-2 font-medium">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.funcionarios.map((funcionario) => (
+                                        <tr key={funcionario.rut} className="border-t align-top">
+                                            <td className="px-3 py-3 font-medium">{funcionario.rut}</td>
+                                            <td className="break-all px-3 py-3 leading-5" title={funcionario.email}>{funcionario.email}</td>
+                                            <td className="px-3 py-3 leading-5">{funcionario.nombre}</td>
+                                            <td className="px-3 py-3 leading-5">{funcionario.role.nombre_rol}</td>
+                                            <td className="px-3 py-3 leading-5">{nombreCentro(funcionario.centro_id)}</td>
+                                            <td className="px-3 py-3">{funcionario.programa_asociado || "-"}</td>
+                                            <td className="px-3 py-3"><EstadoBadge active={funcionario.estado === "Activo"} /></td>
+                                            <td className="px-3 py-3">
+                                                <RowActions
+                                                    active={funcionario.estado === "Activo"}
+                                                    onEdit={() => {
+                                                        setFuncionarioForm({
+                                                            rut: funcionario.rut,
+                                                            email: funcionario.email,
+                                                            nombre: funcionario.nombre,
+                                                            rol_id: String(funcionario.rol_id),
+                                                            centro_id: funcionario.centro_id ?? "",
+                                                            programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
+                                                            estado: funcionario.estado === "Activo" ? "Activo" : "Inactivo"
+                                                        });
+                                                        setEditingFuncionarioRut(funcionario.rut);
+                                                        setModal("funcionarios");
+                                                    }}
+                                                    onToggle={() =>
+                                                        guardarFuncionario({
+                                                            rut: funcionario.rut,
+                                                            email: funcionario.email,
+                                                            nombre: funcionario.nombre,
+                                                            rol_id: funcionario.rol_id,
+                                                            centro_id: funcionario.centro_id ?? "",
+                                                            programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
+                                                            estado: funcionario.estado === "Activo" ? "Inactivo" : "Activo"
+                                                        })
+                                                            .then(() => loadData())
+                                                            .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))
+                                                    }
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </CardContent>
             </Card>
