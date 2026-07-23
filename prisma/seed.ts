@@ -99,7 +99,11 @@ async function main() {
         }
     }
 
-    await prisma.rolPermiso.deleteMany();
+    // No se borra roles_permisos antes de sembrar (a diferencia de menu, que si es destructivo):
+    // esta tabla es configuracion viva editable desde el mantenedor de permisos, y el seed corre
+    // en cada deploy. Si se borrara, cualquier ajuste hecho en produccion se revertiria en el
+    // siguiente push a main. La siembra es aditiva: crea los permisos conocidos que falten
+    // (skipDuplicates) y deja intactos los que el administrador haya configurado o quitado.
     for (const [roleName, permisos] of Object.entries(rolePermisos)) {
         const role = roleByName.get(roleName);
         if (!role) continue;
