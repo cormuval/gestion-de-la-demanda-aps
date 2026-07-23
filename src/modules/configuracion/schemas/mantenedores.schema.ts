@@ -1,4 +1,6 @@
 import { z } from "zod";
+// config
+import { esPermiso } from "@/config/permisos";
 // utils
 import { CENTRO_TIPO_SOLICITUD_COLUMNAS } from "@/modules/catalogos/utils/centroTipoSolicitud";
 import { esRutChilenoValido, normalizarRut } from "@/modules/solicitudes/utils/rut";
@@ -38,6 +40,11 @@ export const rolConfigSchema = z.object({
     id_rol: idOptionalSchema,
     nombre_rol: z.string().trim().min(1, "Nombre requerido").max(50, "Maximo 50 caracteres"),
     estado: z.enum(ESTADOS_ACTIVO)
+});
+
+export const permisosRolSchema = z.object({
+    rol_id: z.coerce.number().int().positive(),
+    permisos: z.array(z.string().refine(esPermiso, "Permiso desconocido"))
 });
 
 export const profesionalConfigSchema = z.object({
@@ -80,3 +87,4 @@ export type RolConfigInput = z.input<typeof rolConfigSchema>;
 export type ProfesionalConfigInput = z.input<typeof profesionalConfigSchema>;
 export type PrestacionConfigInput = z.input<typeof prestacionConfigSchema>;
 export type FuncionarioConfigInput = z.input<typeof funcionarioConfigSchema>;
+export type PermisosRolInput = z.input<typeof permisosRolSchema>;

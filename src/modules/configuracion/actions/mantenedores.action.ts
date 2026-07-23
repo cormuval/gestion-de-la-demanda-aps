@@ -5,33 +5,25 @@ import {
     ConfiguracionFiltros,
     funcionarioConfigSchema,
     motivoConfigSchema,
+    permisosRolSchema,
     prestacionConfigSchema,
     profesionalConfigSchema,
     rolConfigSchema,
     tipoSolicitudConfigSchema,
     type FuncionarioConfigInput,
     type MotivoConfigInput,
+    type PermisosRolInput,
     type PrestacionConfigInput,
     type ProfesionalConfigInput,
     type RolConfigInput,
     type TipoSolicitudConfigInput
 } from "../schemas/mantenedores.schema";
 // lib
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
-
-const ROLES_CONFIGURACION = ["Administrador", "SOME", "Full"] as const;
-
-function puedeConfigurar(rol: string): boolean {
-    return (ROLES_CONFIGURACION as readonly string[]).includes(rol);
-}
-
-async function requireConfigUser() {
-    const user = await requireSessionUser();
-    if (!puedeConfigurar(user.rol.nombre)) throw new Error("No tienes permiso para configuracion");
-    return user;
-}
+// config
+import { CLAVES_PERMISOS, type Permiso } from "@/config/permisos";
 
 function centroData(centros: Partial<Record<(typeof CENTRO_COLUMNAS)[number], "1" | "0">>) {
     return CENTRO_COLUMNAS.reduce(
@@ -49,7 +41,7 @@ function searchContains(search?: string) {
 }
 
 export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) {
-    await requireConfigUser();
+    await requirePermiso("config.ver");
     const search = searchContains(filtros.search);
 
     const [tiposSolicitud, motivos, roles, profesionales, prestaciones, funcionarios, centros] = await Promise.all([
@@ -66,6 +58,7 @@ export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) 
         }),
         prisma.role.findMany({
             where: search ? { nombre_rol: search } : undefined,
+            include: { permisos: { select: { permiso: true } } },
             orderBy: { nombre_rol: "asc" },
             take: 300
         }),
@@ -99,7 +92,7 @@ export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) 
 }
 
 export async function guardarTipoSolicitud(input: TipoSolicitudConfigInput) {
-    const user = await requireConfigUser();
+    const user = await requirePermiso("config.catalogos");
     const data = tipoSolicitudConfigSchema.parse(input);
     const duplicated = await prisma.tipoSolicitud.findFirst({
         where: {
@@ -124,7 +117,7 @@ export async function guardarTipoSolicitud(input: TipoSolicitudConfigInput) {
 }
 
 export async function guardarMotivo(input: MotivoConfigInput) {
-    const user = await requireConfigUser();
+    const user = await requirePermiso("config.catalogos");
     const data = motivoConfigSchema.parse(input);
     const tipo = await prisma.tipoSolicitud.findUnique({ where: { id_tipo_solicitud: data.tipo_solicitud_id }, select: { id_tipo_solicitud: true } });
     if (!tipo) throw new Error("Tipo de solicitud no existe");
@@ -148,7 +141,7 @@ export async function guardarMotivo(input: MotivoConfigInput) {
 }
 
 export async function guardarRol(input: RolConfigInput) {
-    const user = await requireConfigUser();
+    const user = await requirePermiso("config.roles");
     const data = rolConfigSchema.parse(input);
     const duplicated = await prisma.role.findFirst({
         where: { nombre_rol: data.nombre_rol, ...(data.id_rol ? { NOT: { id_rol: data.id_rol } } : {}) },
@@ -165,7 +158,7 @@ export async function guardarRol(input: RolConfigInput) {
 }
 
 export async function guardarProfesional(input: ProfesionalConfigInput) {
-    const user = await requireConfigUser();
+    const user = await requirePermiso("config.catalogos");
     const data = profesionalConfigSchema.parse(input);
     const duplicated = await prisma.profesional.findFirst({
         where: { nombre: data.nombre, ...(data.id_profesional ? { NOT: { id_profesional: data.id_profesional } } : {}) },
@@ -182,7 +175,7 @@ export async function guardarProfesional(input: ProfesionalConfigInput) {
 }
 
 export async function guardarPrestacion(input: PrestacionConfigInput) {
-    const user = await requireConfigUser();
+    const user = await requirePermiso("config.catalogos");
     const data = prestacionConfigSchema.parse(input);
     const profesional = await prisma.profesional.findUnique({ where: { id_profesional: data.profesional_id }, select: { id_profesional: true } });
     if (!profesional) throw new Error("Profesional no existe");
@@ -206,7 +199,7 @@ export async function guardarPrestacion(input: PrestacionConfigInput) {
 }
 
 export async function guardarFuncionario(input: FuncionarioConfigInput) {
-    const user = await requireConfigUser();
+    const user = await requirePermiso("config.funcionarios");
     const data = funcionarioConfigSchema.parse(input);
     const [rol, centro, funcionarioActual, emailDuplicado] = await Promise.all([
         prisma.role.findUnique({ where: { id_rol: data.rol_id }, select: { id_rol: true } }),
@@ -234,6 +227,33 @@ export async function guardarFuncionario(input: FuncionarioConfigInput) {
 
     await AuditLogger.logDataAccess(funcionarioActual ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `funcionario:${saved.rut}`);
     return saved;
+}
+
+export async function guardarPermisosRol(input: PermisosRolInput) {
+    const user = await requirePermiso("config.roles");
+    const data = permisosRolSchema.parse(input);
+    const permisos = CLAVES_PERMISOS.filter((clave) => data.permisos.includes(clave));
+
+    // Evita que un administrador se deje sin acceso al mantenedor de roles.
+    if (data.rol_id === user.rol.id && !permisos.includes("config.roles")) {
+        throw new Error("No puedes quitar el permiso de editar roles a tu propio rol");
+    }
+
+    const previos = await prisma.rolPermiso.findMany({ where: { rol_id: data.rol_id }, select: { permiso: true } });
+
+    await prisma.$transaction([
+        prisma.rolPermiso.deleteMany({ where: { rol_id: data.rol_id } }),
+        prisma.rolPermiso.createMany({ data: permisos.map((permiso) => ({ rol_id: data.rol_id, permiso })) })
+    ]);
+
+    await AuditLogger.logDataAccess(
+        "UPDATE",
+        true,
+        { rut: user.rut, name: user.nombre },
+        `rol:${data.rol_id} permisos antes=[${previos.map((fila) => fila.permiso).join(",")}] despues=[${permisos.join(",")}]`
+    );
+
+    return { id_rol: data.rol_id, permisos: permisos as Permiso[] };
 }
 
 export type MantenedoresConfig = Awaited<ReturnType<typeof getMantenedoresConfig>>;
