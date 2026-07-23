@@ -260,4 +260,18 @@ describe("guardarPermisosRol", () => {
         const resultado = await guardarPermisosRol({ rol_id: 1, permisos: ["config.ver", "config.roles"] });
         expect(resultado.permisos).toContain("config.roles");
     });
+
+    it("reemplaza los permisos dentro de una transaccion", async () => {
+        await guardarPermisosRol({ rol_id: 3, permisos: ["solicitudes.ver", "comunicador.ver"] });
+
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        const operaciones = (prisma.$transaction as any).mock.calls[0][0];
+        expect(operaciones).toHaveLength(2);
+    });
+
+    it("propaga el fallo de la transaccion", async () => {
+        (prisma.$transaction as any).mockRejectedValue(new Error("fallo de conexion"));
+
+        await expect(guardarPermisosRol({ rol_id: 3, permisos: ["solicitudes.ver"] })).rejects.toThrow("fallo de conexion");
+    });
 });

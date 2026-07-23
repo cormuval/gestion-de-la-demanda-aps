@@ -23,7 +23,7 @@ import { requirePermiso } from "@/shared/lib/permisos";
 import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
 // config
-import { CLAVES_PERMISOS, type Permiso } from "@/config/permisos";
+import { CLAVES_PERMISOS } from "@/config/permisos";
 
 function centroData(centros: Partial<Record<(typeof CENTRO_COLUMNAS)[number], "1" | "0">>) {
     return CENTRO_COLUMNAS.reduce(
@@ -253,7 +253,7 @@ export async function guardarPermisosRol(input: PermisosRolInput) {
         `rol:${data.rol_id} permisos antes=[${previos.map((fila) => fila.permiso).join(",")}] despues=[${permisos.join(",")}]`
     );
 
-    return { id_rol: data.rol_id, permisos: permisos as Permiso[] };
+    return { id_rol: data.rol_id, permisos };
 }
 
 export type MantenedoresConfig = Awaited<ReturnType<typeof getMantenedoresConfig>>;
