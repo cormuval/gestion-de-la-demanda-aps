@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 // utils
 import { CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "../utils/centroTipoSolicitud";
 // types
@@ -26,7 +26,7 @@ function buildTipoSolicitudWhere(centroColumna: CentroTipoSolicitudColumna | nul
 }
 
 export async function getCatalogos(): Promise<Catalogos> {
-    const user = await requireSessionUser();
+    const user = await requirePermiso("solicitudes.ver");
     const nombreCentro = await getNombreCentro(user.centro_id);
     const centroColumna = getColumnaTipoSolicitudPorCentro(nombreCentro);
 

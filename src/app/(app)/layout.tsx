@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/shared/lib/auth";
+// lib
+import { getSessionPermisos } from "@/shared/lib/permisos";
+// components
 import { AppShell } from "@/shared/components/layout/app-shell";
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
-    const user = await getSessionUser();
-    if (!user) redirect("/auth/login");
-    return <AppShell>{children}</AppShell>;
+    const contexto = await getSessionPermisos();
+    if (!contexto) redirect("/auth/login");
+    return (
+        <AppShell user={contexto.user} permisos={[...contexto.permisos]}>
+            {children}
+        </AppShell>
+    );
 }

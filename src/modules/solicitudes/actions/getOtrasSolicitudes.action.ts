@@ -2,8 +2,7 @@
 
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederSolicitudes } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 // schemas
 import { ACCION_ESPERA_VALIDACION } from "../schemas/revision.schema";
 // utils
@@ -22,8 +21,7 @@ async function getCentroFuncionario(rutFuncionario: string, centroSesion: string
 }
 
 export async function getOtrasSolicitudes(rutUsuario: string, solicitudActualId: string) {
-    const user = await requireSessionUser();
-    if (!puedeAccederSolicitudes(user.rol.nombre)) throw new Error("No tienes permiso para solicitudes");
+    const user = await requirePermiso("solicitudes.gestionar");
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
     const solicitudes = await prisma.solicitud.findMany({

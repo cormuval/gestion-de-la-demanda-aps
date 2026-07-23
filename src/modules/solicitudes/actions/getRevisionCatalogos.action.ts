@@ -2,8 +2,7 @@
 
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederSolicitudes } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "@/modules/catalogos/utils/centroTipoSolicitud";
 
 async function getNombreCentro(centroId: string | null): Promise<string | null> {
@@ -34,8 +33,7 @@ function buildCentroWhere(centroColumna: CentroTipoSolicitudColumna | null) {
 }
 
 export async function getRevisionCatalogos() {
-    const user = await requireSessionUser();
-    if (!puedeAccederSolicitudes(user.rol.nombre)) throw new Error("No tienes permiso para solicitudes");
+    const user = await requirePermiso("solicitudes.gestionar");
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
     const nombreCentro = await getNombreCentro(centroId);

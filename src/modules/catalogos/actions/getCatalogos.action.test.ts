@@ -7,17 +7,15 @@ vi.mock("@/shared/lib/prisma", () => ({
         motivo: { findMany: vi.fn() }
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
-}));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { getCatalogos } from "./getCatalogos.action";
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({ centro_id: "650" });
+    (requirePermiso as any).mockResolvedValue({ centro_id: "650" });
     (prisma.$queryRaw as any).mockResolvedValue([{ nombre_centro: "Centro De Salud Familiar Esperanza" }]);
     (prisma.tipoSolicitud.findMany as any).mockResolvedValue([]);
     (prisma.motivo.findMany as any).mockResolvedValue([]);

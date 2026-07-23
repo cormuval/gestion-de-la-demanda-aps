@@ -2,8 +2,7 @@
 
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederComunicador } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 
 export interface HistorialLlamada {
@@ -15,8 +14,7 @@ export interface HistorialLlamada {
 }
 
 export async function getHistorialLlamadas(citaId: string): Promise<HistorialLlamada[]> {
-    const user = await requireSessionUser();
-    if (!puedeAccederComunicador(user.rol.nombre)) throw new Error("No tienes permiso para el comunicador");
+    const user = await requirePermiso("comunicador.ver");
     if (!user.centro_id) throw new Error("El funcionario no tiene centro asignado");
 
     const cita = await prisma.cita.findUnique({ where: { id_cita: citaId }, select: { centro_id: true } });

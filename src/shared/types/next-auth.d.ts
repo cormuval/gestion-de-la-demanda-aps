@@ -1,4 +1,4 @@
-import { MenuItem } from "./session";
+export {};
 
 declare module "next-auth" {
     interface Session {
@@ -11,7 +11,6 @@ declare module "next-auth" {
             centro_id: string | null;
             centro_nombre: string | null;
             rol: { id: number; nombre: string };
-            menu: MenuItem[];
         };
     }
 }
@@ -23,6 +22,5 @@ declare module "next-auth/jwt" {
         centro_id?: string | null;
         centro_nombre?: string | null;
         rol?: { id: number; nombre: string };
-        menu?: MenuItem[];
     }
 }
