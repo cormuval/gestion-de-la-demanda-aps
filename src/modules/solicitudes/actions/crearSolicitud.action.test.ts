@@ -45,9 +45,10 @@ beforeEach(() => {
 });
 
 describe("crearSolicitud", () => {
-    it("rechaza si el rol no tiene acceso", async () => {
+    it("propaga el rechazo cuando falta el permiso", async () => {
         (requirePermiso as any).mockRejectedValue(new Error("No tienes permiso para esta operacion"));
         await expect(crearSolicitud(baseInput as any)).rejects.toThrow("No tienes permiso");
+        expect(prisma.$queryRaw as any).not.toHaveBeenCalled();
     });
 
     it("rechaza input invalido (RUT incorrecto)", async () => {
