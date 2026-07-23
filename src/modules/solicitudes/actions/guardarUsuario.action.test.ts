@@ -21,6 +21,8 @@ import { prisma } from "@/shared/lib/prisma";
 import { requireSessionUser } from "@/shared/lib/auth";
 import { actualizarUsuario, crearUsuario } from "./guardarUsuario.action";
 
+// `as const` mantiene los literales de las uniones (genero, gestante, discapacidad);
+// sin el, TypeScript los ensancha a string y el fixture deja de tipar.
 const usuarioInput = {
     rut: "12.345.678-5",
     nombre: "Paciente",
@@ -35,7 +37,7 @@ const usuarioInput = {
     gestante: "No",
     discapacidad: "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
     centro_id: "650"
-};
+} as const;
 
 beforeEach(() => {
     vi.clearAllMocks();
