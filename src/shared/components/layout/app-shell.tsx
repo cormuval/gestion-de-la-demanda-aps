@@ -2,92 +2,29 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
-import { BarChart3, LogOut, Megaphone, Settings, ClipboardList, UserCog } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { LogOut } from "lucide-react";
 // components
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
 // lib
 import { cn } from "@/shared/lib/utils";
+// config
+import { navVisible } from "@/config/navegacion";
+import type { Permiso } from "@/config/permisos";
 // types
-import type { MenuItem } from "@/shared/types/session";
+import type { SessionUser } from "@/shared/types/session";
 
-const iconByName: Record<string, typeof ClipboardList> = {
-    Solicitudes: ClipboardList,
-    Llamadas: Megaphone,
-    Dashboard: BarChart3,
-    Configuracion: Settings,
-    "Usuarios y Roles": UserCog
-};
-
-const protectedPrefixes = ["/solicitudes", "/comunicador", "/dashboard", "/configuracion"];
-
-interface NavLink {
-    key: string;
-    href: string;
-    label: string;
-    Icon: typeof ClipboardList;
+interface AppShellProps {
+    user: SessionUser;
+    permisos: Permiso[];
+    children: React.ReactNode;
 }
 
-// Construye el orden del nav: cada item del menu y, tras "Solicitudes",
-// inyecta "Revisar solicitudes" (ruta no incluida en el menu de BD).
-function buildNavLinks(menu: MenuItem[]): NavLink[] {
-    const links: NavLink[] = [];
-    for (const item of menu) {
-        links.push({
-            key: `${item.id}-${item.ruta}`,
-            href: item.ruta,
-            label: item.nombre,
-            Icon: iconByName[item.nombre] || ClipboardList
-        });
-        if (item.nombre === "Solicitudes") {
-            links.push({
-                key: "revisar-solicitudes",
-                href: "/solicitudes/revisar",
-                label: "Revisar solicitudes",
-                Icon: ClipboardList
-            });
-        }
-    }
-    return links;
-}
-
-function canAccess(menu: MenuItem[], pathname: string): boolean {
-    if (pathname.startsWith("/solicitudes")) return menu.some((item) => item.nombre === "Solicitudes");
-    return menu.some((item) => pathname === item.ruta || pathname.startsWith(`${item.ruta}/`));
-}
-
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ user, permisos, children }: AppShellProps) {
     const pathname = usePathname();
-    const router = useRouter();
-    const { data: session, status } = useSession();
-    const user = session?.user;
-    const loading = status === "loading";
-
-    useEffect(() => {
-        if (loading) return;
-        if (!user) {
-            router.replace("/auth/login");
-            return;
-        }
-        const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
-        if (isProtected && !canAccess(user.menu, pathname)) {
-            router.replace(user.menu?.[0]?.ruta || "/auth/login");
-        }
-    }, [loading, user, pathname, router]);
-
-    const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
-    if (loading || !user || (isProtected && !canAccess(user.menu, pathname))) {
-        return (
-            <main className="flex min-h-screen items-center justify-center">
-                <div className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">Cargando acceso...</div>
-            </main>
-        );
-    }
-
-    const navLinks = buildNavLinks(user.menu);
+    const navLinks = navVisible(permisos);
     const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
     return (
@@ -113,11 +50,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
 
                 <nav className="flex-1 space-y-1 p-3">
-                    {navLinks.map(({ key, href, label, Icon }) => {
+                    {navLinks.map(({ href, label, icon: Icon }) => {
                         const active = isActive(href);
                         return (
                             <Link
-                                key={key}
+                                key={href}
                                 href={href}
                                 className={cn(
                                     "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
@@ -164,9 +101,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         </Button>
                     </div>
                     <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                        {navLinks.map(({ key, href, label }) => (
+                        {navLinks.map(({ href, label }) => (
                             <Link
-                                key={key}
+                                key={href}
                                 href={href}
                                 className={cn(
                                     "whitespace-nowrap rounded-md border px-3 py-2 text-sm",

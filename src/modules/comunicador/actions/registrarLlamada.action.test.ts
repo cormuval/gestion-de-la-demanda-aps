@@ -8,16 +8,16 @@ const tx = {
 vi.mock("@/shared/lib/prisma", () => ({
     prisma: { $transaction: vi.fn(async (cb: any) => cb(tx)) }
 }));
-vi.mock("@/shared/lib/auth", () => ({ requireSessionUser: vi.fn() }));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/shared/lib/logger", () => ({ AuditLogger: { logDataAccess: vi.fn() } }));
 
 import { registrarLlamada } from "./registrarLlamada.action";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { RESPUESTA_LLAMADA } from "../types/comunicador";
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" }, menu: [] });
+    (requirePermiso as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" } });
     tx.cita.findUnique.mockResolvedValue({ id_cita: "CITA-1", solicitud_id: "SOL-1", estado_cita: "Sin llamadas", centro_id: "501" });
     tx.llamada.count.mockResolvedValue(0);
     tx.cita.update.mockResolvedValue({});
@@ -25,9 +25,9 @@ beforeEach(() => {
 });
 
 describe("registrarLlamada", () => {
-    it("rechaza rol sin acceso", async () => {
-        (requireSessionUser as any).mockResolvedValue({ rut: "1-9", email: "o@x.cl", nombre: "O", centro_id: "501", rol: { id: 2, nombre: "Orientador" }, menu: [] });
-        await expect(registrarLlamada({ cita_id: "CITA-1", respuesta: RESPUESTA_LLAMADA.NO_CONTESTA } as any)).rejects.toThrow("No tienes permiso");
+    it("propaga el rechazo cuando falta el permiso de llamar", async () => {
+        (requirePermiso as any).mockRejectedValue(new Error("No tienes permiso para esta operacion"));
+        await expect(registrarLlamada({} as any)).rejects.toThrow("No tienes permiso para esta operacion");
     });
 
     it("primer No contesta -> estado 'No contesta (1)', no cierra solicitud", async () => {

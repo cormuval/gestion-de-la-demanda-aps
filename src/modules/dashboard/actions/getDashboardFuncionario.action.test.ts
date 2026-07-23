@@ -7,26 +7,25 @@ vi.mock("@/shared/lib/prisma", () => ({
     }
 }));
 
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
+vi.mock("@/shared/lib/permisos", () => ({
+    requirePermiso: vi.fn()
 }));
 
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { getDashboardFuncionario } from "./getDashboardFuncionario.action";
 
 beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-22T12:00:00"));
-    (requireSessionUser as any).mockResolvedValue({
+    (requirePermiso as any).mockResolvedValue({
         rut: "22.222.222-2",
         email: "gestor@demo.local",
         nombre: "Gestor Demo",
         centro_id: "501",
         centro_nombre: "Centro Demo",
-        rol: { id: 1, nombre: "Full" },
-        menu: []
+        rol: { id: 1, nombre: "Full" }
     });
 });
 

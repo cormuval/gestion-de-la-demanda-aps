@@ -1,11 +1,3 @@
-export interface MenuItem {
-    id: number;
-    nombre: string;
-    descripcion: string | null;
-    ruta: string;
-    imagen: string | null;
-}
-
 export interface SessionUser {
     rut: string;
     email: string;
@@ -13,5 +5,4 @@ export interface SessionUser {
     centro_id: string | null;
     centro_nombre: string | null;
     rol: { id: number; nombre: string };
-    menu: MenuItem[];
 }

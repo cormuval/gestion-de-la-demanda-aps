@@ -10,26 +10,24 @@ vi.mock("@/shared/lib/prisma", () => ({
         }
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
-}));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/shared/lib/logger", () => ({
     AuditLogger: { logDataAccess: vi.fn() }
 }));
 
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { getSolicitudes } from "./getSolicitudes.action";
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({
+    (requirePermiso as any).mockResolvedValue({
         rut: "22.222.222-2",
         email: "o@demo.local",
         nombre: "Orientador",
         centro_id: "650",
-        rol: { id: 2, nombre: "Orientador" },
-        menu: []
+        centro_nombre: "CESFAM",
+        rol: { id: 2, nombre: "Orientador" }
     });
     (prisma.solicitud.findMany as any).mockResolvedValue([]);
     (prisma.solicitud.count as any).mockResolvedValue(0);
@@ -62,13 +60,13 @@ describe("getSolicitudes", () => {
     });
 
     it("usa el centro del funcionario si no viene en la sesion", async () => {
-        (requireSessionUser as any).mockResolvedValue({
+        (requirePermiso as any).mockResolvedValue({
             rut: "22.222.222-2",
             email: "o@demo.local",
             nombre: "Orientador",
             centro_id: null,
-            rol: { id: 2, nombre: "Orientador" },
-            menu: []
+            centro_nombre: "CESFAM",
+            rol: { id: 2, nombre: "Orientador" }
         });
         (prisma.funcionario.findUnique as any).mockResolvedValue({ centro_id: "610" });
 

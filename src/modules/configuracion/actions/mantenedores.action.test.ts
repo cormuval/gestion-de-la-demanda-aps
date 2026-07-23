@@ -8,19 +8,19 @@ vi.mock("@/shared/lib/prisma", () => ({
         profesional: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
         prestacion: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
         funcionario: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-        centro: { findMany: vi.fn(), findUnique: vi.fn() }
+        centro: { findMany: vi.fn(), findUnique: vi.fn() },
+        rolPermiso: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
+        $transaction: vi.fn(async (operaciones: unknown[]) => operaciones)
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
-}));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/shared/lib/logger", () => ({
     AuditLogger: { logDataAccess: vi.fn() }
 }));
 
 import { guardarFuncionario, guardarMotivo, guardarPrestacion, guardarProfesional, guardarRol, guardarTipoSolicitud } from "./mantenedores.action";
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 
 const user = {
     rut: "11.111.111-1",
@@ -33,7 +33,7 @@ const user = {
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue(user);
+    (requirePermiso as any).mockResolvedValue(user);
     (prisma.tipoSolicitud.findFirst as any).mockResolvedValue(null);
     (prisma.tipoSolicitud.findUnique as any).mockResolvedValue({ id_tipo_solicitud: 1 });
     (prisma.motivo.findFirst as any).mockResolvedValue(null);
@@ -221,5 +221,57 @@ describe("mantenedores configuracion", () => {
                 estado: "Activo"
             })
         ).rejects.toThrow("Centro no existe");
+    });
+});
+
+import { guardarPermisosRol } from "./mantenedores.action";
+
+describe("guardarPermisosRol", () => {
+    beforeEach(() => {
+        (prisma.rolPermiso.findMany as any).mockResolvedValue([{ permiso: "solicitudes.ver" }]);
+        (prisma.rolPermiso.deleteMany as any).mockResolvedValue({ count: 1 });
+        (prisma.rolPermiso.createMany as any).mockResolvedValue({ count: 2 });
+    });
+
+    it("reemplaza los permisos del rol", async () => {
+        const resultado = await guardarPermisosRol({ rol_id: 3, permisos: ["solicitudes.ver", "comunicador.ver"] });
+        expect(resultado.permisos).toEqual(["solicitudes.ver", "comunicador.ver"]);
+        expect(prisma.rolPermiso.deleteMany).toHaveBeenCalledWith({ where: { rol_id: 3 } });
+        const argsCreate = (prisma.rolPermiso.createMany as any).mock.calls[0][0];
+        expect(argsCreate.data).toEqual([
+            { rol_id: 3, permiso: "solicitudes.ver" },
+            { rol_id: 3, permiso: "comunicador.ver" }
+        ]);
+    });
+
+    it("rechaza claves que no existen en el catalogo", async () => {
+        await expect(guardarPermisosRol({ rol_id: 3, permisos: ["modulo.inventado"] })).rejects.toThrow();
+        expect(prisma.rolPermiso.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("impide que el usuario se quite config.roles a si mismo", async () => {
+        await expect(guardarPermisosRol({ rol_id: 1, permisos: ["config.ver"] })).rejects.toThrow(
+            "No puedes quitar el permiso de editar roles a tu propio rol"
+        );
+        expect(prisma.rolPermiso.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("permite editar el propio rol si conserva config.roles", async () => {
+        const resultado = await guardarPermisosRol({ rol_id: 1, permisos: ["config.ver", "config.roles"] });
+        expect(resultado.permisos).toContain("config.roles");
+    });
+
+    it("reemplaza los permisos dentro de una transaccion", async () => {
+        await guardarPermisosRol({ rol_id: 3, permisos: ["solicitudes.ver", "comunicador.ver"] });
+
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        const operaciones = (prisma.$transaction as any).mock.calls[0][0];
+        expect(operaciones).toHaveLength(2);
+    });
+
+    it("propaga el fallo de la transaccion", async () => {
+        (prisma.$transaction as any).mockRejectedValue(new Error("fallo de conexion"));
+
+        await expect(guardarPermisosRol({ rol_id: 3, permisos: ["solicitudes.ver"] })).rejects.toThrow("fallo de conexion");
     });
 });

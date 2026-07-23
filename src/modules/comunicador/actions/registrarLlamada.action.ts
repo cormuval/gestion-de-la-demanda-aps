@@ -3,8 +3,7 @@
 import crypto from "node:crypto";
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederComunicador } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 // schemas
 import { registrarLlamadaSchema, RegistrarLlamadaInput } from "../schemas/llamada.schema";
@@ -14,8 +13,7 @@ import { computeEstadoCita } from "../utils/estadoCita";
 import { ESTADO_CITA, ESTADOS_PENDIENTES, RESPUESTA_LLAMADA, RespuestaLlamada, esEstadoTerminal } from "../types/comunicador";
 
 export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<{ estadoCita: string; solicitudRealizada: boolean }> {
-    const user = await requireSessionUser();
-    if (!puedeAccederComunicador(user.rol.nombre)) throw new Error("No tienes permiso para el comunicador");
+    const user = await requirePermiso("comunicador.llamar");
 
     const data = registrarLlamadaSchema.parse(input);
 

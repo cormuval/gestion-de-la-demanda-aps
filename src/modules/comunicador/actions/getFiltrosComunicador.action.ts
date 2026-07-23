@@ -1,8 +1,7 @@
 "use server";
 
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederComunicador } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { esEstadoActivo } from "@/shared/lib/access";
 
 // Entradas de uso interno/administrativo que no son profesionales clínicos reales;
@@ -13,8 +12,7 @@ export async function getFiltrosComunicador(): Promise<{
     profesionales: { id: number; nombre: string }[];
     prestaciones: { id: number; nombre: string; profesional_id: number }[];
 }> {
-    const user = await requireSessionUser();
-    if (!puedeAccederComunicador(user.rol.nombre)) throw new Error("No tienes permiso para el comunicador");
+    const user = await requirePermiso("comunicador.ver");
 
     const [profesionales, prestaciones] = await Promise.all([
         prisma.profesional.findMany({ orderBy: { nombre: "asc" }, select: { id_profesional: true, nombre: true, estado: true } }),

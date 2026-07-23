@@ -1,7 +1,7 @@
 "use server";
 
 // lib
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { prisma } from "@/shared/lib/prisma";
 
 const ACCION_REALIZAR_SOLICITUD = "Realizar solicitud";
@@ -131,7 +131,7 @@ function buildSerie(desde: Date, rangoDias: DashboardRangoDias): DashboardDiaSer
 }
 
 export async function getDashboardFuncionario(rangoDiasInput?: number): Promise<DashboardFuncionarioData> {
-    const user = await requireSessionUser();
+    const user = await requirePermiso("dashboard.ver");
     const { rangoDias, desde, hasta } = buildRango(rangoDiasInput);
 
     const [solicitudesIngresadas, gestiones, llamadas] = await Promise.all([

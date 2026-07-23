@@ -2,8 +2,7 @@
 
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederComunicador } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 // utils
 import { esRutChilenoValido, normalizarRut } from "@/modules/solicitudes/utils/rut";
@@ -28,8 +27,7 @@ export interface UsuarioEditable {
 }
 
 export async function getUsuarioParaEdicion(rutUsuario: string): Promise<{ usuario: UsuarioEditable | null }> {
-    const user = await requireSessionUser();
-    if (!puedeAccederComunicador(user.rol.nombre)) throw new Error("No tienes permiso para el comunicador");
+    const user = await requirePermiso("comunicador.paciente");
 
     const rut = normalizarRut(rutUsuario);
     if (!rut) throw new Error("RUT usuario es requerido");

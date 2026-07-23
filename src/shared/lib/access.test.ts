@@ -1,14 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { puedeAccederComunicador } from "./access";
+import { esEstadoActivo } from "./access";
 
-describe("puedeAccederComunicador", () => {
-    it("permite roles con menú comunicador", () => {
-        for (const rol of ["Administrador", "Comunicador", "SOME", "Orientador y Comunicador", "Gestor y Comunicador", "Full"]) {
-            expect(puedeAccederComunicador(rol)).toBe(true);
-        }
+describe("esEstadoActivo", () => {
+    it("acepta los estados activos conocidos", () => {
+        expect(esEstadoActivo("Activo")).toBe(true);
+        expect(esEstadoActivo(" 1 ")).toBe(true);
     });
-    it("rechaza roles sin acceso", () => {
-        expect(puedeAccederComunicador("Orientador")).toBe(false);
-        expect(puedeAccederComunicador("")).toBe(false);
+
+    it("rechaza estados inactivos, vacios o nulos", () => {
+        expect(esEstadoActivo("Inactivo")).toBe(false);
+        expect(esEstadoActivo("")).toBe(false);
+        expect(esEstadoActivo(null)).toBe(false);
+        expect(esEstadoActivo(undefined)).toBe(false);
     });
 });

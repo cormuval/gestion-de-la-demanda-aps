@@ -3,8 +3,7 @@
 import crypto from "node:crypto";
 // lib
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
-import { puedeAccederSolicitudes } from "@/shared/lib/access";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 import { CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "@/modules/catalogos/utils/centroTipoSolicitud";
 // schemas
@@ -44,8 +43,7 @@ function buildTipoSolicitudWhere(idTipoSolicitud: number, centroColumna: CentroT
 }
 
 export async function crearSolicitud(input: CrearSolicitudInput) {
-    const user = await requireSessionUser();
-    if (!puedeAccederSolicitudes(user.rol.nombre)) throw new Error("No tienes permiso para solicitudes");
+    const user = await requirePermiso("solicitudes.crear");
 
     const data = crearSolicitudSchema.parse(input);
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);

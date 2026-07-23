@@ -20,26 +20,28 @@ vi.mock("@/shared/lib/prisma", () => ({
         }
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
-}));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/shared/lib/logger", () => ({
     AuditLogger: { logDataAccess: vi.fn() }
 }));
 
 import { prisma } from "@/shared/lib/prisma";
-import { requireSessionUser } from "@/shared/lib/auth";
+import { requirePermiso } from "@/shared/lib/permisos";
 import { gestionarSolicitud } from "./gestionarSolicitud.action";
+
+// La accion rechaza fechas anteriores a hoy, asi que la fecha del fixture se
+// calcula relativa al dia de ejecucion en vez de fijarla en el calendario.
+const fechaEstimada = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
 beforeEach(() => {
     vi.clearAllMocks();
-    (requireSessionUser as any).mockResolvedValue({
+    (requirePermiso as any).mockResolvedValue({
         rut: "22.222.222-2",
         email: "o@demo.local",
         nombre: "Gestor",
         centro_id: "650",
-        rol: { id: 2, nombre: "Orientador" },
-        menu: []
+        centro_nombre: "CESFAM",
+        rol: { id: 2, nombre: "Orientador" }
     });
     (prisma.$queryRaw as any).mockResolvedValue([{ nombre_centro: "Centro De Salud Familiar Esperanza" }]);
     (prisma.$transaction as any).mockImplementation(async (callback: any) => callback(prisma));
@@ -82,7 +84,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora de exámenes",
                     profesional_id: null,
                     prestacion_id: null,
-                    fecha_estimada_atencion: "2026-08-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "Control",
                     priorizacion_clinica: "Alta"
                 }
@@ -127,7 +129,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora con profesional",
                     profesional_id: 2,
                     prestacion_id: 3,
-                    fecha_estimada_atencion: "2026-08-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "",
                     priorizacion_clinica: "Urgente"
                 }
@@ -153,7 +155,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora de exámenes",
                     profesional_id: null,
                     prestacion_id: null,
-                    fecha_estimada_atencion: "2026-08-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "",
                     priorizacion_clinica: "Urgente"
                 }
@@ -185,7 +187,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora de exámenes",
                     profesional_id: null,
                     prestacion_id: null,
-                    fecha_estimada_atencion: "2026-08-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "",
                     priorizacion_clinica: "Media"
                 }))

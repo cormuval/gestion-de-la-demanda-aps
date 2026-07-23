@@ -5,9 +5,7 @@ vi.mock("@/shared/lib/prisma", () => ({
         $queryRaw: vi.fn()
     }
 }));
-vi.mock("@/shared/lib/auth", () => ({
-    requireSessionUser: vi.fn()
-}));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 
 import { prisma } from "@/shared/lib/prisma";
 import { getCentros } from "./getCentros.action";
