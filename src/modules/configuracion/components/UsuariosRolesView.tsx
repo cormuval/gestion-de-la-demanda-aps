@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
+import { PermisosRolModal, type RolConPermisos } from "@/modules/configuracion/components/PermisosRolModal";
 
 type ConfigData = Awaited<ReturnType<typeof getMantenedoresConfig>>;
 type TabKey = "tipos" | "motivos" | "roles" | "profesionales" | "prestaciones" | "funcionarios";
@@ -109,6 +110,7 @@ export function UsuariosRolesView() {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [modal, setModal] = useState<TabKey | null>(null);
+    const [rolPermisos, setRolPermisos] = useState<RolConPermisos | null>(null);
     const [editingFuncionarioRut, setEditingFuncionarioRut] = useState<string | null>(null);
     const [tipoForm, setTipoForm] = useState<TipoSolicitudForm>({ nombre_tipo_solicitud: "", estado: "1", centros: emptyCentros() });
     const [motivoForm, setMotivoForm] = useState<MotivoForm>({ tipo_solicitud_id: "", nombre_motivo: "", estado: "1" });
@@ -349,14 +351,19 @@ export function UsuariosRolesView() {
                                     <td className="px-3 py-3 font-medium">{rol.nombre_rol}</td>
                                     <td className="px-3 py-3"><EstadoBadge active={rol.estado === "Activo"} /></td>
                                     <td className="px-3 py-3">
-                                        <RowActions
-                                            active={rol.estado === "Activo"}
-                                            onEdit={() => {
-                                                setRolForm({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Activo" : "Inactivo" });
-                                                setModal("roles");
-                                            }}
-                                            onToggle={() => guardarRol({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Inactivo" : "Activo" }).then(() => loadData()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))}
-                                        />
+                                        <div className="flex items-center gap-2">
+                                            <Button type="button" variant="outline" size="sm" onClick={() => setRolPermisos({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, permisos: rol.permisos })}>
+                                                Permisos
+                                            </Button>
+                                            <RowActions
+                                                active={rol.estado === "Activo"}
+                                                onEdit={() => {
+                                                    setRolForm({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Activo" : "Inactivo" });
+                                                    setModal("roles");
+                                                }}
+                                                onToggle={() => guardarRol({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Inactivo" : "Activo" }).then(() => loadData()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))}
+                                            />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -583,6 +590,17 @@ export function UsuariosRolesView() {
                         <EstadoActivoSelect value={funcionarioForm.estado} onChange={(estado) => setFuncionarioForm((current) => ({ ...current, estado }))} />
                     </Field>
                 </ConfigModal>
+            )}
+
+            {rolPermisos && (
+                <PermisosRolModal
+                    rol={rolPermisos}
+                    onClose={() => setRolPermisos(null)}
+                    onSaved={() => {
+                        setRolPermisos(null);
+                        loadData();
+                    }}
+                />
             )}
         </div>
     );
