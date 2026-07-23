@@ -12,6 +12,7 @@ model Role {
   nombre_rol String        @db.VarChar(50)
   estado     String        @default("Activo") @db.VarChar(50)
   menus      Menu[]
+  permisos   RolPermiso[]
   funcionarios Funcionario[]
 
   @@map("roles")
@@ -28,6 +29,15 @@ model Menu {
 
   @@index([role_id])
   @@map("menu")
+}
+
+model RolPermiso {
+  rol_id  Int
+  permiso String @db.VarChar(60)
+  role    Role   @relation(fields: [rol_id], references: [id_rol], onDelete: Cascade)
+
+  @@id([rol_id, permiso])
+  @@map("roles_permisos")
 }
 
 model Funcionario {
