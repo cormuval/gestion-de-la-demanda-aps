@@ -28,11 +28,11 @@ const usuario = {
 };
 
 beforeEach(() => {
-    // No usamos vi.clearAllMocks(): cache() de React se invoca una unica vez,
-    // al cargar el modulo, antes de que corra el primer test. Limpiar todos los
-    // mocks aca borraria ese registro y el test "envuelve la lectura con cache()"
-    // nunca podria verificarlo. Los mocks de prisma/getSessionUser no necesitan
-    // limpieza: cada beforeEach y cada test vuelven a fijar su valor resuelto.
+    // No se usa vi.clearAllMocks(): cache() de React se invoca una sola vez al
+    // cargar el modulo, antes del primer beforeEach, y el clear borraria ese
+    // registro. Se limpian solo los mocks que cada test vuelve a configurar.
+    (prisma.role.findUnique as any).mockClear();
+    (getSessionUser as any).mockClear();
     (getSessionUser as any).mockResolvedValue(usuario);
     (prisma.role.findUnique as any).mockResolvedValue({
         estado: "Activo",
