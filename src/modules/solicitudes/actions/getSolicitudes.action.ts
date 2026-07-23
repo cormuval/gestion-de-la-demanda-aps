@@ -72,7 +72,7 @@ function buildRawWhere(filtros: SolicitudFiltros, centroId: string) {
 }
 
 export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
-    const user = await requirePermiso("solicitudes.ver");
+    const user = await requirePermiso("solicitudes.ver", "solicitudes.gestionar");
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
     const page = Math.max(1, Number(filtros.page ?? 1));

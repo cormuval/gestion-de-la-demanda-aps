@@ -10,7 +10,7 @@ import { usuarioSolicitudSchema, UsuarioSolicitudInput } from "../schemas/usuari
 import { validarCentro, toUsuarioData, persistirActualizacionUsuario, USUARIO_SELECT } from "./usuarioUpdate";
 
 async function requireSolicitudesUser() {
-    return requirePermiso("solicitudes.crear");
+    return requirePermiso("solicitudes.crear", "solicitudes.gestionar");
 }
 
 export async function crearUsuario(input: UsuarioSolicitudInput) {
