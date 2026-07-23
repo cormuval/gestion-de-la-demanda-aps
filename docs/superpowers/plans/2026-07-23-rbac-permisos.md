@@ -2040,10 +2040,10 @@ describe("esEstadoActivo", () => {
 });
 ```
 
-- [ ] **Step 2: Correr los tests y verificar que fallan**
+- [ ] **Step 2: Correr los tests y verificar que la suite sigue verde**
 
 Run: `npm test`
-Expected: FAIL — el resto del codigo ya no importa `puedeAcceder*` (tareas 5–7), pero `prisma/seed.ts` aun no siembra permisos; los tests de access pasan y la suite queda verde. Si algun archivo aun importa `puedeAcceder*`, corregirlo aqui.
+Expected: PASS. Las tareas 5–7 ya eliminaron todos los usos de `puedeAcceder*`, asi que reducir `access.ts` no debe romper nada. Si algun archivo aun lo importa, el fallo lo delata: corregirlo aqui antes de continuar.
 
 - [ ] **Step 3: Sembrar permisos por rol**
 
