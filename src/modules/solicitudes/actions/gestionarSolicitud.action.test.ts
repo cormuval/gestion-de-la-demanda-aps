@@ -31,6 +31,10 @@ import { prisma } from "@/shared/lib/prisma";
 import { requireSessionUser } from "@/shared/lib/auth";
 import { gestionarSolicitud } from "./gestionarSolicitud.action";
 
+// La accion rechaza fechas anteriores a hoy, asi que la fecha del fixture se
+// calcula relativa al dia de ejecucion en vez de fijarla en el calendario.
+const fechaEstimada = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 beforeEach(() => {
     vi.clearAllMocks();
     (requireSessionUser as any).mockResolvedValue({
@@ -82,7 +86,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora de exámenes",
                     profesional_id: null,
                     prestacion_id: null,
-                    fecha_estimada_atencion: "2026-07-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "Control",
                     priorizacion_clinica: "Alta"
                 }
@@ -127,7 +131,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora con profesional",
                     profesional_id: 2,
                     prestacion_id: 3,
-                    fecha_estimada_atencion: "2026-07-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "",
                     priorizacion_clinica: "Urgente"
                 }
@@ -153,7 +157,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora de exámenes",
                     profesional_id: null,
                     prestacion_id: null,
-                    fecha_estimada_atencion: "2026-07-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "",
                     priorizacion_clinica: "Urgente"
                 }
@@ -185,7 +189,7 @@ describe("gestionarSolicitud", () => {
                     tipo_prestacion: "Agendar una hora de exámenes",
                     profesional_id: null,
                     prestacion_id: null,
-                    fecha_estimada_atencion: "2026-07-03",
+                    fecha_estimada_atencion: fechaEstimada,
                     observacion: "",
                     priorizacion_clinica: "Media"
                 }))
