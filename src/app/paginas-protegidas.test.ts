@@ -7,6 +7,12 @@ const RAIZ = join(process.cwd(), "src/app/(app)");
 // Paginas que legitimamente no llevan guard de permiso.
 const SIN_GUARD = ["sin-acceso"];
 
+// Exige una llamada real (no basta con importar el simbolo o mencionarlo en un comentario).
+const LLAMADA_GUARD = /requirePermisoPagina\s*\(/;
+
+// Acepta la directiva de cliente con comillas simples o dobles.
+const USE_CLIENT = /^["']use client["']/;
+
 function buscarPaginas(directorio: string): string[] {
     const encontrados: string[] = [];
     for (const entrada of readdirSync(directorio)) {
@@ -30,14 +36,15 @@ describe("paginas protegidas", () => {
     it("toda pagina llama a requirePermisoPagina", () => {
         const sinGuard = paginas.filter((ruta) => {
             const relativa = ruta.slice(RAIZ.length + 1);
-            if (SIN_GUARD.some((permitida) => relativa.startsWith(permitida))) return false;
-            return !readFileSync(ruta, "utf8").includes("requirePermisoPagina");
+            const primerSegmento = relativa.split("/")[0];
+            if (SIN_GUARD.includes(primerSegmento)) return false;
+            return !LLAMADA_GUARD.test(readFileSync(ruta, "utf8"));
         });
         expect(sinGuard, `Paginas sin guard de permiso: ${sinGuard.join(", ")}`).toEqual([]);
     });
 
     it("ninguna pagina del grupo (app) es componente cliente", () => {
-        const clientes = paginas.filter((ruta) => readFileSync(ruta, "utf8").trimStart().startsWith('"use client"'));
+        const clientes = paginas.filter((ruta) => USE_CLIENT.test(readFileSync(ruta, "utf8").trimStart()));
         expect(clientes, `Paginas cliente sin guard server: ${clientes.join(", ")}`).toEqual([]);
     });
 });
