@@ -34,7 +34,7 @@ Modulos: `solicitudes`, `comunicador` (citas+llamados unificados), `dashboard`, 
 
 1. `cp .env.example .env`; completar `AUTH_GOOGLE_ID/SECRET`, `AUTH_SECRET` (`npx auth secret`), `DATABASE_URL` (puerto 3308).
 2. `npm run services:up && npm run db:generate && npm run db:push && npm run db:seed && npm run db:seed:ref`
-   - `db:seed`: roles, menus, funcionarios demo. `db:seed:ref`: datos de referencia reales (centros, profesionales, prestaciones, tipos, motivos) desde `prisma/seed-data/referencia.sql`.
+   - `db:seed`: roles, permisos, funcionarios demo. `db:seed:ref`: datos de referencia reales (centros, profesionales, prestaciones, tipos, motivos) desde `prisma/seed-data/referencia.sql`.
 3. `npm run dev` → http://localhost:3000
 - Login Google requiere redirect URI `http://localhost:3000/api/auth/callback/google` registrado en el cliente OAuth.
 
@@ -49,7 +49,7 @@ Modulos: `solicitudes`, `comunicador` (citas+llamados unificados), `dashboard`, 
 ## Backend (Server Actions)
 
 - Mutaciones/consultas internas en `src/modules/[modulo]/actions/*.action.ts` con `'use server'`.
-- Validar inputs con Zod. Control de acceso via sesion (`requireSessionUser`, `puedeAccederSolicitudes`).
+- Validar inputs con Zod. Control de acceso con `requirePermiso('modulo.accion')` de `src/shared/lib/permisos.ts`.
 - Auditar operaciones de datos con `AuditLogger` (`src/shared/lib/logger.ts`, tabla `logs`).
 - API Routes solo para integraciones externas (hoy: `api/auth/[...nextauth]`).
 - Feedback de UI con `toast` (sonner); manejo de errores con `try/catch`. Sin `console.log` en produccion.
@@ -58,12 +58,15 @@ Modulos: `solicitudes`, `comunicador` (citas+llamados unificados), `dashboard`, 
 
 - NextAuth v5 Google. Split config: `auth.config.ts` (edge-safe, sin Prisma) + `auth.ts` (callbacks con Prisma).
 - `signIn` solo permite emails que existan en `funcionarios` con `estado = 'Activo'`.
-- La sesion expone `rut`, `nombre`, `rol`, `menu`; el acceso por rol se deriva del menu cargado.
+- La sesion expone `rut`, `nombre`, `rol` y `centro`; los permisos se leen por request desde `roles_permisos` (`src/shared/lib/permisos.ts`).
+- `signIn` tambien exige que el `Role` del funcionario este activo.
 
 ## Datos y reglas de negocio
 
-- Modelos clave: `Funcionario`/`Role`/`Menu`, `Usuario`, `Solicitud`, `Llamada`, `TipoSolicitud`/`Motivo`.
+- Modelos clave: `Funcionario`/`Role`/`RolPermiso`, `Usuario`, `Solicitud`, `Llamada`, `TipoSolicitud`/`Motivo`.
 - Una cita (solicitud) puede tener varias llamadas (`Llamada.cita_id -> Solicitud`).
 - Solicitudes pendientes: `estado_solicitud = 'En Curso'`.
 - Citas/gestiones pendientes: `respuesta_usuario` en `Sin llamadas`, `No contesta (1)`, `No contesta (2)`.
-- Acceso a solicitudes: `Administrador`, `Orientador`, `SOME`, `Orientador y Comunicador`, `Full`.
+- Autorizacion RBAC: catalogo de permisos en `src/config/permisos.ts`; asignacion por rol en la tabla `roles_permisos`, editable desde Configuracion -> Roles -> Permisos.
+- Paginas protegidas con `requirePermisoPagina`; Server Actions con `requirePermiso`. El middleware solo valida autenticacion.
+- El seed siembra permisos solo para roles sin ninguno (bootstrap); una vez configurado un rol, el mantenedor es la fuente de verdad.

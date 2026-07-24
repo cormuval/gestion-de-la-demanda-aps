@@ -11,24 +11,10 @@ model Role {
   id_rol     Int           @id @default(autoincrement())
   nombre_rol String        @db.VarChar(50)
   estado     String        @default("Activo") @db.VarChar(50)
-  menus      Menu[]
   permisos   RolPermiso[]
   funcionarios Funcionario[]
 
   @@map("roles")
-}
-
-model Menu {
-  id_menu     Int     @id @default(autoincrement())
-  nombre      String  @db.VarChar(300)
-  descripcion String? @db.VarChar(300)
-  ruta        String  @db.VarChar(300)
-  imagen      String? @db.VarChar(300)
-  role_id     Int
-  role        Role    @relation(fields: [role_id], references: [id_rol])
-
-  @@index([role_id])
-  @@map("menu")
 }
 
 model RolPermiso {
