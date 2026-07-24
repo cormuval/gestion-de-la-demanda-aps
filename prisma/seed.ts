@@ -10,37 +10,6 @@ const PASSWORD = "demo123";
 // En produccion se desactiva con SEED_DEMO=false; por defecto activo (no cambia dev).
 const SEED_DEMO = process.env.SEED_DEMO !== "false";
 
-type MenuTuple = [nombre: string, ruta: string, descripcion: string];
-
-const roleMenus: Record<string, MenuTuple[]> = {
-    Administrador: [
-        ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Llamadas", "/comunicador", "Gestion de llamadas"],
-        ["Dashboard", "/dashboard", "Indicadores principales"],
-        ["Configuracion", "/configuracion/usuarios-roles", "Usuarios, roles y catalogos"]
-    ],
-    Orientador: [
-        ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Llamadas", "/comunicador", "Gestion de llamadas"]
-    ],
-    Comunicador: [["Llamadas", "/comunicador", "Gestion de llamadas"]],
-    SOME: [
-        ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Llamadas", "/comunicador", "Gestion de llamadas"],
-        ["Dashboard", "/dashboard", "Indicadores principales"],
-        ["Usuarios y Roles", "/configuracion/usuarios-roles", "Configuracion permitida para SOME"]
-    ],
-    "Orientador y Comunicador": [
-        ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Llamadas", "/comunicador", "Gestion de llamadas"]
-    ],
-    "Gestor y Comunicador": [["Llamadas", "/comunicador", "Gestion de llamadas"]],
-    Full: [
-        ["Solicitudes", "/solicitudes/ingresar", "Registro y revision de solicitudes"],
-        ["Llamadas", "/comunicador", "Gestion de llamadas"],
-        ["Dashboard", "/dashboard", "Indicadores principales"]
-    ]
-};
 
 const rolePermisos: Record<string, Permiso[]> = {
     Administrador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"],
@@ -72,14 +41,14 @@ const funcionariosDemo: FuncionarioTuple[] = [
 ];
 
 async function main() {
-    console.log(`Seed: modo ${SEED_DEMO ? "completo (roles + menus + funcionarios reales + demo)" : "produccion (roles + menus + funcionarios reales)"}`);
+    console.log(`Seed: modo ${SEED_DEMO ? "completo (roles + permisos + funcionarios reales + demo)" : "produccion (roles + permisos + funcionarios reales)"}`);
 
     const password_hash = await bcrypt.hash(PASSWORD, 10);
     const roleByName = new Map<string, { id_rol: number }>();
 
     const funcionarios = SEED_DEMO ? [...funcionariosReales, ...funcionariosDemo] : funcionariosReales;
 
-    const roleNames = Object.keys(roleMenus);
+    const roleNames = Object.keys(rolePermisos);
     for (const roleName of roleNames) {
         const role = await prisma.role.upsert({
             where: { id_rol: roleNames.indexOf(roleName) + 1 },
@@ -87,16 +56,6 @@ async function main() {
             create: { nombre_rol: roleName, estado: "Activo" }
         });
         roleByName.set(roleName, role);
-    }
-
-    await prisma.menu.deleteMany();
-    for (const [roleName, menus] of Object.entries(roleMenus)) {
-        const role = roleByName.get(roleName)!;
-        for (const [nombre, ruta, descripcion] of menus) {
-            await prisma.menu.create({
-                data: { nombre, ruta, descripcion, imagen: null, role_id: role.id_rol }
-            });
-        }
     }
 
     // La tabla roles_permisos es configuracion viva, editable desde el mantenedor, y el seed

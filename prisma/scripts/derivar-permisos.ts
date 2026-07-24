@@ -1,7 +1,4 @@
-import { PrismaClient } from "@prisma/client";
 import { CLAVES_PERMISOS, type Permiso } from "../../src/config/permisos";
-
-const prisma = new PrismaClient();
 
 // Copias congeladas de las listas hardcodeadas que existian antes del RBAC.
 // Se conservan aqui porque representan el estado de acceso a preservar.
@@ -44,47 +41,13 @@ export function derivarPermisos(nombreRol: string, rutasMenu: string[]): Permiso
     return CLAVES_PERMISOS.filter((clave) => permisos.has(clave));
 }
 
-async function main() {
-    const roles = await prisma.role.findMany({
-        select: {
-            id_rol: true,
-            nombre_rol: true,
-            menus: { select: { ruta: true } },
-            _count: { select: { funcionarios: true } }
-        },
-        orderBy: { id_rol: "asc" }
-    });
-
-    console.log(`Derivando permisos para ${roles.length} roles...`);
-    let insertados = 0;
-
-    for (const rol of roles) {
-        const permisos = derivarPermisos(
-            rol.nombre_rol,
-            rol.menus.map((menu) => menu.ruta)
-        );
-
-        if (permisos.length === 0) {
-            console.warn(`WARN  Rol "${rol.nombre_rol}" (id ${rol.id_rol}) queda sin permisos. Funcionarios afectados: ${rol._count.funcionarios}`);
-            continue;
-        }
-
-        const resultado = await prisma.rolPermiso.createMany({
-            data: permisos.map((permiso) => ({ rol_id: rol.id_rol, permiso })),
-            skipDuplicates: true
-        });
-        insertados += resultado.count;
-        console.log(`OK    ${rol.nombre_rol.padEnd(26)} ${permisos.length} permisos (${resultado.count} nuevos) · ${rol._count.funcionarios} funcionarios`);
-        console.log(`      ${permisos.join(", ")}`);
-    }
-
-    console.log(`\nListo. Filas nuevas en roles_permisos: ${insertados}.`);
-    console.log("Revisa las lineas WARN antes de desplegar el codigo nuevo.");
+// Este script ya fue aplicado en produccion y la tabla `menu` de la que derivaba
+// los permisos fue eliminada del esquema. Se conserva por trazabilidad de la
+// migracion a RBAC (docs/superpowers/specs/2026-07-23-rbac-permisos-design.md); la
+// funcion pura `derivarPermisos` sigue exportada y cubierta por derivar-permisos.test.ts.
+function main() {
+    console.log("Este script ya fue aplicado: la tabla `menu` fue eliminada del esquema.");
+    console.log("Se conserva por trazabilidad de la migracion a RBAC. La derivacion sigue testeada en derivar-permisos.test.ts.");
 }
 
-main()
-    .catch((error) => {
-        console.error(error);
-        process.exitCode = 1;
-    })
-    .finally(() => prisma.$disconnect());
+main();
