@@ -46,7 +46,7 @@ const rolePermisos: Record<string, Permiso[]> = {
     Administrador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"],
     Orientador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
     Comunicador: ["comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
-    SOME: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"],
+    SOME: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios"],
     "Orientador y Comunicador": ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
     "Gestor y Comunicador": ["comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
     Full: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"]
@@ -99,20 +99,24 @@ async function main() {
         }
     }
 
-    // No se borra roles_permisos antes de sembrar (a diferencia de menu, que si es destructivo):
-    // esta tabla es configuracion viva editable desde el mantenedor de permisos, y el seed corre
-    // en cada deploy. Si se borrara, cualquier ajuste hecho en produccion se revertiria en el
-    // siguiente push a main. La siembra es aditiva: crea los permisos conocidos que falten
-    // (skipDuplicates) y deja intactos los que el administrador haya configurado o quitado.
+    // La tabla roles_permisos es configuracion viva, editable desde el mantenedor, y el seed
+    // corre en cada deploy. Por eso solo se siembran los permisos de un rol que aun NO tiene
+    // ninguno (instalacion nueva o rol recien creado): una vez que el rol tiene permisos, el
+    // mantenedor es la unica fuente de verdad y el seed no lo toca. Asi, un permiso que el
+    // administrador quito no reaparece en el siguiente deploy, y uno nuevo del catalogo no se
+    // otorga solo: debe asignarse a proposito desde el mantenedor.
+    let rolesSembrados = 0;
     for (const [roleName, permisos] of Object.entries(rolePermisos)) {
         const role = roleByName.get(roleName);
         if (!role) continue;
+        const yaConfigurado = await prisma.rolPermiso.count({ where: { rol_id: role.id_rol } });
+        if (yaConfigurado > 0) continue;
         await prisma.rolPermiso.createMany({
-            data: permisos.map((permiso) => ({ rol_id: role.id_rol, permiso })),
-            skipDuplicates: true
+            data: permisos.map((permiso) => ({ rol_id: role.id_rol, permiso }))
         });
+        rolesSembrados++;
     }
-    console.log(`Seed: permisos sembrados para ${Object.keys(rolePermisos).length} roles`);
+    console.log(`Seed: permisos sembrados para ${rolesSembrados} rol(es) sin configurar (los ya configurados se respetan)`);
 
     const huerfanos = await prisma.rolPermiso.findMany({
         where: { permiso: { notIn: CLAVES_PERMISOS } },
