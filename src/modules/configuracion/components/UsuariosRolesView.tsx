@@ -23,6 +23,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { PermisosRolModal, type RolConPermisos } from "@/modules/configuracion/components/PermisosRolModal";
+// config
+import type { Permiso } from "@/config/permisos";
 
 type ConfigData = Awaited<ReturnType<typeof getMantenedoresConfig>>;
 type TabKey = "tipos" | "motivos" | "roles" | "profesionales" | "prestaciones" | "funcionarios";
@@ -67,13 +69,16 @@ interface FuncionarioForm {
     estado: "Activo" | "Inactivo";
 }
 
-const tabs: { key: TabKey; label: string }[] = [
-    { key: "tipos", label: "Tipo solicitud" },
-    { key: "motivos", label: "Motivos" },
-    { key: "roles", label: "Roles" },
-    { key: "profesionales", label: "Profesionales" },
-    { key: "prestaciones", label: "Prestaciones" },
-    { key: "funcionarios", label: "Funcionarios" }
+// Cada pestana requiere el permiso de edicion de su area: asi un rol ve solo las
+// secciones de Configuracion que realmente puede administrar (el servidor igual
+// rechaza cualquier mutacion sin el permiso; esto solo alinea la UI).
+const tabs: { key: TabKey; label: string; permiso: Permiso }[] = [
+    { key: "tipos", label: "Tipo solicitud", permiso: "config.catalogos" },
+    { key: "motivos", label: "Motivos", permiso: "config.catalogos" },
+    { key: "roles", label: "Roles", permiso: "config.roles" },
+    { key: "profesionales", label: "Profesionales", permiso: "config.catalogos" },
+    { key: "prestaciones", label: "Prestaciones", permiso: "config.catalogos" },
+    { key: "funcionarios", label: "Funcionarios", permiso: "config.funcionarios" }
 ];
 
 const emptyData: ConfigData = { tiposSolicitud: [], motivos: [], roles: [], profesionales: [], prestaciones: [], funcionarios: [], centros: [] };
@@ -103,8 +108,9 @@ function asProgramaFuncionario(value: string | null): (typeof PROGRAMAS_FUNCIONA
     return PROGRAMAS_FUNCIONARIO.find((programa) => programa === value) ?? PROGRAMAS_FUNCIONARIO[0];
 }
 
-export function UsuariosRolesView() {
-    const [activeTab, setActiveTab] = useState<TabKey>("tipos");
+export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
+    const tabsVisibles = useMemo(() => tabs.filter((tab) => permisos.includes(tab.permiso)), [permisos]);
+    const [activeTab, setActiveTab] = useState<TabKey>(() => tabsVisibles[0]?.key ?? "funcionarios");
     const [data, setData] = useState<ConfigData>(emptyData);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(false);
@@ -284,7 +290,7 @@ export function UsuariosRolesView() {
                         </form>
                     </div>
                     <div className="flex flex-wrap gap-2 pt-2">
-                        {tabs.map((tab) => (
+                        {tabsVisibles.map((tab) => (
                             <Button key={tab.key} type="button" variant={activeTab === tab.key ? "default" : "outline"} size="sm" onClick={() => setActiveTab(tab.key)}>
                                 {tab.label}
                             </Button>
@@ -292,6 +298,10 @@ export function UsuariosRolesView() {
                     </div>
                 </CardHeader>
                 <CardContent>
+                    {tabsVisibles.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No tienes secciones de configuracion disponibles.</p>
+                    ) : (
+                    <>
                     <div className="mb-4 flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">{loading ? "Cargando..." : "Resultados limitados a 300 registros."}</p>
                         <Button type="button" onClick={() => openCreate(activeTab)}>
@@ -475,6 +485,8 @@ export function UsuariosRolesView() {
                                 </tbody>
                             </table>
                         </div>
+                    )}
+                    </>
                     )}
                 </CardContent>
             </Card>
