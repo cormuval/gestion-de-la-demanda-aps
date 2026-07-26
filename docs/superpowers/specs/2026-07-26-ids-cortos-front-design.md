@@ -117,6 +117,7 @@ Ubicacion: `src/shared/components/ui/codigo-id.tsx` (client component).
 | `src/modules/solicitudes/components/PendientesCascada.tsx` | `<p>{id_cita}</p>` y `<p>{id_solicitud}</p>` → `<CodigoId>` |
 | `src/modules/comunicador/components/OtrasCitasPacienteModal.tsx` | `Cita {id_cita} · …` → `acortarId()` |
 | `src/modules/comunicador/components/RegistrarLlamadaModal.tsx` | `Cita {id_cita} · …` → `acortarId()` |
+| `src/modules/comunicador/components/HistorialLlamadasModal.tsx` | `Cita {citaId}` (variable camelCase) → `acortarId()` |
 | `src/modules/solicitudes/components/IngresarSolicitudView.tsx` | Toast de creacion → `acortarId()`; **el voucher conserva el ID completo** |
 
 ## Testing
