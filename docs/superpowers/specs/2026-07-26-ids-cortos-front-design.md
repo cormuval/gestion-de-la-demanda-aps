@@ -47,7 +47,9 @@ tooltip con el atributo `title=` porque no existe componente Tooltip).
 
 ### 1. Util pura `acortarId(id: string): string`
 
-Ubicacion: `src/shared/utils/acortarId.ts` (+ `acortarId.test.ts`).
+Ubicacion: `src/shared/lib/acortarId.ts` (+ `acortarId.test.ts`). Los helpers
+puros compartidos viven en `src/shared/lib/` (junto a `permisos.ts`, `access.ts`,
+`utils.ts`); no existe `src/shared/utils/`.
 
 Comportamiento:
 
