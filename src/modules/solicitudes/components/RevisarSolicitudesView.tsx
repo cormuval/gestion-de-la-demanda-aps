@@ -23,6 +23,7 @@ import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modul
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { CodigoId } from "@/shared/components/ui/codigo-id";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
@@ -408,8 +409,8 @@ export function RevisarSolicitudesView() {
                                 ) : (
                                     data.solicitudes.map((s) => (
                                         <tr key={s.id_solicitud} className="border-t">
-                                            <td className="truncate px-3 py-3 font-medium" title={s.id_solicitud}>
-                                                {s.id_solicitud}
+                                            <td className="px-3 py-3 font-medium">
+                                                <CodigoId id={s.id_solicitud} />
                                             </td>
                                             <td className="px-3 py-3">{new Date(s.fecha_inicio).toLocaleDateString("es-CL")}</td>
                                             <td className="px-3 py-3">{s.rut_usuario}</td>
@@ -558,7 +559,7 @@ function RechazoModal({
                 <div className="flex items-start justify-between gap-4 border-b p-5">
                     <div>
                         <h2 className="text-lg font-semibold">Rechazar solicitud</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">{solicitud.id_solicitud}</p>
+                        <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
                         <X size={18} />
@@ -642,8 +643,8 @@ function OtrasSolicitudesModal({
                                 <tbody>
                                     {solicitudes.map((solicitud) => (
                                         <tr key={solicitud.id_solicitud} className="border-t">
-                                            <td className="truncate px-3 py-3 font-medium" title={solicitud.id_solicitud}>
-                                                {solicitud.id_solicitud}
+                                            <td className="px-3 py-3 font-medium">
+                                                <CodigoId id={solicitud.id_solicitud} />
                                             </td>
                                             <td className="px-3 py-3">{new Date(solicitud.fecha_inicio).toLocaleDateString("es-CL")}</td>
                                             <td className="px-3 py-3">{solicitud.tipoSolicitud?.nombre_tipo_solicitud || "-"}</td>
@@ -707,7 +708,7 @@ function RealizarModal({
                 <div className="flex items-start justify-between gap-4 border-b p-5">
                     <div>
                         <h2 className="text-lg font-semibold">Realizar solicitud</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">{solicitud.id_solicitud}</p>
+                        <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
                         <X size={18} />

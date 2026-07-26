@@ -11,6 +11,9 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/shared/components/ui/chart";
+import { CodigoId } from "@/shared/components/ui/codigo-id";
+// lib
+import { acortarId } from "@/shared/lib/acortarId";
 
 function defaultDashboardRange(): Pick<DashboardFuncionarioData, "rangoDias" | "desde" | "hasta"> {
     const hoy = new Date();
@@ -277,7 +280,7 @@ function DetalleSolicitudes({ data }: { data: DashboardFuncionarioData }) {
                             {data.detalles.solicitudesIngresadas.map((solicitud) => (
                                 <tr key={solicitud.id_solicitud} className="border-t">
                                     <td className="px-3 py-3">{formatFecha(solicitud.fecha_inicio)}</td>
-                                    <td className="px-3 py-3 font-medium">{solicitud.id_solicitud}</td>
+                                    <td className="px-3 py-3 font-medium"><CodigoId id={solicitud.id_solicitud} /></td>
                                     <td className="px-3 py-3">{solicitud.rut_usuario}</td>
                                     <td className="px-3 py-3">{solicitud.tipo_solicitud}</td>
                                     <td className="px-3 py-3"><Badge variant="muted">{solicitud.estado_solicitud}</Badge></td>
@@ -317,7 +320,7 @@ function DetalleGestiones({ data, onVerCitas }: { data: DashboardFuncionarioData
                             {data.detalles.gestiones.map((gestion) => (
                                 <tr key={gestion.id_solicitud} className="border-t">
                                     <td className="px-3 py-3">{formatFecha(gestion.fecha_validacion)}</td>
-                                    <td className="px-3 py-3 font-medium">{gestion.id_solicitud}</td>
+                                    <td className="px-3 py-3 font-medium"><CodigoId id={gestion.id_solicitud} /></td>
                                     <td className="px-3 py-3">{gestion.rut_usuario}</td>
                                     <td className="px-3 py-3">{gestion.accion}</td>
                                     <td className="px-3 py-3">{gestion.citas_creadas}</td>
@@ -369,9 +372,9 @@ function DetalleLlamadas({ data, onVerDetalle }: { data: DashboardFuncionarioDat
                             {data.detalles.llamadas.map((llamada) => (
                                 <tr key={llamada.id_llamada} className="border-t">
                                     <td className="px-3 py-3">{formatFechaHora(llamada.fecha_llamada)}</td>
-                                    <td className="px-3 py-3 font-medium">{llamada.id_llamada}</td>
+                                    <td className="px-3 py-3 font-medium"><CodigoId id={llamada.id_llamada} /></td>
                                     <td className="px-3 py-3">{llamada.rut_usuario}</td>
-                                    <td className="px-3 py-3">{llamada.cita_id}</td>
+                                    <td className="px-3 py-3"><CodigoId id={llamada.cita_id} /></td>
                                     <td className="px-3 py-3">{llamada.estamento || "-"}</td>
                                     <td className="px-3 py-3">{llamada.prestacion || llamada.tipo_prestacion || "-"}</td>
                                     <td className="px-3 py-3">{llamada.respuesta_usuario}</td>
@@ -423,7 +426,7 @@ function ModalShell({ title, description, onClose, children }: { title: string; 
 
 function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncionarioData["detalles"]["gestiones"][number]; onClose: () => void }) {
     return (
-        <ModalShell title="Citas gestionadas" description={`Solicitud ${gestion.id_solicitud} · ${gestion.rut_usuario}`} onClose={onClose}>
+        <ModalShell title="Citas gestionadas" description={`Solicitud ${acortarId(gestion.id_solicitud)} · ${gestion.rut_usuario}`} onClose={onClose}>
             <div className="overflow-x-auto rounded-md border">
                 <table className="w-full min-w-[980px] table-fixed text-left text-sm">
                     <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
@@ -440,7 +443,7 @@ function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncion
                     <tbody>
                         {gestion.citas.map((cita) => (
                             <tr key={cita.id_cita} className="border-t">
-                                <td className="px-3 py-3 font-medium">{cita.id_cita}</td>
+                                <td className="px-3 py-3 font-medium"><CodigoId id={cita.id_cita} /></td>
                                 <td className="px-3 py-3">{formatFecha(cita.fecha_estimada_atencion)}</td>
                                 <td className="px-3 py-3">{cita.tipo_prestacion}</td>
                                 <td className="px-3 py-3">{cita.estamento || "-"}</td>
@@ -459,11 +462,11 @@ function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncion
 
 function DetalleLlamadaModal({ llamada, onClose }: { llamada: DashboardFuncionarioData["detalles"]["llamadas"][number]; onClose: () => void }) {
     return (
-        <ModalShell title="Detalle llamada" description={`Llamada ${llamada.id_llamada}`} onClose={onClose}>
+        <ModalShell title="Detalle llamada" description={`Llamada ${acortarId(llamada.id_llamada)}`} onClose={onClose}>
             <dl className="grid gap-4 md:grid-cols-2">
                 <DetailItem label="Fecha llamada" value={formatFechaHora(llamada.fecha_llamada)} />
                 <DetailItem label="RUT paciente" value={llamada.rut_usuario} />
-                <DetailItem label="Cita" value={llamada.cita_id} />
+                <DetailItem label="Cita" value={acortarId(llamada.cita_id)} />
                 <DetailItem label="Respuesta" value={llamada.respuesta_usuario} />
                 <DetailItem label="Estamento" value={llamada.estamento || "-"} />
                 <DetailItem label="Prestación llamada" value={llamada.prestacion || llamada.tipo_prestacion || "-"} />

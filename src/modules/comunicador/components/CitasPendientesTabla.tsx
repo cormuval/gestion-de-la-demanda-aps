@@ -6,11 +6,8 @@ import { cn } from "@/shared/lib/utils";
 // components
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { CodigoId } from "@/shared/components/ui/codigo-id";
 import type { CitaFila } from "../actions/getCitasPendientes.action";
-
-function abreviar(codigo: string): string {
-    return codigo.length > 14 ? `${codigo.slice(0, 12)}…` : codigo;
-}
 
 export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina, onGestionar, renderAcciones }: {
     filas: CitaFila[];
@@ -49,7 +46,7 @@ export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina
                         ) : (
                             filas.map((c) => (
                                 <tr key={c.id_cita} className={cn("border-t", c.tiene_llamada_hoy && "bg-primary/15")}>
-                                    <td className="px-3 py-3 font-medium" title={c.id_cita}>{abreviar(c.id_cita)}</td>
+                                    <td className="px-3 py-3 font-medium"><CodigoId id={c.id_cita} /></td>
                                     <td className="px-3 py-3">{c.priorizacion ?? "—"}</td>
                                     <td className="px-3 py-3">{c.disponibilidad || "—"}</td>
                                     <td className="px-3 py-3">{c.rut_usuario}</td>

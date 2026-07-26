@@ -8,6 +8,8 @@ import { getHistorialLlamadas, type HistorialLlamada } from "../actions/getHisto
 // components
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+// lib
+import { acortarId } from "@/shared/lib/acortarId";
 
 function formatFechaHora(value: Date | null): string {
     if (!value) return "Sin fecha";
@@ -31,7 +33,7 @@ export function HistorialLlamadasModal({ citaId, onCerrar }: { citaId: string; o
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h2 className="text-lg font-semibold">Historial de llamadas</h2>
-                        <p className="text-sm text-muted-foreground">Cita {citaId}</p>
+                        <p className="text-sm text-muted-foreground">Cita {acortarId(citaId)}</p>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={onCerrar} aria-label="Cerrar">
                         <X size={18} />
