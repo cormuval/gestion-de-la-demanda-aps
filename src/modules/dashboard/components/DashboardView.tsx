@@ -12,6 +12,8 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/shared/components/ui/chart";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
+// lib
+import { acortarId } from "@/shared/lib/acortarId";
 
 function defaultDashboardRange(): Pick<DashboardFuncionarioData, "rangoDias" | "desde" | "hasta"> {
     const hoy = new Date();
@@ -424,7 +426,7 @@ function ModalShell({ title, description, onClose, children }: { title: string; 
 
 function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncionarioData["detalles"]["gestiones"][number]; onClose: () => void }) {
     return (
-        <ModalShell title="Citas gestionadas" description={`Solicitud ${gestion.id_solicitud} · ${gestion.rut_usuario}`} onClose={onClose}>
+        <ModalShell title="Citas gestionadas" description={`Solicitud ${acortarId(gestion.id_solicitud)} · ${gestion.rut_usuario}`} onClose={onClose}>
             <div className="overflow-x-auto rounded-md border">
                 <table className="w-full min-w-[980px] table-fixed text-left text-sm">
                     <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
@@ -460,11 +462,11 @@ function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncion
 
 function DetalleLlamadaModal({ llamada, onClose }: { llamada: DashboardFuncionarioData["detalles"]["llamadas"][number]; onClose: () => void }) {
     return (
-        <ModalShell title="Detalle llamada" description={`Llamada ${llamada.id_llamada}`} onClose={onClose}>
+        <ModalShell title="Detalle llamada" description={`Llamada ${acortarId(llamada.id_llamada)}`} onClose={onClose}>
             <dl className="grid gap-4 md:grid-cols-2">
                 <DetailItem label="Fecha llamada" value={formatFechaHora(llamada.fecha_llamada)} />
                 <DetailItem label="RUT paciente" value={llamada.rut_usuario} />
-                <DetailItem label="Cita" value={llamada.cita_id} />
+                <DetailItem label="Cita" value={acortarId(llamada.cita_id)} />
                 <DetailItem label="Respuesta" value={llamada.respuesta_usuario} />
                 <DetailItem label="Estamento" value={llamada.estamento || "-"} />
                 <DetailItem label="Prestación llamada" value={llamada.prestacion || llamada.tipo_prestacion || "-"} />

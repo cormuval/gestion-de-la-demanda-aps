@@ -10,6 +10,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+// lib
+import { acortarId } from "@/shared/lib/acortarId";
 // types
 import { RESPUESTAS_LLAMADA, RESPUESTA_LLAMADA } from "../types/comunicador";
 import { toast } from "sonner";
@@ -51,7 +53,7 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onReg
             <div className="w-full max-w-lg space-y-4 rounded-lg border bg-card p-5">
                 <div>
                     <h2 className="text-lg font-semibold">Registrar llamada</h2>
-                    <p className="text-sm text-muted-foreground">Cita {cita.id_cita} · {cita.nombre_usuario}</p>
+                    <p className="text-sm text-muted-foreground">Cita {acortarId(cita.id_cita)} · {cita.nombre_usuario}</p>
                     <p className="mt-1 text-sm">Teléfonos: {telefonos}</p>
                     <p className="text-sm">Correo: {correo}</p>
                 </div>

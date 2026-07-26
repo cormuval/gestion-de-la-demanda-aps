@@ -8,6 +8,8 @@ import { getCitasPendientesPaciente, type CitaPacienteFila } from "../actions/ge
 // components
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+// lib
+import { acortarId } from "@/shared/lib/acortarId";
 
 function formatFecha(value: Date | null): string {
     if (!value) return "—";
@@ -54,7 +56,7 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
                                     <Badge variant="warning">{c.estado_cita ?? "Sin estado"}</Badge>
                                 </div>
                                 <p className="mt-1 text-muted-foreground">
-                                    Fecha estimada: {formatFecha(c.fecha_estimada_atencion)} · Cita {c.id_cita}
+                                    Fecha estimada: {formatFecha(c.fecha_estimada_atencion)} · Cita {acortarId(c.id_cita)}
                                 </p>
                             </div>
                         ))

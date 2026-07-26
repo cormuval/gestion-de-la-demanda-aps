@@ -10,6 +10,8 @@ import { getPendientes } from "@/modules/solicitudes/actions/getPendientes.actio
 import { getUsuarioPorRut } from "@/modules/solicitudes/actions/getUsuarioPorRut.action";
 import { actualizarUsuario, crearUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 import { crearSolicitud } from "@/modules/solicitudes/actions/crearSolicitud.action";
+// lib
+import { acortarId } from "@/shared/lib/acortarId";
 // schemas
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
@@ -255,7 +257,7 @@ export function IngresarSolicitudView() {
                 motivo_id: requiereMotivo ? Number(solicitudForm.motivo_id) : null,
                 descripcion: solicitudForm.descripcion
             });
-            toast.success(`Solicitud creada: ${solicitud.id_solicitud}`);
+            toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
             limpiarIngresoSolicitud();
         } catch (err) {
