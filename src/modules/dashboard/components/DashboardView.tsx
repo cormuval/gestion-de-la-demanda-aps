@@ -11,6 +11,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/shared/components/ui/chart";
+import { CodigoId } from "@/shared/components/ui/codigo-id";
 
 function defaultDashboardRange(): Pick<DashboardFuncionarioData, "rangoDias" | "desde" | "hasta"> {
     const hoy = new Date();
@@ -277,7 +278,7 @@ function DetalleSolicitudes({ data }: { data: DashboardFuncionarioData }) {
                             {data.detalles.solicitudesIngresadas.map((solicitud) => (
                                 <tr key={solicitud.id_solicitud} className="border-t">
                                     <td className="px-3 py-3">{formatFecha(solicitud.fecha_inicio)}</td>
-                                    <td className="px-3 py-3 font-medium">{solicitud.id_solicitud}</td>
+                                    <td className="px-3 py-3 font-medium"><CodigoId id={solicitud.id_solicitud} /></td>
                                     <td className="px-3 py-3">{solicitud.rut_usuario}</td>
                                     <td className="px-3 py-3">{solicitud.tipo_solicitud}</td>
                                     <td className="px-3 py-3"><Badge variant="muted">{solicitud.estado_solicitud}</Badge></td>
@@ -317,7 +318,7 @@ function DetalleGestiones({ data, onVerCitas }: { data: DashboardFuncionarioData
                             {data.detalles.gestiones.map((gestion) => (
                                 <tr key={gestion.id_solicitud} className="border-t">
                                     <td className="px-3 py-3">{formatFecha(gestion.fecha_validacion)}</td>
-                                    <td className="px-3 py-3 font-medium">{gestion.id_solicitud}</td>
+                                    <td className="px-3 py-3 font-medium"><CodigoId id={gestion.id_solicitud} /></td>
                                     <td className="px-3 py-3">{gestion.rut_usuario}</td>
                                     <td className="px-3 py-3">{gestion.accion}</td>
                                     <td className="px-3 py-3">{gestion.citas_creadas}</td>
@@ -369,9 +370,9 @@ function DetalleLlamadas({ data, onVerDetalle }: { data: DashboardFuncionarioDat
                             {data.detalles.llamadas.map((llamada) => (
                                 <tr key={llamada.id_llamada} className="border-t">
                                     <td className="px-3 py-3">{formatFechaHora(llamada.fecha_llamada)}</td>
-                                    <td className="px-3 py-3 font-medium">{llamada.id_llamada}</td>
+                                    <td className="px-3 py-3 font-medium"><CodigoId id={llamada.id_llamada} /></td>
                                     <td className="px-3 py-3">{llamada.rut_usuario}</td>
-                                    <td className="px-3 py-3">{llamada.cita_id}</td>
+                                    <td className="px-3 py-3"><CodigoId id={llamada.cita_id} /></td>
                                     <td className="px-3 py-3">{llamada.estamento || "-"}</td>
                                     <td className="px-3 py-3">{llamada.prestacion || llamada.tipo_prestacion || "-"}</td>
                                     <td className="px-3 py-3">{llamada.respuesta_usuario}</td>
@@ -440,7 +441,7 @@ function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncion
                     <tbody>
                         {gestion.citas.map((cita) => (
                             <tr key={cita.id_cita} className="border-t">
-                                <td className="px-3 py-3 font-medium">{cita.id_cita}</td>
+                                <td className="px-3 py-3 font-medium"><CodigoId id={cita.id_cita} /></td>
                                 <td className="px-3 py-3">{formatFecha(cita.fecha_estimada_atencion)}</td>
                                 <td className="px-3 py-3">{cita.tipo_prestacion}</td>
                                 <td className="px-3 py-3">{cita.estamento || "-"}</td>

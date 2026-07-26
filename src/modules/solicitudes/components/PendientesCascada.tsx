@@ -6,6 +6,7 @@ import type { getPendientes } from "../actions/getPendientes.action";
 // components
 import { Badge } from "@/shared/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { CodigoId } from "@/shared/components/ui/codigo-id";
 
 type Pendientes = Awaited<ReturnType<typeof getPendientes>>;
 type SolicitudPendiente = Pendientes["solicitudesPendientes"][number];
@@ -20,7 +21,7 @@ function CitaRow({ cita }: { cita: CitaPendiente }) {
         <div className="rounded-md border bg-muted/20 p-3">
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <p className="text-sm font-medium">{cita.id_cita}</p>
+                    <p className="text-sm font-medium"><CodigoId id={cita.id_cita} /></p>
                     <p className="mt-1 text-sm text-muted-foreground">
                         {[cita.profesional?.nombre, cita.prestacion?.nombre_prestacion].filter(Boolean).join(" · ") || "Sin detalle"}
                     </p>
@@ -76,7 +77,7 @@ export function PendientesCascada({ pendientes }: { pendientes: Pendientes }) {
                         <div key={solicitud.id_solicitud} className="rounded-md border p-3">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
-                                    <p className="text-sm font-medium">{solicitud.id_solicitud}</p>
+                                    <p className="text-sm font-medium"><CodigoId id={solicitud.id_solicitud} /></p>
                                     <p className="mt-1 text-sm text-muted-foreground">
                                         {[
                                             `Inicio: ${formatFecha(solicitud.fecha_inicio)}`,
