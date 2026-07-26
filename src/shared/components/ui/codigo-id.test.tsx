@@ -35,4 +35,11 @@ describe("CodigoId", () => {
         await waitFor(() => expect(writeText).toHaveBeenCalledWith(ID));
         expect(toast.success).toHaveBeenCalledWith("Codigo copiado");
     });
+
+    it("si falla el portapapeles, avisa con un toast de error", async () => {
+        writeText.mockRejectedValueOnce(new Error("denied"));
+        render(<CodigoId id={ID} />);
+        fireEvent.click(screen.getByRole("button"));
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No se pudo copiar el codigo"));
+    });
 });
