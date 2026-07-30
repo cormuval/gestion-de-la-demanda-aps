@@ -87,22 +87,29 @@ async function main() {
 
     for (const [rut, email, nombre, roleName] of funcionarios) {
         const role = roleByName.get(roleName)!;
-        await prisma.funcionario.upsert({
-            where: { rut },
-            update: { email, nombre, rol_id: role.id_rol, estado: "Activo", password_hash },
-            create: {
-                rut,
-                email,
-                nombre,
-                rol_id: role.id_rol,
-                estado: "Activo",
-                codigo: roleName.toUpperCase().replaceAll(" ", "_"),
-                centro_id: "501",
-                programa_asociado: "Demanda",
-                invitacion_app: "Si",
-                password_hash
-            }
+        const funcionarioExistente = await prisma.funcionario.findFirst({
+            where: { OR: [{ rut }, { email }] },
+            select: { rut: true }
         });
+        const payload = { email, nombre, rol_id: role.id_rol, estado: "Activo", password_hash };
+
+        if (funcionarioExistente) {
+            await prisma.funcionario.update({
+                where: { rut: funcionarioExistente.rut },
+                data: payload
+            });
+        } else {
+            await prisma.funcionario.create({
+                data: {
+                    rut,
+                    ...payload,
+                    codigo: roleName.toUpperCase().replaceAll(" ", "_"),
+                    centro_id: "501",
+                    programa_asociado: "Demanda",
+                    invitacion_app: "Si"
+                }
+            });
+        }
     }
 
     if (!SEED_DEMO) {
