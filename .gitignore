@@ -9,6 +9,8 @@ coverage
 docker-data
 
 # Claude Code / skills
-.agents/
+# .agents/skills/ SI se versiona: es la copia real de las skills del proyecto.
+# .claude/skills/ son symlinks absolutos a .agents/skills/, especificos de cada maquina;
+# se regeneran localmente con `npx skills add` (ver AGENTS.md).
 .claude/
 .superpowers/
