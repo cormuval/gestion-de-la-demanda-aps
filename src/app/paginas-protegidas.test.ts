@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 const RAIZ = join(process.cwd(), "src/app/(app)");
 
@@ -36,7 +36,7 @@ describe("paginas protegidas", () => {
     it("toda pagina llama a requirePermisoPagina", () => {
         const sinGuard = paginas.filter((ruta) => {
             const relativa = ruta.slice(RAIZ.length + 1);
-            const primerSegmento = relativa.split("/")[0];
+            const primerSegmento = relativa.split(sep)[0];
             if (SIN_GUARD.includes(primerSegmento)) return false;
             return !LLAMADA_GUARD.test(readFileSync(ruta, "utf8"));
         });

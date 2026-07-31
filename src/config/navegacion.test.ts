@@ -28,6 +28,11 @@ describe("navegacion", () => {
         expect(visibles.map((item) => item.href)).toEqual(["/comunicador"]);
     });
 
+    it("muestra SOME cuando el rol tiene permiso some.ver", () => {
+        const visibles = navVisible(["some.ver"] as Permiso[]);
+        expect(visibles.map((item) => item.href)).toEqual(["/some"]);
+    });
+
     it("navVisible devuelve vacio sin permisos", () => {
         expect(navVisible([])).toEqual([]);
     });

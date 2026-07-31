@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, Check, Edit, Eye, Filter, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
+import { CalendarPlus, Check, Copy, Edit, Eye, Filter, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getRevisionCatalogos } from "@/modules/solicitudes/actions/getRevisionCatalogos.action";
@@ -36,6 +36,7 @@ type SolicitudesResponse = Awaited<ReturnType<typeof getSolicitudes>>;
 type SolicitudRow = SolicitudesResponse["solicitudes"][number];
 type RevisionCatalogos = Awaited<ReturnType<typeof getRevisionCatalogos>>;
 type OtrasSolicitudesResponse = Awaited<ReturnType<typeof getOtrasSolicitudes>>;
+type GestionResumen = Awaited<ReturnType<typeof gestionarSolicitud>>["resumen"];
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
 type PrioridadClinica = (typeof PRIORIDADES_CLINICAS)[number];
 type RazonRechazo = (typeof RAZONES_RECHAZO)[number];
@@ -125,6 +126,7 @@ export function RevisarSolicitudesView() {
     const [usuarioForm, setUsuarioForm] = useState<UsuarioEditFormState>(emptyUsuarioForm);
     const [editingUsuario, setEditingUsuario] = useState<SolicitudRow | null>(null);
     const [savingUsuario, setSavingUsuario] = useState(false);
+    const [resumenGestion, setResumenGestion] = useState<GestionResumen | null>(null);
 
     useEffect(() => {
         getRevisionCatalogos()
@@ -237,7 +239,7 @@ export function RevisarSolicitudesView() {
         if (!rechazoSolicitud) return;
         setSaving(true);
         try {
-            await gestionarSolicitud({
+            const result = await gestionarSolicitud({
                 id_solicitud: rechazoSolicitud.id_solicitud,
                 accion: ACCION_RECHAZAR_SOLICITUD,
                 razon_rechazo: razonRechazo as RazonRechazo,
@@ -245,6 +247,7 @@ export function RevisarSolicitudesView() {
             });
             toast.success("Solicitud rechazada");
             setRechazoSolicitud(null);
+            setResumenGestion(result.resumen);
             await loadSolicitudes(filters);
             if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
         } catch (err) {
@@ -270,13 +273,14 @@ export function RevisarSolicitudesView() {
                     priorizacion_clinica: cita.priorizacion_clinica
                 };
             });
-            await gestionarSolicitud({
+            const result = await gestionarSolicitud({
                 id_solicitud: realizarSolicitud.id_solicitud,
                 accion: ACCION_REALIZAR_SOLICITUD,
                 citas: citasPayload
             });
             toast.success("Solicitud realizada");
             setRealizarSolicitud(null);
+            setResumenGestion(result.resumen);
             await loadSolicitudes(filters);
             if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
         } catch (err) {
@@ -521,6 +525,8 @@ export function RevisarSolicitudesView() {
                     onSubmit={onGuardarUsuario}
                 />
             )}
+
+            {resumenGestion && <ResumenGestionModal resumen={resumenGestion} onClose={() => setResumenGestion(null)} />}
         </div>
     );
 }
@@ -530,6 +536,137 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         <div className="space-y-2">
             <Label>{label}</Label>
             {children}
+        </div>
+    );
+}
+
+function SolicitudMeta({ solicitud }: { solicitud: SolicitudRow }) {
+    return (
+        <div className="mt-2 grid gap-1 text-sm text-muted-foreground sm:grid-cols-3">
+            <span>RUT: {solicitud.rut_usuario}</span>
+            <span>Tipo: {solicitud.tipoSolicitud?.nombre_tipo_solicitud || "-"}</span>
+            <span>Motivo: {solicitud.motivo?.nombre_motivo || "-"}</span>
+        </div>
+    );
+}
+
+function formatFechaResumen(value: Date | string | null): string {
+    if (!value) return "-";
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("es-CL");
+}
+
+function buildResumenTexto(resumen: GestionResumen): string {
+    const lines = [
+        `Solicitud: ${resumen.id_solicitud}`,
+        `RUT usuario: ${resumen.rut_usuario}`,
+        `Accion: ${resumen.accion || "-"}`
+    ];
+
+    if (resumen.razon_rechazo) lines.push(`Razon rechazo: ${resumen.razon_rechazo}`);
+    if (resumen.observacion_rechazo) lines.push(`Observacion rechazo: ${resumen.observacion_rechazo}`);
+
+    if (resumen.citas.length > 0) {
+        lines.push("Citas asociadas:");
+        resumen.citas.forEach((cita, index) => {
+            lines.push(
+                `${index + 1}. Profesional: ${cita.profesional || "-"} | Prestacion: ${cita.prestacion || "-"} | Fecha estimada: ${formatFechaResumen(cita.fecha_estimada_atencion)}`
+            );
+        });
+    } else {
+        lines.push("Citas asociadas: -");
+    }
+
+    return lines.join("\n");
+}
+
+function ResumenGestionModal({ resumen, onClose }: { resumen: GestionResumen; onClose: () => void }) {
+    const texto = buildResumenTexto(resumen);
+
+    async function copiarResumen() {
+        try {
+            await navigator.clipboard.writeText(texto);
+            toast.success("Resumen copiado");
+        } catch {
+            toast.error("No se pudo copiar el resumen");
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-3xl rounded-md border bg-background shadow-lg">
+                <div className="flex items-start justify-between gap-4 border-b p-5">
+                    <div>
+                        <h2 className="text-lg font-semibold">Resumen de gestion</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Solicitud <CodigoId id={resumen.id_solicitud} /> · RUT {resumen.rut_usuario}
+                        </p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
+                        <X size={18} />
+                    </Button>
+                </div>
+                <div className="space-y-4 p-5">
+                    <div className="grid gap-3 rounded-md border bg-muted/30 p-3 text-sm md:grid-cols-3">
+                        <div>
+                            <p className="text-muted-foreground">ID solicitud</p>
+                            <p className="font-medium">{resumen.id_solicitud}</p>
+                        </div>
+                        <div>
+                            <p className="text-muted-foreground">RUT usuario</p>
+                            <p className="font-medium">{resumen.rut_usuario}</p>
+                        </div>
+                        <div>
+                            <p className="text-muted-foreground">Accion</p>
+                            <p className="font-medium">{resumen.accion || "-"}</p>
+                        </div>
+                    </div>
+
+                    {resumen.razon_rechazo && (
+                        <div className="rounded-md border p-3 text-sm">
+                            <p><strong>Razon:</strong> {resumen.razon_rechazo}</p>
+                            <p><strong>Observacion:</strong> {resumen.observacion_rechazo || "-"}</p>
+                        </div>
+                    )}
+
+                    {resumen.citas.length > 0 ? (
+                        <div className="overflow-x-auto rounded-md border">
+                            <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+                                <thead className="bg-muted text-muted-foreground">
+                                    <tr>
+                                        <th className="w-[220px] px-3 py-2 font-medium">Profesional</th>
+                                        <th className="px-3 py-2 font-medium">Prestacion</th>
+                                        <th className="w-[150px] px-3 py-2 font-medium">Fecha estimada</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {resumen.citas.map((cita) => (
+                                        <tr key={cita.id_cita} className="border-t">
+                                            <td className="px-3 py-3">{cita.profesional || "-"}</td>
+                                            <td className="px-3 py-3">{cita.prestacion || "-"}</td>
+                                            <td className="px-3 py-3">{formatFechaResumen(cita.fecha_estimada_atencion)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">Gestion guardada sin citas asociadas.</div>
+                    )}
+
+                    <Textarea value={texto} readOnly rows={7} />
+                    <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={onClose}>
+                            Cerrar
+                        </Button>
+                        <Button type="button" onClick={copiarResumen}>
+                            <Copy size={16} />
+                            Copiar resumen
+                        </Button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
@@ -560,6 +697,7 @@ function RechazoModal({
                     <div>
                         <h2 className="text-lg font-semibold">Rechazar solicitud</h2>
                         <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
+                        <SolicitudMeta solicitud={solicitud} />
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
                         <X size={18} />
@@ -709,6 +847,7 @@ function RealizarModal({
                     <div>
                         <h2 className="text-lg font-semibold">Realizar solicitud</h2>
                         <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
+                        <SolicitudMeta solicitud={solicitud} />
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
                         <X size={18} />
