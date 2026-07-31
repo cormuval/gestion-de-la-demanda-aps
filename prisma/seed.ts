@@ -12,10 +12,10 @@ const SEED_DEMO = process.env.SEED_DEMO !== "false";
 
 
 const rolePermisos: Record<string, Permiso[]> = {
-    Administrador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"],
+    Administrador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "some.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"],
     Orientador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
     Comunicador: ["comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
-    SOME: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios"],
+    SOME: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "some.ver", "config.ver", "config.funcionarios"],
     "Orientador y Comunicador": ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
     "Gestor y Comunicador": ["comunicador.ver", "comunicador.llamar", "comunicador.paciente"],
     Full: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos"]
@@ -76,6 +76,18 @@ async function main() {
         rolesSembrados++;
     }
     console.log(`Seed: permisos sembrados para ${rolesSembrados} rol(es) sin configurar (los ya configurados se respetan)`);
+
+    // Permiso agregado posterior al bootstrap RBAC. Se asigna de forma idempotente a
+    // roles existentes Administrador y SOME para que la nueva pestaña aparezca en BD ya configuradas.
+    const rolesSome = ["Administrador", "SOME"]
+        .map((roleName) => roleByName.get(roleName))
+        .filter((role): role is { id_rol: number } => Boolean(role));
+    if (rolesSome.length > 0) {
+        await prisma.rolPermiso.createMany({
+            data: rolesSome.map((role) => ({ rol_id: role.id_rol, permiso: "some.ver" })),
+            skipDuplicates: true
+        });
+    }
 
     const huerfanos = await prisma.rolPermiso.findMany({
         where: { permiso: { notIn: CLAVES_PERMISOS } },
