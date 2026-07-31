@@ -45,15 +45,29 @@ beforeEach(() => {
     });
     (prisma.$queryRaw as any).mockResolvedValue([{ nombre_centro: "Centro De Salud Familiar Esperanza" }]);
     (prisma.$transaction as any).mockImplementation(async (callback: any) => callback(prisma));
-    (prisma.solicitud.findFirst as any).mockResolvedValue({ id_solicitud: "SOL-1", rut_usuario: "12345678-5", usuario: { priorizacion_administrativa: 10 } });
-    (prisma.solicitud.update as any).mockResolvedValue({ id_solicitud: "SOL-1", accion: "Realizar solicitud" });
-    (prisma.profesional.findFirst as any).mockResolvedValue({ id_profesional: 17 });
+    (prisma.solicitud.findFirst as any).mockResolvedValue({
+        id_solicitud: "SOL-1",
+        rut_usuario: "12345678-5",
+        tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
+        motivo: { nombre_motivo: "Control" },
+        usuario: { priorizacion_administrativa: 10 }
+    });
+    (prisma.solicitud.update as any).mockResolvedValue({ id_solicitud: "SOL-1", rut_usuario: "12345678-5", accion: "Realizar solicitud", razon_rechazo: null, observacion_rechazo: null });
+    (prisma.profesional.findFirst as any).mockResolvedValue({ id_profesional: 17, nombre: "Examenes" });
     (prisma.cita.createMany as any).mockResolvedValue({ count: 1 });
 });
 
 describe("gestionarSolicitud", () => {
     it("rechaza solicitud en transaccion guardando razon y observacion", async () => {
-        await gestionarSolicitud({
+        (prisma.solicitud.update as any).mockResolvedValueOnce({
+            id_solicitud: "SOL-1",
+            rut_usuario: "12345678-5",
+            accion: "Rechazar solicitud",
+            razon_rechazo: "Solicitud repetida",
+            observacion_rechazo: "Ya fue ingresada"
+        });
+
+        const result = await gestionarSolicitud({
             id_solicitud: "SOL-1",
             accion: "Rechazar solicitud",
             razon_rechazo: "Solicitud repetida",
@@ -73,10 +87,18 @@ describe("gestionarSolicitud", () => {
             })
         );
         expect(prisma.cita.createMany).not.toHaveBeenCalled();
+        expect(result.resumen).toEqual({
+            id_solicitud: "SOL-1",
+            rut_usuario: "12345678-5",
+            accion: "Rechazar solicitud",
+            razon_rechazo: "Solicitud repetida",
+            observacion_rechazo: "Ya fue ingresada",
+            citas: []
+        });
     });
 
     it("realiza solicitud e inserta citas con prioridad numerica", async () => {
-        await gestionarSolicitud({
+        const result = await gestionarSolicitud({
             id_solicitud: "SOL-1",
             accion: "Realizar solicitud",
             citas: [
@@ -116,10 +138,24 @@ describe("gestionarSolicitud", () => {
                 })
             ]
         });
+        expect(result.resumen).toEqual(
+            expect.objectContaining({
+                id_solicitud: "SOL-1",
+                rut_usuario: "12345678-5",
+                accion: "Realizar solicitud",
+                citas: [
+                    expect.objectContaining({
+                        profesional: "Examenes",
+                        prestacion: null,
+                        fecha_estimada_atencion: expect.any(Date)
+                    })
+                ]
+            })
+        );
     });
 
     it("valida prestacion activa perteneciente al profesional", async () => {
-        (prisma.prestacion.findFirst as any).mockResolvedValue({ id_prestacion: 3, profesional_id: 2 });
+        (prisma.prestacion.findFirst as any).mockResolvedValue({ id_prestacion: 3, profesional_id: 2, nombre_prestacion: "Control medico", profesional: { nombre: "Medico" } });
 
         await gestionarSolicitud({
             id_solicitud: "SOL-1",
@@ -145,7 +181,13 @@ describe("gestionarSolicitud", () => {
     });
 
     it("aplica tope 100 a la priorizacion de cita", async () => {
-        (prisma.solicitud.findFirst as any).mockResolvedValue({ id_solicitud: "SOL-1", rut_usuario: "12345678-5", usuario: { priorizacion_administrativa: 45 } });
+        (prisma.solicitud.findFirst as any).mockResolvedValue({
+            id_solicitud: "SOL-1",
+            rut_usuario: "12345678-5",
+            tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
+            motivo: { nombre_motivo: "Control" },
+            usuario: { priorizacion_administrativa: 45 }
+        });
 
         await gestionarSolicitud({
             id_solicitud: "SOL-1",

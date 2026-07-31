@@ -25,6 +25,8 @@ import type { Permiso } from "@/config/permisos";
 import { getCatalogos } from "./catalogos/actions/getCatalogos.action";
 // actions: dashboard
 import { getDashboardFuncionario } from "./dashboard/actions/getDashboardFuncionario.action";
+// actions: some
+import { getSomePanel } from "./some/actions/getSomePanel.action";
 // actions: comunicador
 import { actualizarUsuarioComunicador } from "./comunicador/actions/actualizarUsuarioComunicador.action";
 import { getCitasPendientes } from "./comunicador/actions/getCitasPendientes.action";
@@ -81,6 +83,7 @@ const tabla: CasoPermiso[] = [
 
     // dashboard
     { nombre: "getDashboardFuncionario", invocar: () => getDashboardFuncionario(), permisos: ["dashboard.ver"] },
+    { nombre: "getSomePanel", invocar: () => getSomePanel(), permisos: ["some.ver"] },
 
     // comunicador
     {
@@ -169,8 +172,8 @@ beforeEach(() => {
 });
 
 describe("permiso exigido por cada Server Action", () => {
-    it("cubre las 28 Server Actions del sistema", () => {
-        expect(tabla.length).toBe(28);
+    it("cubre las 29 Server Actions del sistema", () => {
+        expect(tabla.length).toBe(29);
     });
 
     for (const caso of tabla) {
