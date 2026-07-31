@@ -9,6 +9,7 @@ export const PERMISOS = {
     "comunicador.llamar": { modulo: "Comunicador", etiqueta: "Registrar llamada" },
     "comunicador.paciente": { modulo: "Comunicador", etiqueta: "Editar datos del paciente" },
     "dashboard.ver": { modulo: "Dashboard", etiqueta: "Ver indicadores" },
+    "some.ver": { modulo: "SOME", etiqueta: "Ver panel SOME" },
     "config.ver": { modulo: "Configuracion", etiqueta: "Ver configuracion" },
     "config.funcionarios": { modulo: "Configuracion", etiqueta: "Editar funcionarios" },
     "config.roles": { modulo: "Configuracion", etiqueta: "Editar roles y permisos" },

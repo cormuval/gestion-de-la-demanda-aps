@@ -16,6 +16,7 @@ describe("catalogo de permisos", () => {
     it("incluye los permisos definidos en el diseno", () => {
         expect(CLAVES_PERMISOS).toContain("solicitudes.gestionar");
         expect(CLAVES_PERMISOS).toContain("comunicador.paciente");
+        expect(CLAVES_PERMISOS).toContain("some.ver");
         expect(CLAVES_PERMISOS).toContain("config.roles");
     });
 
