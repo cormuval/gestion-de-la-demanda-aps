@@ -149,6 +149,11 @@ model Solicitud {
   @@index([motivo_id])
   @@index([rut_orientador])
   @@index([rut_gestor])
+  // Panel SOME: acotan por centro + ventana de fechas. Sin estos, el filtro por rango
+  // recorre todo el historial del centro en vez de solo los dias pedidos.
+  @@index([centro_id, fecha_inicio])
+  @@index([centro_id, fecha_validacion])
+  @@index([centro_id, accion])
   @@map("solicitudes")
 }
 
@@ -169,6 +174,8 @@ model Llamada {
   @@index([rut_usuario])
   @@index([rut_comunicador])
   @@index([respuesta_usuario])
+  // Panel SOME: llamadas por centro en un rango de fechas.
+  @@index([centro_id, fecha_llamada])
   @@map("llamadas")
 }
 
@@ -241,6 +248,8 @@ model Cita {
   @@index([prestacion_id])
   @@index([centro_id, estado_cita])
   @@index([rut_usuario, estado_cita])
+  // Panel SOME: citas creadas por centro en un rango de fechas.
+  @@index([centro_id, fecha_creacion])
   @@map("citas")
 }
 
