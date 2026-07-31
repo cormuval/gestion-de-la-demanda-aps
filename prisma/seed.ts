@@ -77,18 +77,6 @@ async function main() {
     }
     console.log(`Seed: permisos sembrados para ${rolesSembrados} rol(es) sin configurar (los ya configurados se respetan)`);
 
-    // Permiso agregado posterior al bootstrap RBAC. Se asigna de forma idempotente a
-    // roles existentes Administrador y SOME para que la nueva pestaña aparezca en BD ya configuradas.
-    const rolesSome = ["Administrador", "SOME"]
-        .map((roleName) => roleByName.get(roleName))
-        .filter((role): role is { id_rol: number } => Boolean(role));
-    if (rolesSome.length > 0) {
-        await prisma.rolPermiso.createMany({
-            data: rolesSome.map((role) => ({ rol_id: role.id_rol, permiso: "some.ver" })),
-            skipDuplicates: true
-        });
-    }
-
     const huerfanos = await prisma.rolPermiso.findMany({
         where: { permiso: { notIn: CLAVES_PERMISOS } },
         select: { rol_id: true, permiso: true }
