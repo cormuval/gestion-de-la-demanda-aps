@@ -103,11 +103,40 @@ describe("getSomePanel", () => {
         (prisma.cita.findMany as any)
             .mockResolvedValueOnce([{ rut_gestor: "22.222.222-2", fecha_creacion: hoy }])
             .mockResolvedValueOnce([]);
-        (prisma.llamada.findMany as any).mockResolvedValueOnce([{ rut_comunicador: "44.444.444-4", fecha_llamada: hoy }]);
+        (prisma.llamada.findMany as any).mockResolvedValueOnce([]);
 
         const result = await getSomePanel({ funcionarioRut: "22.222.222-2" });
 
         expect(result.funcionarioSeleccionado).toBe("22.222.222-2");
+        expect(prisma.solicitud.findMany).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                where: expect.objectContaining({ rut_orientador: "22.222.222-2" })
+            })
+        );
+        expect(prisma.solicitud.findMany).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                where: expect.objectContaining({ rut_gestor: "22.222.222-2" })
+            })
+        );
+        expect(prisma.cita.findMany).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                where: expect.objectContaining({ rut_gestor: "22.222.222-2" })
+            })
+        );
+        expect(prisma.llamada.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({ rut_comunicador: "22.222.222-2" })
+            })
+        );
+        expect(result.productividad).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ rut: "44.444.444-4" }),
+                expect.objectContaining({ rut: "22.222.222-2" })
+            ])
+        );
         expect(result.totales.solicitudesIngresadas).toBe(1);
         expect(result.totales.solicitudesRealizadas).toBe(1);
         expect(result.totales.citasCreadas).toBe(1);

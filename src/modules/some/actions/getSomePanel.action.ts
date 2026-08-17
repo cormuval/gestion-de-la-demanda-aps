@@ -145,11 +145,6 @@ function addSerie(seriePorFecha: Map<string, SomeDiaSerie>, fecha: Date | null |
     if (row) addTotal(row, key, amount);
 }
 
-function filtrarRut<T, K extends keyof T>(items: T[], field: K, funcionarioRut: string): T[] {
-    if (!funcionarioRut) return items;
-    return items.filter((item) => item[field] === funcionarioRut);
-}
-
 function temporalidadCita(fecha: Date | null): string {
     if (!fecha) return TEMPORALIDAD.PROXIMOS;
     const hoy = new Date();
@@ -210,27 +205,30 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
     });
     const funcionarioSeleccionado = filtros.funcionarioRut && funcionarios.some((funcionario) => funcionario.rut === filtros.funcionarioRut) ? filtros.funcionarioRut : "";
     const rutsCentro = funcionarios.map((funcionario) => funcionario.rut);
+    const rutOrientadorFiltro = funcionarioSeleccionado || { in: rutsCentro };
+    const rutGestorFiltro = funcionarioSeleccionado || { in: rutsCentro };
+    const rutComunicadorFiltro = funcionarioSeleccionado || { in: rutsCentro };
 
-    const [solicitudesIngresadasRaw, gestionesRaw, citasRaw, llamadasRaw, demandaRaw, solicitudesPendientesRaw] = await Promise.all([
+    const [solicitudesIngresadas, gestiones, citas, llamadas, demandaRaw, solicitudesPendientesRaw] = await Promise.all([
         prisma.solicitud.findMany({
-            where: { centro_id: centroSeleccionado, rut_orientador: { in: rutsCentro }, fecha_inicio: { gte: desde, lt: hasta } },
+            where: { centro_id: centroSeleccionado, rut_orientador: rutOrientadorFiltro, fecha_inicio: { gte: desde, lt: hasta } },
             select: { rut_orientador: true, fecha_inicio: true }
         }),
         prisma.solicitud.findMany({
             where: {
                 centro_id: centroSeleccionado,
-                rut_gestor: { in: rutsCentro },
+                rut_gestor: rutGestorFiltro,
                 accion: { in: [ACCION_REALIZAR_SOLICITUD, ACCION_RECHAZAR_SOLICITUD] },
                 fecha_validacion: { gte: desde, lt: hasta }
             },
             select: { rut_gestor: true, accion: true, fecha_validacion: true }
         }),
         prisma.cita.findMany({
-            where: { centro_id: centroSeleccionado, rut_gestor: { in: rutsCentro }, fecha_creacion: { gte: desde, lt: hasta } },
+            where: { centro_id: centroSeleccionado, rut_gestor: rutGestorFiltro, fecha_creacion: { gte: desde, lt: hasta } },
             select: { rut_gestor: true, fecha_creacion: true }
         }),
         prisma.llamada.findMany({
-            where: { centro_id: centroSeleccionado, rut_comunicador: { in: rutsCentro }, fecha_llamada: { gte: desde, lt: hasta } },
+            where: { centro_id: centroSeleccionado, rut_comunicador: rutComunicadorFiltro, fecha_llamada: { gte: desde, lt: hasta } },
             select: { rut_comunicador: true, fecha_llamada: true }
         }),
         prisma.cita.findMany({
@@ -252,11 +250,6 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
             }
         })
     ]);
-
-    const solicitudesIngresadas = filtrarRut(solicitudesIngresadasRaw, "rut_orientador", funcionarioSeleccionado);
-    const gestiones = filtrarRut(gestionesRaw, "rut_gestor", funcionarioSeleccionado);
-    const citas = filtrarRut(citasRaw, "rut_gestor", funcionarioSeleccionado);
-    const llamadas = filtrarRut(llamadasRaw, "rut_comunicador", funcionarioSeleccionado);
 
     const totales = emptyTotales();
     const serie = buildSerie(desde, rangoDias);
