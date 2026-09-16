@@ -18,6 +18,7 @@ export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<{ 
     const data = registrarLlamadaSchema.parse(input);
 
     const resultado = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id_cita FROM citas WHERE id_cita = ${data.cita_id} FOR UPDATE`;
         const cita = await tx.cita.findUnique({
             where: { id_cita: data.cita_id },
             select: { id_cita: true, solicitud_id: true, rut_usuario: true, estado_cita: true, centro_id: true }
