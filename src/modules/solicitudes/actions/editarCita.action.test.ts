@@ -60,6 +60,9 @@ describe("editarCita", () => {
 
         expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
         expect(tx.cita.findUnique).toHaveBeenCalledTimes(1);
+        const lockQuery = tx.$queryRaw.mock.calls[0][0].join("");
+        expect(lockQuery).toContain("FOR UPDATE");
+        expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.cita.findUnique.mock.invocationCallOrder[0]);
         expect(tx.cita.update).toHaveBeenCalledWith({
             where: { id_cita: "CITA-1" },
             data: {
@@ -91,6 +94,25 @@ describe("editarCita", () => {
     it("bloquea cita inexistente u otro centro sin escribir", async () => {
         tx.cita.findUnique.mockResolvedValueOnce(null);
         await expect(editarCita({ id_cita: "CITA-X", priorizacion_clinica: "Media", fecha_estimada_atencion: fechaValida })).resolves.toEqual({
+            ok: false,
+            error: "La cita no existe o no pertenece a tu centro"
+        });
+        expect(tx.cita.update).not.toHaveBeenCalled();
+    });
+
+    it("bloquea cita de otro centro sin escribir", async () => {
+        tx.cita.findUnique.mockResolvedValueOnce({
+            id_cita: "CITA-OTRO-CENTRO",
+            centro_id: "999",
+            estado_cita: "Sin llamadas",
+            priorizacion_clinica: "Alta",
+            priorizacion: 70,
+            fecha_estimada_atencion: new Date("2026-10-01T00:00:00"),
+            usuario: { priorizacion_administrativa: 10 },
+            _count: { llamadas: 0 }
+        });
+
+        await expect(editarCita({ id_cita: "CITA-OTRO-CENTRO", priorizacion_clinica: "Media", fecha_estimada_atencion: fechaValida })).resolves.toEqual({
             ok: false,
             error: "La cita no existe o no pertenece a tu centro"
         });
