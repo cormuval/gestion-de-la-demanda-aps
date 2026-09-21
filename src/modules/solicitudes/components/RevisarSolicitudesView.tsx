@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarPlus, Check, Copy, Edit, Eye, Filter, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
@@ -135,6 +135,7 @@ export function RevisarSolicitudesView() {
     const [editingUsuario, setEditingUsuario] = useState<SolicitudRow | null>(null);
     const [savingUsuario, setSavingUsuario] = useState(false);
     const [resumenGestion, setResumenGestion] = useState<GestionResumen | null>(null);
+    const accionOrigenRef = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
         getRevisionCatalogos()
@@ -175,6 +176,7 @@ export function RevisarSolicitudesView() {
     }
 
     function openRechazo(solicitud: SolicitudRow) {
+        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setActionsOpen(null);
         setRechazoSolicitud(solicitud);
         setRazonRechazo("");
@@ -182,6 +184,7 @@ export function RevisarSolicitudesView() {
     }
 
     function openRealizar(solicitud: SolicitudRow) {
+        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setActionsOpen(null);
         setRealizarSolicitud(solicitud);
         setCitas([emptyCita()]);
@@ -206,6 +209,7 @@ export function RevisarSolicitudesView() {
     }
 
     function openEditarUsuario(solicitud: SolicitudRow) {
+        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setActionsOpen(null);
         setEditingUsuario(solicitud);
         setUsuarioForm(toUsuarioForm(solicitud.usuario));
@@ -494,6 +498,10 @@ export function RevisarSolicitudesView() {
                     onRazonChange={setRazonRechazo}
                     onObservacionChange={setObservacionRechazo}
                     onClose={() => setRechazoSolicitud(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
                     onSubmit={confirmarRechazo}
                 />
             )}
@@ -508,6 +516,10 @@ export function RevisarSolicitudesView() {
                     onAdd={addCita}
                     onRemove={removeCita}
                     onClose={() => setRealizarSolicitud(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
                     onSubmit={confirmarRealizar}
                 />
             )}
@@ -548,11 +560,24 @@ export function RevisarSolicitudesView() {
                     saving={savingUsuario}
                     onChange={updateUsuarioField}
                     onClose={() => setEditingUsuario(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
                     onSubmit={onGuardarUsuario}
                 />
             )}
 
-            {resumenGestion && <ResumenGestionModal resumen={resumenGestion} onClose={() => setResumenGestion(null)} />}
+            {resumenGestion && (
+                <ResumenGestionModal
+                    resumen={resumenGestion}
+                    onClose={() => setResumenGestion(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -607,7 +632,15 @@ function buildResumenTexto(resumen: GestionResumen): string {
     return lines.join("\n");
 }
 
-function ResumenGestionModal({ resumen, onClose }: { resumen: GestionResumen; onClose: () => void }) {
+function ResumenGestionModal({
+    resumen,
+    onClose,
+    onCloseAutoFocus
+}: {
+    resumen: GestionResumen;
+    onClose: () => void;
+    onCloseAutoFocus: (event: Event) => void;
+}) {
     const texto = buildResumenTexto(resumen);
 
     async function copiarResumen() {
@@ -620,19 +653,14 @@ function ResumenGestionModal({ resumen, onClose }: { resumen: GestionResumen; on
     }
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-3xl rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Resumen de gestion</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Solicitud <CodigoId id={resumen.id_solicitud} /> · RUT {resumen.rut_usuario}
-                        </p>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent overlayClassName="z-[60] bg-black/40" className="z-[70] max-w-3xl gap-0 p-0" onCloseAutoFocus={onCloseAutoFocus}>
+                <DialogHeader className="border-b p-5 pr-12">
+                    <DialogTitle>Resumen de gestion</DialogTitle>
+                    <DialogDescription>
+                        Solicitud <CodigoId id={resumen.id_solicitud} /> · RUT {resumen.rut_usuario}
+                    </DialogDescription>
+                </DialogHeader>
                 <div className="space-y-4 p-5">
                     <div className="grid gap-3 rounded-md border bg-muted/30 p-3 text-sm md:grid-cols-3">
                         <div>
@@ -692,8 +720,8 @@ function ResumenGestionModal({ resumen, onClose }: { resumen: GestionResumen; on
                         </Button>
                     </div>
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -705,6 +733,7 @@ function RechazoModal({
     onRazonChange,
     onObservacionChange,
     onClose,
+    onCloseAutoFocus,
     onSubmit
 }: {
     solicitud: SolicitudRow;
@@ -714,21 +743,21 @@ function RechazoModal({
     onRazonChange: (value: RazonRechazo | "") => void;
     onObservacionChange: (value: string) => void;
     onClose: () => void;
+    onCloseAutoFocus: (event: Event) => void;
     onSubmit: (event: React.FormEvent) => void;
 }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-xl rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Rechazar solicitud</h2>
-                        <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
-                        <SolicitudMeta solicitud={solicitud} />
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent overlayClassName="z-[60] bg-black/40" className="z-[70] max-w-xl gap-0 p-0" onCloseAutoFocus={onCloseAutoFocus}>
+                <DialogHeader className="border-b p-5 pr-12">
+                    <DialogTitle>Rechazar solicitud</DialogTitle>
+                    <DialogDescription asChild>
+                        <div>
+                            <p className="mt-1"><CodigoId id={solicitud.id_solicitud} /></p>
+                            <SolicitudMeta solicitud={solicitud} />
+                        </div>
+                    </DialogDescription>
+                </DialogHeader>
                 <form className="space-y-4 p-5" onSubmit={onSubmit}>
                     <Field label="Razon rechazo">
                         <Select value={razon} onChange={(e) => onRazonChange(e.target.value as RazonRechazo | "")} required>
@@ -750,8 +779,8 @@ function RechazoModal({
                         <Button disabled={saving}>{saving ? "Guardando..." : "Confirmar rechazo"}</Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -846,6 +875,7 @@ function RealizarModal({
     onAdd,
     onRemove,
     onClose,
+    onCloseAutoFocus,
     onSubmit
 }: {
     solicitud: SolicitudRow;
@@ -856,24 +886,24 @@ function RealizarModal({
     onAdd: () => void;
     onRemove: (index: number) => void;
     onClose: () => void;
+    onCloseAutoFocus: (event: Event) => void;
     onSubmit: (event: React.FormEvent) => void;
 }) {
     const minDate = new Date().toISOString().slice(0, 10);
     const maxDate = new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString().slice(0, 10);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Realizar solicitud</h2>
-                        <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
-                        <SolicitudMeta solicitud={solicitud} />
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent overlayClassName="z-[60] bg-black/40" className="z-[70] max-h-[90vh] max-w-5xl gap-0 overflow-y-auto p-0" onCloseAutoFocus={onCloseAutoFocus}>
+                <DialogHeader className="border-b p-5 pr-12">
+                    <DialogTitle>Realizar solicitud</DialogTitle>
+                    <DialogDescription asChild>
+                        <div>
+                            <p className="mt-1"><CodigoId id={solicitud.id_solicitud} /></p>
+                            <SolicitudMeta solicitud={solicitud} />
+                        </div>
+                    </DialogDescription>
+                </DialogHeader>
                 <form className="space-y-4 p-5" onSubmit={onSubmit}>
                     <div className="flex justify-end">
                         <Button type="button" variant="outline" disabled={citas.length >= 5} onClick={onAdd}>
@@ -961,7 +991,7 @@ function RealizarModal({
                         </Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
