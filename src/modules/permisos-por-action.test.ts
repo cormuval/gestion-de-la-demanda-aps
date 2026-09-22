@@ -49,6 +49,7 @@ import {
 } from "./configuracion/actions/mantenedores.action";
 // actions: solicitudes
 import { crearSolicitud } from "./solicitudes/actions/crearSolicitud.action";
+import { editarCita } from "./solicitudes/actions/editarCita.action";
 import { gestionarSolicitud } from "./solicitudes/actions/gestionarSolicitud.action";
 import { getCentros } from "./solicitudes/actions/getCentros.action";
 import { getOtrasSolicitudes } from "./solicitudes/actions/getOtrasSolicitudes.action";
@@ -75,7 +76,7 @@ interface CasoPermiso {
 }
 
 // La tabla es la especificacion: se derivo leyendo el guard (primera linea de cada
-// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 28
+// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 30
 // Server Actions repartidas en catalogos, comunicador, configuracion y solicitudes.
 const tabla: CasoPermiso[] = [
     // catalogos
@@ -140,6 +141,11 @@ const tabla: CasoPermiso[] = [
         invocar: () => gestionarSolicitud({} as never),
         permisos: ["solicitudes.gestionar"]
     },
+    {
+        nombre: "editarCita",
+        invocar: () => editarCita({} as never),
+        permisos: ["solicitudes.gestionar"]
+    },
     { nombre: "getCentros", invocar: () => getCentros(), permisos: ["solicitudes.ver", "comunicador.ver"] },
     {
         nombre: "getOtrasSolicitudes",
@@ -172,8 +178,8 @@ beforeEach(() => {
 });
 
 describe("permiso exigido por cada Server Action", () => {
-    it("cubre las 29 Server Actions del sistema", () => {
-        expect(tabla.length).toBe(29);
+    it("cubre las 30 Server Actions del sistema", () => {
+        expect(tabla.length).toBe(30);
     });
 
     for (const caso of tabla) {

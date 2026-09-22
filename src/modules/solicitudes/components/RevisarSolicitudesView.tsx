@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, Check, Copy, Edit, Eye, Filter, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarPlus, Check, Copy, Edit, Eye, Filter, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getRevisionCatalogos } from "@/modules/solicitudes/actions/getRevisionCatalogos.action";
@@ -11,6 +11,7 @@ import { getOtrasSolicitudes } from "@/modules/solicitudes/actions/getOtrasSolic
 import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 // schemas
 import {
+    ACCION_ESPERA_VALIDACION,
     ACCION_REALIZAR_SOLICITUD,
     ACCION_RECHAZAR_SOLICITUD,
     PRIORIDADES_CLINICAS,
@@ -24,19 +25,24 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
+import { ListaPendientes } from "@/modules/solicitudes/components/PendientesCascada";
 import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
 // types
 import type { SolicitudFiltros } from "@/modules/solicitudes/schemas/solicitud.schema";
+import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
 
 type SolicitudesResponse = Awaited<ReturnType<typeof getSolicitudes>>;
 type SolicitudRow = SolicitudesResponse["solicitudes"][number];
 type RevisionCatalogos = Awaited<ReturnType<typeof getRevisionCatalogos>>;
 type OtrasSolicitudesResponse = Awaited<ReturnType<typeof getOtrasSolicitudes>>;
 type GestionResumen = Awaited<ReturnType<typeof gestionarSolicitud>>["resumen"];
+type CitaContexto = OtrasSolicitudesResponse["citas"][number];
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
 type PrioridadClinica = (typeof PRIORIDADES_CLINICAS)[number];
 type RazonRechazo = (typeof RAZONES_RECHAZO)[number];
@@ -51,6 +57,7 @@ type CitaForm = {
 
 const emptyResponse: SolicitudesResponse = { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 };
 const emptyCatalogos: RevisionCatalogos = { tiposSolicitud: [], motivos: [], profesionales: [], prestaciones: [], centros: [] };
+const emptyOtrasContexto: OtrasSolicitudesResponse = { solicitudes: [], citas: [] };
 const emptyUsuarioForm: UsuarioEditFormState = {
     rut: "",
     nombre: "",
@@ -121,12 +128,14 @@ export function RevisarSolicitudesView() {
     const [observacionRechazo, setObservacionRechazo] = useState("");
     const [citas, setCitas] = useState<CitaForm[]>([emptyCita()]);
     const [otrasSolicitudBase, setOtrasSolicitudBase] = useState<SolicitudRow | null>(null);
-    const [otrasSolicitudes, setOtrasSolicitudes] = useState<OtrasSolicitudesResponse["solicitudes"]>([]);
+    const [otrasContexto, setOtrasContexto] = useState<OtrasSolicitudesResponse>(emptyOtrasContexto);
+    const [citaEditando, setCitaEditando] = useState<CitaCascadaConEdicion | null>(null);
     const [loadingOtras, setLoadingOtras] = useState(false);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioEditFormState>(emptyUsuarioForm);
     const [editingUsuario, setEditingUsuario] = useState<SolicitudRow | null>(null);
     const [savingUsuario, setSavingUsuario] = useState(false);
     const [resumenGestion, setResumenGestion] = useState<GestionResumen | null>(null);
+    const accionOrigenRef = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
         getRevisionCatalogos()
@@ -167,6 +176,7 @@ export function RevisarSolicitudesView() {
     }
 
     function openRechazo(solicitud: SolicitudRow) {
+        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setActionsOpen(null);
         setRechazoSolicitud(solicitud);
         setRazonRechazo("");
@@ -174,26 +184,32 @@ export function RevisarSolicitudesView() {
     }
 
     function openRealizar(solicitud: SolicitudRow) {
+        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setActionsOpen(null);
         setRealizarSolicitud(solicitud);
         setCitas([emptyCita()]);
     }
 
-    async function openOtrasSolicitudes(solicitud: SolicitudRow) {
-        setActionsOpen(null);
-        setOtrasSolicitudBase(solicitud);
+    async function cargarContexto(solicitud: SolicitudRow) {
         setLoadingOtras(true);
         try {
             const result = await getOtrasSolicitudes(solicitud.rut_usuario, solicitud.id_solicitud);
-            setOtrasSolicitudes(result.solicitudes);
+            setOtrasContexto(result);
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al consultar otras solicitudes");
+            toast.error(err instanceof Error ? err.message : "Error al consultar solicitudes y citas");
         } finally {
             setLoadingOtras(false);
         }
     }
 
+    async function openOtrasSolicitudes(solicitud: SolicitudRow) {
+        setActionsOpen(null);
+        setOtrasSolicitudBase(solicitud);
+        await cargarContexto(solicitud);
+    }
+
     function openEditarUsuario(solicitud: SolicitudRow) {
+        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setActionsOpen(null);
         setEditingUsuario(solicitud);
         setUsuarioForm(toUsuarioForm(solicitud.usuario));
@@ -226,7 +242,7 @@ export function RevisarSolicitudesView() {
             toast.success("Usuario actualizado");
             setEditingUsuario(null);
             await loadSolicitudes(filters);
-            if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
+            if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al guardar usuario");
         } finally {
@@ -249,7 +265,7 @@ export function RevisarSolicitudesView() {
             setRechazoSolicitud(null);
             setResumenGestion(result.resumen);
             await loadSolicitudes(filters);
-            if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
+            if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al rechazar solicitud");
         } finally {
@@ -282,7 +298,7 @@ export function RevisarSolicitudesView() {
             setRealizarSolicitud(null);
             setResumenGestion(result.resumen);
             await loadSolicitudes(filters);
-            if (otrasSolicitudBase) await openOtrasSolicitudes(otrasSolicitudBase);
+            if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al realizar solicitud");
         } finally {
@@ -444,7 +460,7 @@ export function RevisarSolicitudesView() {
                                                         </Button>
                                                         <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openOtrasSolicitudes(s)}>
                                                             <Eye size={16} />
-                                                            Otras solicitudes
+                                                            Otras solicitudes y citas
                                                         </Button>
                                                         <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openEditarUsuario(s)}>
                                                             <Edit size={16} />
@@ -482,6 +498,10 @@ export function RevisarSolicitudesView() {
                     onRazonChange={setRazonRechazo}
                     onObservacionChange={setObservacionRechazo}
                     onClose={() => setRechazoSolicitud(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
                     onSubmit={confirmarRechazo}
                 />
             )}
@@ -496,6 +516,10 @@ export function RevisarSolicitudesView() {
                     onAdd={addCita}
                     onRemove={removeCita}
                     onClose={() => setRealizarSolicitud(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
                     onSubmit={confirmarRealizar}
                 />
             )}
@@ -503,15 +527,29 @@ export function RevisarSolicitudesView() {
             {otrasSolicitudBase && (
                 <OtrasSolicitudesModal
                     solicitudBase={otrasSolicitudBase}
-                    solicitudes={otrasSolicitudes}
+                    contexto={otrasContexto}
                     loading={loadingOtras}
                     onClose={() => {
                         setOtrasSolicitudBase(null);
-                        setOtrasSolicitudes([]);
+                        setOtrasContexto(emptyOtrasContexto);
                     }}
                     onRealizar={openRealizar}
                     onRechazar={openRechazo}
                     onEditarUsuario={openEditarUsuario}
+                    onEditarCita={setCitaEditando}
+                />
+            )}
+
+            {citaEditando && otrasSolicitudBase && (
+                <EditarCitaDialog
+                    cita={citaEditando}
+                    open
+                    onOpenChange={(open) => {
+                        if (!open) setCitaEditando(null);
+                    }}
+                    onActualizada={async () => {
+                        await cargarContexto(otrasSolicitudBase);
+                    }}
                 />
             )}
 
@@ -522,11 +560,24 @@ export function RevisarSolicitudesView() {
                     saving={savingUsuario}
                     onChange={updateUsuarioField}
                     onClose={() => setEditingUsuario(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
                     onSubmit={onGuardarUsuario}
                 />
             )}
 
-            {resumenGestion && <ResumenGestionModal resumen={resumenGestion} onClose={() => setResumenGestion(null)} />}
+            {resumenGestion && (
+                <ResumenGestionModal
+                    resumen={resumenGestion}
+                    onClose={() => setResumenGestion(null)}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        accionOrigenRef.current?.focus();
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -581,7 +632,15 @@ function buildResumenTexto(resumen: GestionResumen): string {
     return lines.join("\n");
 }
 
-function ResumenGestionModal({ resumen, onClose }: { resumen: GestionResumen; onClose: () => void }) {
+function ResumenGestionModal({
+    resumen,
+    onClose,
+    onCloseAutoFocus
+}: {
+    resumen: GestionResumen;
+    onClose: () => void;
+    onCloseAutoFocus: (event: Event) => void;
+}) {
     const texto = buildResumenTexto(resumen);
 
     async function copiarResumen() {
@@ -594,19 +653,14 @@ function ResumenGestionModal({ resumen, onClose }: { resumen: GestionResumen; on
     }
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-3xl rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Resumen de gestion</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Solicitud <CodigoId id={resumen.id_solicitud} /> · RUT {resumen.rut_usuario}
-                        </p>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent overlayClassName="z-[60] bg-black/40" className="z-[70] max-w-3xl gap-0 p-0" onCloseAutoFocus={onCloseAutoFocus}>
+                <DialogHeader className="border-b p-5 pr-12">
+                    <DialogTitle>Resumen de gestion</DialogTitle>
+                    <DialogDescription>
+                        Solicitud <CodigoId id={resumen.id_solicitud} /> · RUT {resumen.rut_usuario}
+                    </DialogDescription>
+                </DialogHeader>
                 <div className="space-y-4 p-5">
                     <div className="grid gap-3 rounded-md border bg-muted/30 p-3 text-sm md:grid-cols-3">
                         <div>
@@ -666,8 +720,8 @@ function ResumenGestionModal({ resumen, onClose }: { resumen: GestionResumen; on
                         </Button>
                     </div>
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -679,6 +733,7 @@ function RechazoModal({
     onRazonChange,
     onObservacionChange,
     onClose,
+    onCloseAutoFocus,
     onSubmit
 }: {
     solicitud: SolicitudRow;
@@ -688,21 +743,21 @@ function RechazoModal({
     onRazonChange: (value: RazonRechazo | "") => void;
     onObservacionChange: (value: string) => void;
     onClose: () => void;
+    onCloseAutoFocus: (event: Event) => void;
     onSubmit: (event: React.FormEvent) => void;
 }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-xl rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Rechazar solicitud</h2>
-                        <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
-                        <SolicitudMeta solicitud={solicitud} />
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent overlayClassName="z-[60] bg-black/40" className="z-[70] max-w-xl gap-0 p-0" onCloseAutoFocus={onCloseAutoFocus}>
+                <DialogHeader className="border-b p-5 pr-12">
+                    <DialogTitle>Rechazar solicitud</DialogTitle>
+                    <DialogDescription asChild>
+                        <div>
+                            <p className="mt-1"><CodigoId id={solicitud.id_solicitud} /></p>
+                            <SolicitudMeta solicitud={solicitud} />
+                        </div>
+                    </DialogDescription>
+                </DialogHeader>
                 <form className="space-y-4 p-5" onSubmit={onSubmit}>
                     <Field label="Razon rechazo">
                         <Select value={razon} onChange={(e) => onRazonChange(e.target.value as RazonRechazo | "")} required>
@@ -724,95 +779,90 @@ function RechazoModal({
                         <Button disabled={saving}>{saving ? "Guardando..." : "Confirmar rechazo"}</Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
 function OtrasSolicitudesModal({
     solicitudBase,
-    solicitudes,
+    contexto,
     loading,
     onClose,
     onRealizar,
     onRechazar,
-    onEditarUsuario
+    onEditarUsuario,
+    onEditarCita
 }: {
     solicitudBase: SolicitudRow;
-    solicitudes: SolicitudRow[];
+    contexto: OtrasSolicitudesResponse;
     loading: boolean;
     onClose: () => void;
     onRealizar: (solicitud: SolicitudRow) => void;
     onRechazar: (solicitud: SolicitudRow) => void;
     onEditarUsuario: (solicitud: SolicitudRow) => void;
+    onEditarCita: (cita: CitaContexto) => void;
 }) {
+    const estaVacio = contexto.solicitudes.length === 0 && contexto.citas.length === 0;
+
     return (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-            <div className="max-h-[86vh] w-full max-w-5xl overflow-y-auto rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Otras solicitudes en curso</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            RUT {solicitudBase.rut_usuario}. Solo se muestran solicitudes pendientes de validacion.
-                        </p>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
-                <div className="p-5">
-                    {loading ? (
-                        <p className="text-sm text-muted-foreground">Consultando solicitudes...</p>
-                    ) : solicitudes.length === 0 ? (
-                        <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">No hay otras solicitudes pendientes para este RUT.</div>
-                    ) : (
-                        <div className="overflow-x-auto rounded-md border">
-                            <table className="w-full min-w-[900px] table-fixed text-left text-sm">
-                                <thead className="bg-muted text-muted-foreground">
-                                    <tr>
-                                        <th className="w-[100px] px-3 py-2 font-medium">ID</th>
-                                        <th className="w-[90px] px-3 py-2 font-medium">Fecha</th>
-                                        <th className="w-[170px] px-3 py-2 font-medium">Tipo</th>
-                                        <th className="w-[160px] px-3 py-2 font-medium">Motivo</th>
-                                        <th className="px-3 py-2 font-medium">Descripcion</th>
-                                        <th className="w-[250px] px-3 py-2 font-medium">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {solicitudes.map((solicitud) => (
-                                        <tr key={solicitud.id_solicitud} className="border-t">
-                                            <td className="px-3 py-3 font-medium">
-                                                <CodigoId id={solicitud.id_solicitud} />
-                                            </td>
-                                            <td className="px-3 py-3">{new Date(solicitud.fecha_inicio).toLocaleDateString("es-CL")}</td>
-                                            <td className="px-3 py-3">{solicitud.tipoSolicitud?.nombre_tipo_solicitud || "-"}</td>
-                                            <td className="px-3 py-3">{solicitud.motivo?.nombre_motivo || "-"}</td>
-                                            <td className="px-3 py-3">{solicitud.descripcion || "-"}</td>
-                                            <td className="px-3 py-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    <Button type="button" variant="outline" onClick={() => onRealizar(solicitud)}>
-                                                        <Check size={16} />
-                                                        Realizar
-                                                    </Button>
-                                                    <Button type="button" variant="outline" onClick={() => onRechazar(solicitud)}>
-                                                        <X size={16} />
-                                                        Rechazar
-                                                    </Button>
-                                                    <Button type="button" variant="outline" onClick={() => onEditarUsuario(solicitud)}>
-                                                        <Edit size={16} />
-                                                        Usuario
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
+        <Dialog
+            open
+            onOpenChange={(open) => {
+                if (!open) onClose();
+            }}
+        >
+            <DialogContent className="max-h-[86vh] max-w-5xl overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Solicitudes y citas en curso</DialogTitle>
+                    <DialogDescription>RUT {solicitudBase.rut_usuario} · solo tu centro</DialogDescription>
+                </DialogHeader>
+
+                {loading ? (
+                    <p className="text-sm text-muted-foreground">Consultando solicitudes y citas...</p>
+                ) : estaVacio ? (
+                    <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">No hay otras solicitudes ni citas en curso para este RUT en tu centro.</div>
+                ) : (
+                    <ListaPendientes
+                        solicitudes={contexto.solicitudes}
+                        citas={contexto.citas}
+                        accionesSolicitud={(solicitud) => {
+                            const enEspera = solicitud.accion === ACCION_ESPERA_VALIDACION;
+                            return (
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    {enEspera ? (
+                                        <>
+                                            <Button type="button" variant="outline" onClick={() => onRealizar(solicitud)}>
+                                                <Check data-icon="inline-start" />
+                                                Realizar
+                                            </Button>
+                                            <Button type="button" variant="outline" onClick={() => onRechazar(solicitud)}>
+                                                <X data-icon="inline-start" />
+                                                Rechazar
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Badge variant="muted">Validada</Badge>
+                                    )}
+                                    <Button type="button" variant="outline" onClick={() => onEditarUsuario(solicitud)}>
+                                        <Edit data-icon="inline-start" />
+                                        Usuario
+                                    </Button>
+                                </div>
+                            );
+                        }}
+                        accionesCita={(cita) =>
+                            cita.editable ? (
+                                <Button type="button" variant="outline" size="sm" onClick={() => onEditarCita(cita)}>
+                                    <Pencil data-icon="inline-start" />
+                                    Editar
+                                </Button>
+                            ) : null
+                        }
+                    />
+                )}
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -825,6 +875,7 @@ function RealizarModal({
     onAdd,
     onRemove,
     onClose,
+    onCloseAutoFocus,
     onSubmit
 }: {
     solicitud: SolicitudRow;
@@ -835,24 +886,24 @@ function RealizarModal({
     onAdd: () => void;
     onRemove: (index: number) => void;
     onClose: () => void;
+    onCloseAutoFocus: (event: Event) => void;
     onSubmit: (event: React.FormEvent) => void;
 }) {
     const minDate = new Date().toISOString().slice(0, 10);
     const maxDate = new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString().slice(0, 10);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Realizar solicitud</h2>
-                        <p className="mt-1 text-sm text-muted-foreground"><CodigoId id={solicitud.id_solicitud} /></p>
-                        <SolicitudMeta solicitud={solicitud} />
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent overlayClassName="z-[60] bg-black/40" className="z-[70] max-h-[90vh] max-w-5xl gap-0 overflow-y-auto p-0" onCloseAutoFocus={onCloseAutoFocus}>
+                <DialogHeader className="border-b p-5 pr-12">
+                    <DialogTitle>Realizar solicitud</DialogTitle>
+                    <DialogDescription asChild>
+                        <div>
+                            <p className="mt-1"><CodigoId id={solicitud.id_solicitud} /></p>
+                            <SolicitudMeta solicitud={solicitud} />
+                        </div>
+                    </DialogDescription>
+                </DialogHeader>
                 <form className="space-y-4 p-5" onSubmit={onSubmit}>
                     <div className="flex justify-end">
                         <Button type="button" variant="outline" disabled={citas.length >= 5} onClick={onAdd}>
@@ -940,7 +991,7 @@ function RealizarModal({
                         </Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

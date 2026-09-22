@@ -13,11 +13,12 @@ import {
     ACCION_RECHAZAR_SOLICITUD,
     ESTADO_CITA_INICIAL,
     GestionarSolicitudInput,
-    PRIORIZACION_CLINICA_NUMERICA,
     TIPO_PRESTACION_EXAMENES,
     TIPO_PRESTACION_PROFESIONAL,
     gestionarSolicitudSchema
 } from "../schemas/revision.schema";
+// utils
+import { calcularPriorizacionCita, evaluarFechaEstimada } from "../utils/citas";
 
 const PROFESIONAL_EXAMENES_ID = 17;
 
@@ -64,21 +65,9 @@ function buildCentroWhere(centroColumna: CentroTipoSolicitudColumna | null) {
 }
 
 function validarFechaEstimada(value: string): Date {
-    const fecha = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(fecha.getTime())) throw new Error("Fecha estimada invalida");
-
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const maxima = new Date(hoy);
-    maxima.setFullYear(maxima.getFullYear() + 2);
-
-    if (fecha < hoy) throw new Error("La fecha estimada no puede ser anterior a hoy");
-    if (fecha > maxima) throw new Error("La fecha estimada no puede superar los 2 años");
-    return fecha;
-}
-
-function calcularPriorizacionCita(priorizacionClinica: keyof typeof PRIORIZACION_CLINICA_NUMERICA, priorizacionAdministrativa: number | null | undefined): number {
-    return Math.min(100, PRIORIZACION_CLINICA_NUMERICA[priorizacionClinica] + (priorizacionAdministrativa ?? 0));
+    const resultado = evaluarFechaEstimada(value);
+    if (!resultado.ok) throw new Error(resultado.error);
+    return resultado.fecha;
 }
 
 export async function gestionarSolicitud(input: GestionarSolicitudInput) {

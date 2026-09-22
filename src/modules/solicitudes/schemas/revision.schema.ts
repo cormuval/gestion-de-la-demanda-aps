@@ -55,3 +55,12 @@ export const gestionarSolicitudSchema = z.discriminatedUnion("accion", [
 export type GestionarSolicitudInput = z.input<typeof gestionarSolicitudSchema>;
 export type GestionarSolicitudData = z.output<typeof gestionarSolicitudSchema>;
 export type CitaGestionData = Extract<GestionarSolicitudData, { accion: typeof ACCION_REALIZAR_SOLICITUD }>["citas"][number];
+
+export const editarCitaSchema = z.object({
+    id_cita: z.string().trim().min(1, "Cita requerida"),
+    priorizacion_clinica: z.enum(PRIORIDADES_CLINICAS),
+    fecha_estimada_atencion: z.string().trim().min(1, "Fecha estimada requerida")
+});
+
+export type EditarCitaInput = z.input<typeof editarCitaSchema>;
+export type EditarCitaData = z.output<typeof editarCitaSchema>;

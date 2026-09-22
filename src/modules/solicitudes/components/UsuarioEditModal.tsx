@@ -1,11 +1,11 @@
 "use client";
 
 import type { FormEvent, ReactNode } from "react";
-import { X } from "lucide-react";
 // schemas
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "../schemas/usuario.schema";
 // components
 import { Button } from "@/shared/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
@@ -37,6 +37,7 @@ export function UsuarioEditModal({
     saving,
     onChange,
     onClose,
+    onCloseAutoFocus,
     onSubmit
 }: {
     form: UsuarioEditFormState;
@@ -44,20 +45,16 @@ export function UsuarioEditModal({
     saving: boolean;
     onChange: (field: keyof UsuarioEditFormState, value: string) => void;
     onClose: () => void;
+    onCloseAutoFocus?: (event: Event) => void;
     onSubmit: (event: FormEvent) => void;
 }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-md border bg-background shadow-lg">
-                <div className="flex items-start justify-between gap-4 border-b p-5">
-                    <div>
-                        <h2 className="text-lg font-semibold">Editar usuario</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Actualiza los datos del usuario asociado a la solicitud.</p>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent overlayClassName="z-[60] bg-black/40" className="z-[70] max-h-[90vh] max-w-3xl gap-0 overflow-y-auto p-0" onCloseAutoFocus={onCloseAutoFocus}>
+                <DialogHeader className="border-b p-5 pr-12">
+                    <DialogTitle>Editar usuario</DialogTitle>
+                    <DialogDescription>Actualiza los datos del usuario asociado a la solicitud.</DialogDescription>
+                </DialogHeader>
                 <form className="grid gap-4 p-5 sm:grid-cols-2" onSubmit={onSubmit}>
                     <Field label="RUT">
                         <Input value={form.rut} disabled required />
@@ -133,8 +130,8 @@ export function UsuarioEditModal({
                         <Button disabled={saving}>{saving ? "Guardando..." : "Guardar usuario"}</Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 

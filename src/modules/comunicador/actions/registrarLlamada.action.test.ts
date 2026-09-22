@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const tx = {
+    $queryRaw: vi.fn(),
     cita: { findUnique: vi.fn(), update: vi.fn() },
     llamada: { count: vi.fn(), create: vi.fn() },
     solicitud: { update: vi.fn() }
@@ -18,6 +19,7 @@ import { RESPUESTA_LLAMADA } from "../types/comunicador";
 beforeEach(() => {
     vi.clearAllMocks();
     (requirePermiso as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" } });
+    tx.$queryRaw.mockResolvedValue([{ id_cita: "CITA-1" }]);
     tx.cita.findUnique.mockResolvedValue({ id_cita: "CITA-1", solicitud_id: "SOL-1", estado_cita: "Sin llamadas", centro_id: "501" });
     tx.llamada.count.mockResolvedValue(0);
     tx.cita.update.mockResolvedValue({});
@@ -37,6 +39,15 @@ describe("registrarLlamada", () => {
         expect(tx.solicitud.update).not.toHaveBeenCalled();
         const updateArg = tx.cita.update.mock.calls[0][0];
         expect(updateArg.data.estado_cita).toBe("No contesta (1)");
+    });
+
+    it("bloquea la cita FOR UPDATE antes de leerla", async () => {
+        await registrarLlamada({ cita_id: "CITA-1", respuesta: RESPUESTA_LLAMADA.NO_CONTESTA } as any);
+
+        expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+        const lockQuery = tx.$queryRaw.mock.calls[0][0].join("");
+        expect(lockQuery).toContain("FOR UPDATE");
+        expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.cita.findUnique.mock.invocationCallOrder[0]);
     });
 
     it("respuesta terminal que deja 0 citas pendientes -> cierra solicitud como Realizado", async () => {
