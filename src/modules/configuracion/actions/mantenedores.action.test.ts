@@ -270,6 +270,10 @@ describe("anti escalada en roles", () => {
     });
 
     it("bloquea desactivar el ultimo rol administrador", async () => {
+        (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ...user,
+            rol: { id: 99, nombre: "Supervisor" }
+        });
         prisma.role.findUnique.mockResolvedValue({
             id_rol: 1,
             nombre_rol: "Administrador",
@@ -282,6 +286,22 @@ describe("anti escalada en roles", () => {
         const result = await guardarRol({ id_rol: 1, nombre_rol: "Administrador", estado: "Inactivo" });
 
         expect(result).toEqual({ ok: false, error: "Debe quedar al menos un administrador activo" });
+        expect(prisma.role.update).not.toHaveBeenCalled();
+    });
+
+    it("prioriza bloquear la autoedicion del rol propio antes que el ultimo administrador", async () => {
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 1,
+            nombre_rol: "Administrador",
+            estado: "Activo",
+            permisos: [{ permiso: "config.roles" }]
+        });
+        prisma.role.findFirst.mockResolvedValue(null);
+        prisma.funcionario.findMany.mockResolvedValue([{ rut: "11.111.111-1", rol_id: 1 }]);
+
+        const result = await guardarRol({ id_rol: 1, nombre_rol: "Administrador", estado: "Inactivo" });
+
+        expect(result).toEqual({ ok: false, error: "No puedes renombrar ni desactivar tu propio rol" });
         expect(prisma.role.update).not.toHaveBeenCalled();
     });
 });
@@ -313,6 +333,10 @@ describe("anti escalada en permisos de rol", () => {
     });
 
     it("bloquea quitar config.roles al ultimo administrador", async () => {
+        (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ...user,
+            rol: { id: 99, nombre: "Supervisor" }
+        });
         prisma.role.findUnique.mockResolvedValue({
             id_rol: 1,
             nombre_rol: "Administrador",
@@ -324,6 +348,21 @@ describe("anti escalada en permisos de rol", () => {
         const result = await guardarPermisosRol({ rol_id: 1, permisos: ["config.ver"] });
 
         expect(result).toEqual({ ok: false, error: "Debe quedar al menos un administrador activo" });
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("prioriza bloquear quitar config.roles al propio rol antes que el ultimo administrador", async () => {
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 1,
+            nombre_rol: "Administrador",
+            estado: "Activo",
+            permisos: [{ permiso: "config.roles" }]
+        });
+        prisma.funcionario.findMany.mockResolvedValue([{ rut: "11.111.111-1", rol_id: 1 }]);
+
+        const result = await guardarPermisosRol({ rol_id: 1, permisos: ["config.ver"] });
+
+        expect(result).toEqual({ ok: false, error: "No puedes quitar el permiso de editar roles a tu propio rol" });
         expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 

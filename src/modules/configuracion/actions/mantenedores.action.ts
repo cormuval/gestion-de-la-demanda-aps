@@ -1,5 +1,4 @@
 "use server";
-import type { Role } from "@prisma/client";
 // schemas
 import {
     CENTRO_COLUMNAS,
@@ -25,11 +24,11 @@ import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
+import type { Role } from "@prisma/client";
 // config
 import { CLAVES_PERMISOS, esPermiso, type Permiso } from "@/config/permisos";
 // utils
 import {
-    MENSAJES_PRIVILEGIOS,
     quedaAdministrador,
     validarEdicionRol,
     validarPermisosRol,
@@ -204,12 +203,6 @@ export async function guardarRol(input: RolConfigInput): Promise<ResultadoAccion
     const requiereAdmins = Boolean(rolActual && rolActual.estado === "Activo" && data.estado !== "Activo" && permisosValidos(rolActual.permisos).has("config.roles"));
     const admins = requiereAdmins ? await adminsActivos() : [];
     const quedaAdmin = !requiereAdmins || quedaAdministrador(admins, { tipo: "rol", rol_id: data.id_rol ?? 0 });
-    if (!quedaAdmin) {
-        const error = MENSAJES_PRIVILEGIOS.ultimoAdministrador;
-        await logBloqueo(accion, user, data.id_rol ? `rol:${data.id_rol}` : "rol:nuevo", `regla=guardarRol rol=${data.id_rol ?? "nuevo"}`, error);
-        return { ok: false, error };
-    }
-
     const error = validarEdicionRol({
         actorRolId: user.rol.id,
         actorPermisos,
@@ -322,12 +315,6 @@ export async function guardarPermisosRol(input: PermisosRolInput): Promise<Resul
     const requiereAdmins = rol.permisos.has("config.roles") && !permisos.includes("config.roles");
     const admins = requiereAdmins ? await adminsActivos() : [];
     const quedaAdmin = !requiereAdmins || quedaAdministrador(admins, { tipo: "rol", rol_id: data.rol_id });
-    if (!quedaAdmin) {
-        const error = MENSAJES_PRIVILEGIOS.ultimoAdministrador;
-        await logBloqueo("UPDATE", user, `rol:${data.rol_id}`, `regla=guardarPermisosRol rol=${data.rol_id}`, error);
-        return { ok: false, error };
-    }
-
     const error = validarPermisosRol({
         actorRolId: user.rol.id,
         actorPermisos,
