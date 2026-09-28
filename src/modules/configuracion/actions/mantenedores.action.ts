@@ -1,4 +1,5 @@
 "use server";
+import type { Role } from "@prisma/client";
 // schemas
 import {
     CENTRO_COLUMNAS,
@@ -19,11 +20,22 @@ import {
     type TipoSolicitudConfigInput
 } from "../schemas/mantenedores.schema";
 // lib
-import { requirePermiso } from "@/shared/lib/permisos";
+import { getPermisosRol, requirePermiso } from "@/shared/lib/permisos";
 import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
+// types
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // config
-import { CLAVES_PERMISOS } from "@/config/permisos";
+import { CLAVES_PERMISOS, esPermiso, type Permiso } from "@/config/permisos";
+// utils
+import {
+    MENSAJES_PRIVILEGIOS,
+    quedaAdministrador,
+    validarEdicionRol,
+    validarPermisosRol,
+    type AdminEvaluado,
+    type RolEvaluado
+} from "../utils/privilegios";
 
 function centroData(centros: Partial<Record<(typeof CENTRO_COLUMNAS)[number], "1" | "0">>) {
     return CENTRO_COLUMNAS.reduce(
@@ -38,6 +50,34 @@ function centroData(centros: Partial<Record<(typeof CENTRO_COLUMNAS)[number], "1
 function searchContains(search?: string) {
     const value = search?.trim();
     return value ? { contains: value } : undefined;
+}
+
+function permisosValidos(filas: { permiso: string }[]): Set<Permiso> {
+    return new Set(filas.map((fila) => fila.permiso).filter(esPermiso));
+}
+
+function rolEvaluado(rol: { id_rol: number; nombre_rol: string; estado: string; permisos: { permiso: string }[] }): RolEvaluado {
+    return {
+        id_rol: rol.id_rol,
+        nombre_rol: rol.nombre_rol,
+        estado: rol.estado,
+        permisos: permisosValidos(rol.permisos)
+    };
+}
+
+async function adminsActivos(): Promise<AdminEvaluado[]> {
+    const funcionarios = await prisma.funcionario.findMany({
+        where: {
+            estado: "Activo",
+            role: { estado: "Activo", permisos: { some: { permiso: "config.roles" } } }
+        },
+        select: { rut: true, rol_id: true }
+    });
+    return funcionarios;
+}
+
+async function logBloqueo(accion: "CREATE" | "UPDATE", user: { rut: string; nombre: string }, resourceId: string, regla: string, error: string) {
+    await AuditLogger.logSecurity(accion, false, { rut: user.rut, name: user.nombre }, { resourceId, details: regla, error });
 }
 
 export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) {
@@ -140,21 +180,58 @@ export async function guardarMotivo(input: MotivoConfigInput) {
     return saved;
 }
 
-export async function guardarRol(input: RolConfigInput) {
+export async function guardarRol(input: RolConfigInput): Promise<ResultadoAccion<Role>> {
     const user = await requirePermiso("config.roles");
     const data = rolConfigSchema.parse(input);
-    const duplicated = await prisma.role.findFirst({
-        where: { nombre_rol: data.nombre_rol, ...(data.id_rol ? { NOT: { id_rol: data.id_rol } } : {}) },
-        select: { id_rol: true }
+    const accion = data.id_rol ? "UPDATE" : "CREATE";
+    const actorPermisos = await getPermisosRol(user.rol.id);
+
+    const [duplicated, rolActual] = await Promise.all([
+        prisma.role.findFirst({
+            where: { nombre_rol: data.nombre_rol, ...(data.id_rol ? { NOT: { id_rol: data.id_rol } } : {}) },
+            select: { id_rol: true }
+        }),
+        data.id_rol
+            ? prisma.role.findUnique({
+                  where: { id_rol: data.id_rol },
+                  include: { permisos: { select: { permiso: true } } }
+              })
+            : Promise.resolve(null)
+    ]);
+    if (duplicated) return { ok: false, error: "Ya existe un rol con ese nombre" };
+    if (data.id_rol && !rolActual) return { ok: false, error: "Rol no existe" };
+
+    const requiereAdmins = Boolean(rolActual && rolActual.estado === "Activo" && data.estado !== "Activo" && permisosValidos(rolActual.permisos).has("config.roles"));
+    const admins = requiereAdmins ? await adminsActivos() : [];
+    const quedaAdmin = !requiereAdmins || quedaAdministrador(admins, { tipo: "rol", rol_id: data.id_rol ?? 0 });
+    if (!quedaAdmin) {
+        const error = MENSAJES_PRIVILEGIOS.ultimoAdministrador;
+        await logBloqueo(accion, user, data.id_rol ? `rol:${data.id_rol}` : "rol:nuevo", `regla=guardarRol rol=${data.id_rol ?? "nuevo"}`, error);
+        return { ok: false, error };
+    }
+
+    const error = validarEdicionRol({
+        actorRolId: user.rol.id,
+        actorPermisos,
+        rolActual: rolActual ? rolEvaluado(rolActual) : null,
+        data: { nombre_rol: data.nombre_rol, estado: data.estado },
+        quedaAdmin
     });
-    if (duplicated) throw new Error("Ya existe un rol con ese nombre");
+
+    if (error) {
+        await logBloqueo(accion, user, data.id_rol ? `rol:${data.id_rol}` : "rol:nuevo", `regla=guardarRol rol=${data.id_rol ?? "nuevo"}`, error);
+        return { ok: false, error };
+    }
 
     const saved = data.id_rol
         ? await prisma.role.update({ where: { id_rol: data.id_rol }, data: { nombre_rol: data.nombre_rol, estado: data.estado } })
         : await prisma.role.create({ data: { nombre_rol: data.nombre_rol, estado: data.estado } });
 
-    await AuditLogger.logDataAccess(data.id_rol ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `rol:${saved.id_rol}`);
-    return saved;
+    const details = rolActual
+        ? `Rol guardado: nombre_rol ${rolActual.nombre_rol}->${saved.nombre_rol} estado ${rolActual.estado}->${saved.estado}`
+        : `Rol creado: nombre_rol ${saved.nombre_rol} estado ${saved.estado}`;
+    await AuditLogger.logDataAccess(accion, true, { rut: user.rut, name: user.nombre }, `rol:${saved.id_rol}`, { details });
+    return { ok: true, data: saved };
 }
 
 export async function guardarProfesional(input: ProfesionalConfigInput) {
@@ -229,31 +306,53 @@ export async function guardarFuncionario(input: FuncionarioConfigInput) {
     return saved;
 }
 
-export async function guardarPermisosRol(input: PermisosRolInput) {
+export async function guardarPermisosRol(input: PermisosRolInput): Promise<ResultadoAccion<{ id_rol: number; permisos: Permiso[] }>> {
     const user = await requirePermiso("config.roles");
     const data = permisosRolSchema.parse(input);
     const permisos = CLAVES_PERMISOS.filter((clave) => data.permisos.includes(clave));
+    const actorPermisos = await getPermisosRol(user.rol.id);
 
-    // Evita que un administrador se deje sin acceso al mantenedor de roles.
-    if (data.rol_id === user.rol.id && !permisos.includes("config.roles")) {
-        throw new Error("No puedes quitar el permiso de editar roles a tu propio rol");
+    const rolActual = await prisma.role.findUnique({
+        where: { id_rol: data.rol_id },
+        include: { permisos: { select: { permiso: true } } }
+    });
+    if (!rolActual) return { ok: false, error: "Rol no existe" };
+
+    const rol = rolEvaluado(rolActual);
+    const requiereAdmins = rol.permisos.has("config.roles") && !permisos.includes("config.roles");
+    const admins = requiereAdmins ? await adminsActivos() : [];
+    const quedaAdmin = !requiereAdmins || quedaAdministrador(admins, { tipo: "rol", rol_id: data.rol_id });
+    if (!quedaAdmin) {
+        const error = MENSAJES_PRIVILEGIOS.ultimoAdministrador;
+        await logBloqueo("UPDATE", user, `rol:${data.rol_id}`, `regla=guardarPermisosRol rol=${data.rol_id}`, error);
+        return { ok: false, error };
     }
 
-    const previos = await prisma.rolPermiso.findMany({ where: { rol_id: data.rol_id }, select: { permiso: true } });
+    const error = validarPermisosRol({
+        actorRolId: user.rol.id,
+        actorPermisos,
+        rolActual: rol,
+        permisosResultantes: permisos,
+        quedaAdmin
+    });
+
+    if (error) {
+        await logBloqueo("UPDATE", user, `rol:${data.rol_id}`, `regla=guardarPermisosRol rol=${data.rol_id}`, error);
+        return { ok: false, error };
+    }
+
+    const previos = rol.permisos;
 
     await prisma.$transaction([
         prisma.rolPermiso.deleteMany({ where: { rol_id: data.rol_id } }),
         prisma.rolPermiso.createMany({ data: permisos.map((permiso) => ({ rol_id: data.rol_id, permiso })) })
     ]);
 
-    await AuditLogger.logDataAccess(
-        "UPDATE",
-        true,
-        { rut: user.rut, name: user.nombre },
-        `rol:${data.rol_id} permisos antes=[${previos.map((fila) => fila.permiso).join(",")}] despues=[${permisos.join(",")}]`
-    );
+    await AuditLogger.logDataAccess("UPDATE", true, { rut: user.rut, name: user.nombre }, `rol:${data.rol_id}`, {
+        details: `Permisos de rol actualizados: antes=[${[...previos].join(",")}] despues=[${permisos.join(",")}]`
+    });
 
-    return { id_rol: data.rol_id, permisos };
+    return { ok: true, data: { id_rol: data.rol_id, permisos } };
 }
 
 export type MantenedoresConfig = Awaited<ReturnType<typeof getMantenedoresConfig>>;
