@@ -146,7 +146,18 @@ describe("mantenedores configuracion", () => {
     });
 
     it("edita funcionario existente sin cambiar rut", async () => {
-        (prisma.funcionario.findUnique as any).mockResolvedValue({ rut: "12345678-5" });
+        (prisma.funcionario.findUnique as any).mockResolvedValue({
+            rut: "12345678-5",
+            rol_id: 1,
+            estado: "Activo",
+            centro_id: "CENTRO-01",
+            role: {
+                id_rol: 1,
+                nombre_rol: "Administrador",
+                estado: "Activo",
+                permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+            }
+        });
         (prisma.funcionario.update as any).mockResolvedValue({ rut: "12345678-5", email: "nuevo@demo.local", nombre: "Nuevo" });
 
         await guardarFuncionario({
@@ -199,7 +210,7 @@ describe("mantenedores configuracion", () => {
                 programa_asociado: "Programa respiratorio",
                 estado: "Activo"
             })
-        ).rejects.toThrow("Ya existe un funcionario con ese email");
+        ).resolves.toEqual({ ok: false, error: "Ya existe un funcionario con ese email" });
     });
 
     it("rechaza funcionario con rol o centro inexistente", async () => {
@@ -215,7 +226,7 @@ describe("mantenedores configuracion", () => {
                 programa_asociado: "Programa respiratorio",
                 estado: "Activo"
             })
-        ).rejects.toThrow("Rol no existe");
+        ).resolves.toEqual({ ok: false, error: "Rol no existe" });
 
         (prisma.role.findUnique as any).mockResolvedValue({ id_rol: 1 });
         (prisma.centro.findUnique as any).mockResolvedValue(null);
@@ -230,7 +241,169 @@ describe("mantenedores configuracion", () => {
                 programa_asociado: "Programa respiratorio",
                 estado: "Activo"
             })
-        ).rejects.toThrow("Centro no existe");
+        ).resolves.toEqual({ ok: false, error: "Centro no existe" });
+    });
+});
+
+describe("anti escalada en funcionarios", () => {
+    it("bloquea que un SOME se asigne Administrador a si mismo", async () => {
+        (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue({
+            rut: "22.222.222-2",
+            email: "some@demo.local",
+            nombre: "Some",
+            centro_id: "650",
+            rol: { id: 2, nombre: "SOME" }
+        });
+        (getPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue(new Set(["config.ver", "config.funcionarios"]));
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 1,
+            nombre_rol: "Administrador",
+            estado: "Activo",
+            permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+        });
+        prisma.centro.findUnique.mockResolvedValue({ id_centro: "650" });
+        prisma.funcionario.findUnique.mockResolvedValue({
+            rut: "22.222.222-2",
+            rol_id: 2,
+            estado: "Activo",
+            centro_id: "650",
+            role: {
+                id_rol: 2,
+                nombre_rol: "SOME",
+                estado: "Activo",
+                permisos: [{ permiso: "config.funcionarios" }]
+            }
+        });
+        prisma.funcionario.findFirst.mockResolvedValue(null);
+
+        const result = await guardarFuncionario({
+            rut: "22.222.222-2",
+            email: "some@demo.local",
+            nombre: "Some",
+            rol_id: 1,
+            centro_id: "650",
+            programa_asociado: "Programa cardiovascular",
+            estado: "Activo"
+        });
+
+        expect(result).toEqual({ ok: false, error: "No puedes asignar el rol «Administrador»: incluye permisos que tu rol no tiene" });
+        expect(prisma.funcionario.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logSecurity).toHaveBeenCalled();
+    });
+
+    it("bloquea editar a un funcionario con mas privilegios", async () => {
+        (getPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue(new Set(["config.ver", "config.funcionarios"]));
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 2,
+            nombre_rol: "SOME",
+            estado: "Activo",
+            permisos: [{ permiso: "config.funcionarios" }]
+        });
+        prisma.centro.findUnique.mockResolvedValue({ id_centro: "650" });
+        prisma.funcionario.findUnique.mockResolvedValue({
+            rut: "33.333.333-3",
+            rol_id: 1,
+            estado: "Activo",
+            centro_id: "650",
+            role: {
+                id_rol: 1,
+                nombre_rol: "Administrador",
+                estado: "Activo",
+                permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+            }
+        });
+        prisma.funcionario.findFirst.mockResolvedValue(null);
+
+        const result = await guardarFuncionario({
+            rut: "33.333.333-3",
+            email: "admin@demo.local",
+            nombre: "Admin",
+            rol_id: 2,
+            centro_id: "650",
+            programa_asociado: "Programa cardiovascular",
+            estado: "Activo"
+        });
+
+        expect(result).toEqual({ ok: false, error: "No puedes editar a un funcionario con mas privilegios que tu" });
+        expect(prisma.funcionario.update).not.toHaveBeenCalled();
+    });
+
+    it("bloquea cambiar estado o centro propio", async () => {
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 1,
+            nombre_rol: "Administrador",
+            estado: "Activo",
+            permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+        });
+        prisma.centro.findUnique.mockResolvedValue({ id_centro: "700" });
+        prisma.funcionario.findUnique.mockResolvedValue({
+            rut: "11.111.111-1",
+            rol_id: 1,
+            estado: "Activo",
+            centro_id: "650",
+            role: {
+                id_rol: 1,
+                nombre_rol: "Administrador",
+                estado: "Activo",
+                permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+            }
+        });
+        prisma.funcionario.findFirst.mockResolvedValue(null);
+
+        const result = await guardarFuncionario({
+            rut: "11.111.111-1",
+            email: "admin@demo.local",
+            nombre: "Admin",
+            rol_id: 1,
+            centro_id: "700",
+            programa_asociado: "Programa cardiovascular",
+            estado: "Activo"
+        });
+
+        expect(result).toEqual({ ok: false, error: "No puedes cambiar tu propio rol, estado o centro" });
+        expect(prisma.funcionario.update).not.toHaveBeenCalled();
+    });
+
+    it("bloquea dejar el sistema sin administradores activos", async () => {
+        (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ...user,
+            rut: "99.999.999-9",
+            rol: { id: 99, nombre: "Supervisor" }
+        });
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 2,
+            nombre_rol: "SOME",
+            estado: "Activo",
+            permisos: [{ permiso: "config.funcionarios" }]
+        });
+        prisma.centro.findUnique.mockResolvedValue({ id_centro: "650" });
+        prisma.funcionario.findUnique.mockResolvedValue({
+            rut: "11.111.111-1",
+            rol_id: 1,
+            estado: "Activo",
+            centro_id: "650",
+            role: {
+                id_rol: 1,
+                nombre_rol: "Administrador",
+                estado: "Activo",
+                permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+            }
+        });
+        prisma.funcionario.findFirst.mockResolvedValue(null);
+        prisma.funcionario.findMany.mockResolvedValue([{ rut: "11111111-1", rol_id: 1 }]);
+
+        const result = await guardarFuncionario({
+            rut: "11.111.111-1",
+            email: "admin@demo.local",
+            nombre: "Admin",
+            rol_id: 2,
+            centro_id: "650",
+            programa_asociado: "Programa cardiovascular",
+            estado: "Activo"
+        });
+
+        expect(result).toEqual({ ok: false, error: "Debe quedar al menos un administrador activo" });
+        expect(prisma.funcionario.update).not.toHaveBeenCalled();
     });
 });
 

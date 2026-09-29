@@ -24,12 +24,14 @@ import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
-import type { Role } from "@prisma/client";
+import type { Funcionario, Role } from "@prisma/client";
 // config
 import { CLAVES_PERMISOS, esPermiso, type Permiso } from "@/config/permisos";
 // utils
 import {
     quedaAdministrador,
+    validarAsignacionRol,
+    validarEdicionFuncionario,
     validarEdicionRol,
     validarPermisosRol,
     type AdminEvaluado,
@@ -268,19 +270,76 @@ export async function guardarPrestacion(input: PrestacionConfigInput) {
     return saved;
 }
 
-export async function guardarFuncionario(input: FuncionarioConfigInput) {
+export async function guardarFuncionario(input: FuncionarioConfigInput): Promise<ResultadoAccion<Funcionario>> {
     const user = await requirePermiso("config.funcionarios");
     const data = funcionarioConfigSchema.parse(input);
-    const [rol, centro, funcionarioActual, emailDuplicado] = await Promise.all([
-        prisma.role.findUnique({ where: { id_rol: data.rol_id }, select: { id_rol: true } }),
+    const actorPermisos = await getPermisosRol(user.rol.id);
+    const [rolDestino, centro, funcionarioActual, emailDuplicado] = await Promise.all([
+        prisma.role.findUnique({
+            where: { id_rol: data.rol_id },
+            include: { permisos: { select: { permiso: true } } }
+        }),
         prisma.centro.findUnique({ where: { id_centro: data.centro_id }, select: { id_centro: true } }),
-        prisma.funcionario.findUnique({ where: { rut: data.rut }, select: { rut: true } }),
+        prisma.funcionario.findUnique({
+            where: { rut: data.rut },
+            select: {
+                rut: true,
+                rol_id: true,
+                estado: true,
+                centro_id: true,
+                role: {
+                    select: {
+                        id_rol: true,
+                        nombre_rol: true,
+                        estado: true,
+                        permisos: { select: { permiso: true } }
+                    }
+                }
+            }
+        }),
         prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: data.rut } }, select: { rut: true } })
     ]);
 
-    if (!rol) throw new Error("Rol no existe");
-    if (!centro) throw new Error("Centro no existe");
-    if (emailDuplicado) throw new Error("Ya existe un funcionario con ese email");
+    if (!rolDestino) return { ok: false, error: "Rol no existe" };
+    if (!centro) return { ok: false, error: "Centro no existe" };
+    if (emailDuplicado) return { ok: false, error: "Ya existe un funcionario con ese email" };
+
+    const rolDestinoEvaluado = rolEvaluado(rolDestino);
+    const errorAsignacion = validarAsignacionRol(actorPermisos, rolDestinoEvaluado);
+    if (errorAsignacion) {
+        await logBloqueo(funcionarioActual ? "UPDATE" : "CREATE", user, `funcionario:${data.rut}`, `regla=F1 rol_destino=${data.rol_id}`, errorAsignacion);
+        return { ok: false, error: errorAsignacion };
+    }
+
+    const requiereAdmins = Boolean(
+        funcionarioActual &&
+            funcionarioActual.estado === "Activo" &&
+            funcionarioActual.role.estado === "Activo" &&
+            permisosValidos(funcionarioActual.role.permisos).has("config.roles") &&
+            (data.estado !== "Activo" || data.rol_id !== funcionarioActual.rol_id)
+    );
+    const admins = requiereAdmins ? await adminsActivos() : [];
+    const errorEdicion = validarEdicionFuncionario({
+        actorRut: user.rut,
+        actorPermisos,
+        rolDestino: rolDestinoEvaluado,
+        funcionarioActual: funcionarioActual
+            ? {
+                  rut: funcionarioActual.rut,
+                  rol_id: funcionarioActual.rol_id,
+                  estado: funcionarioActual.estado,
+                  centro_id: funcionarioActual.centro_id,
+                  rol: rolEvaluado(funcionarioActual.role)
+              }
+            : null,
+        data: { rol_id: data.rol_id, estado: data.estado, centro_id: data.centro_id },
+        quedaAdmin: !requiereAdmins || quedaAdministrador(admins, { tipo: "funcionario", rut: data.rut })
+    });
+
+    if (errorEdicion) {
+        await logBloqueo(funcionarioActual ? "UPDATE" : "CREATE", user, `funcionario:${data.rut}`, `regla=guardarFuncionario rut=${data.rut}`, errorEdicion);
+        return { ok: false, error: errorEdicion };
+    }
 
     const payload = {
         email: data.email,
@@ -295,8 +354,11 @@ export async function guardarFuncionario(input: FuncionarioConfigInput) {
         ? await prisma.funcionario.update({ where: { rut: data.rut }, data: payload })
         : await prisma.funcionario.create({ data: { rut: data.rut, ...payload } });
 
-    await AuditLogger.logDataAccess(funcionarioActual ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `funcionario:${saved.rut}`);
-    return saved;
+    const details = funcionarioActual
+        ? `Funcionario guardado: rol_id ${funcionarioActual.rol_id}->${saved.rol_id} estado ${funcionarioActual.estado}->${saved.estado} centro ${funcionarioActual.centro_id ?? "-"}->${saved.centro_id ?? "-"}`
+        : `Funcionario creado: rol_id ${saved.rol_id} estado ${saved.estado} centro ${saved.centro_id ?? "-"}`;
+    await AuditLogger.logDataAccess(funcionarioActual ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `funcionario:${saved.rut}`, { details });
+    return { ok: true, data: saved };
 }
 
 export async function guardarPermisosRol(input: PermisosRolInput): Promise<ResultadoAccion<{ id_rol: number; permisos: Permiso[] }>> {
