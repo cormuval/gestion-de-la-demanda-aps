@@ -149,6 +149,20 @@ describe("UsuariosRolesView: pestanas segun permisos", () => {
         expect(screen.getByLabelText("Estado")).toBeDisabled();
     });
 
+    it("deshabilita roles no asignables al crear funcionario", async () => {
+        render(<UsuariosRolesView permisos={["config.ver", "config.funcionarios"]} actor={{ rut: "22.222.222-2", rolId: 2 }} />);
+
+        await screen.findByText("some@demo.local");
+        fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+
+        const rolSelect = screen.getByLabelText("Rol") as HTMLSelectElement;
+        const adminOption = within(rolSelect).getByRole("option", { name: "Administrador (requiere mas permisos)" }) as HTMLOptionElement;
+        const someOption = within(rolSelect).getByRole("option", { name: "SOME" }) as HTMLOptionElement;
+
+        expect(adminOption).toBeDisabled();
+        expect(someOption).not.toBeDisabled();
+    });
+
     it("muestra toast y no recarga cuando guardarRol retorna ok false", async () => {
         (guardarRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "El nombre «Administrador» esta reservado" });
         render(<UsuariosRolesView permisos={["config.ver", "config.roles"]} actor={{ rut: "11.111.111-1", rolId: 2 }} />);

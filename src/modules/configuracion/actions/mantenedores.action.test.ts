@@ -10,6 +10,7 @@ vi.mock("@/shared/lib/prisma", () => ({
         funcionario: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
         centro: { findMany: vi.fn(), findUnique: vi.fn() },
         rolPermiso: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
+        $queryRaw: vi.fn(),
         $transaction: vi.fn(async (operaciones: unknown[]) => operaciones)
     }
 }));
@@ -56,6 +57,7 @@ beforeEach(() => {
     (prisma.funcionario.findFirst as any).mockResolvedValue(null);
     (prisma.funcionario.findUnique as any).mockResolvedValue(null);
     (prisma.centro.findUnique as any).mockResolvedValue({ id_centro: "CENTRO-01" });
+    prisma.$queryRaw.mockResolvedValue([]);
 });
 
 describe("mantenedores configuracion", () => {
@@ -366,6 +368,50 @@ describe("anti escalada en funcionarios", () => {
         expect(prisma.funcionario.update).not.toHaveBeenCalled();
     });
 
+    it("bloquea autoedicion sensible aunque el input venga normalizado y el RUT almacenado tenga puntos", async () => {
+        (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ...user,
+            rut: "11111111-1"
+        });
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 1,
+            nombre_rol: "Administrador",
+            estado: "Activo",
+            permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+        });
+        prisma.centro.findUnique.mockResolvedValue({ id_centro: "700" });
+        prisma.funcionario.findUnique
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({
+                rut: "11.111.111-1",
+                rol_id: 1,
+                estado: "Activo",
+                centro_id: "650",
+                role: {
+                    id_rol: 1,
+                    nombre_rol: "Administrador",
+                    estado: "Activo",
+                    permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+                }
+            });
+        prisma.$queryRaw.mockResolvedValueOnce([{ rut: "11.111.111-1" }]);
+        prisma.funcionario.findFirst.mockResolvedValueOnce(null);
+
+        const result = await guardarFuncionario({
+            rut: "11111111-1",
+            email: "admin.nuevo@demo.local",
+            nombre: "Admin",
+            rol_id: 1,
+            centro_id: "700",
+            programa_asociado: "Programa cardiovascular",
+            estado: "Activo"
+        });
+
+        expect(result).toEqual({ ok: false, error: "No puedes cambiar tu propio rol, estado o centro" });
+        expect(prisma.funcionario.create).not.toHaveBeenCalled();
+        expect(prisma.funcionario.update).not.toHaveBeenCalled();
+    });
+
     it("bloquea dejar el sistema sin administradores activos", async () => {
         (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue({
             ...user,
@@ -457,6 +503,24 @@ describe("anti escalada en roles", () => {
     it("bloquea crear o renombrar un rol a Administrador", async () => {
         prisma.role.findFirst.mockResolvedValue(null);
         const result = await guardarRol({ nombre_rol: " administrador ", estado: "Activo" });
+
+        expect(result).toEqual({ ok: false, error: "El nombre «Administrador» esta reservado" });
+        expect(prisma.role.create).not.toHaveBeenCalled();
+        expect(AuditLogger.logSecurity).toHaveBeenCalledWith(
+            "CREATE",
+            false,
+            { rut: "11.111.111-1", name: "Admin" },
+            expect.objectContaining({
+                resourceId: "rol:nuevo",
+                error: "El nombre «Administrador» esta reservado"
+            })
+        );
+    });
+
+    it("audita intento de crear rol Administrador aunque el nombre ya exista", async () => {
+        prisma.role.findFirst.mockResolvedValue({ id_rol: 1 });
+
+        const result = await guardarRol({ nombre_rol: "Administrador", estado: "Activo" });
 
         expect(result).toEqual({ ok: false, error: "El nombre «Administrador» esta reservado" });
         expect(prisma.role.create).not.toHaveBeenCalled();

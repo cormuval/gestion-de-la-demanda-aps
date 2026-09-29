@@ -678,11 +678,15 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                     <Field label="Rol">
                         <Select aria-label="Rol" value={funcionarioForm.rol_id} onChange={(event) => setFuncionarioForm((current) => ({ ...current, rol_id: event.target.value }))} required disabled={editandoFuncionarioPropio}>
                             <option value="">Seleccionar</option>
-                            {data.roles.map((rol) => (
-                                <option key={rol.id_rol} value={rol.id_rol}>
-                                    {rol.nombre_rol}
-                                </option>
-                            ))}
+                            {data.roles.map((rol) => {
+                                const superior = esRolSuperior(rol.id_rol);
+                                return (
+                                    <option key={rol.id_rol} value={rol.id_rol} disabled={superior}>
+                                        {rol.nombre_rol}
+                                        {superior ? " (requiere mas permisos)" : ""}
+                                    </option>
+                                );
+                            })}
                         </Select>
                     </Field>
                     <Field label="Centro">

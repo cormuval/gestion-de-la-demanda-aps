@@ -58,6 +58,10 @@ function permisosValidos(filas: { permiso: string }[]): Set<Permiso> {
     return new Set(filas.map((fila) => fila.permiso).filter(esPermiso));
 }
 
+function rutSinFormato(rut: string): string {
+    return normalizarRut(rut).replace("-", "");
+}
+
 function rolEvaluado(rol: { id_rol: number; nombre_rol: string; estado: string; permisos: { permiso: string }[] }): RolEvaluado {
     return {
         id_rol: rol.id_rol,
@@ -200,7 +204,6 @@ export async function guardarRol(input: RolConfigInput): Promise<ResultadoAccion
               })
             : Promise.resolve(null)
     ]);
-    if (duplicated) return { ok: false, error: "Ya existe un rol con ese nombre" };
     if (data.id_rol && !rolActual) return { ok: false, error: "Rol no existe" };
 
     const requiereAdmins = Boolean(rolActual && rolActual.estado === "Activo" && data.estado !== "Activo" && permisosValidos(rolActual.permisos).has("config.roles"));
@@ -218,6 +221,7 @@ export async function guardarRol(input: RolConfigInput): Promise<ResultadoAccion
         await logBloqueo(accion, user, data.id_rol ? `rol:${data.id_rol}` : "rol:nuevo", `regla=guardarRol rol=${data.id_rol ?? "nuevo"}`, error);
         return { ok: false, error };
     }
+    if (duplicated) return { ok: false, error: "Ya existe un rol con ese nombre" };
 
     const saved = data.id_rol
         ? await prisma.role.update({ where: { id_rol: data.id_rol }, data: { nombre_rol: data.nombre_rol, estado: data.estado } })
@@ -276,7 +280,6 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
     const data = funcionarioConfigSchema.parse(input);
     const actorPermisos = await getPermisosRol(user.rol.id);
     const rutOriginal = input.rut.trim();
-    const rutsIdentidad = Array.from(new Set([data.rut, rutOriginal]));
     const funcionarioSelect = {
         rut: true,
         rol_id: true,
@@ -291,7 +294,7 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
             }
         }
     } as const;
-    const [rolDestino, centro, funcionarioPorRutNormalizado, emailDuplicado] = await Promise.all([
+    const [rolDestino, centro, funcionarioPorRutNormalizado] = await Promise.all([
         prisma.role.findUnique({
             where: { id_rol: data.rol_id },
             include: { permisos: { select: { permiso: true } } }
@@ -300,17 +303,32 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
         prisma.funcionario.findUnique({
             where: { rut: data.rut },
             select: funcionarioSelect
-        }),
-        prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: { in: rutsIdentidad } } }, select: { rut: true } })
+        })
     ]);
-    const funcionarioActual =
-        funcionarioPorRutNormalizado ??
-        (rutOriginal !== data.rut
-            ? await prisma.funcionario.findUnique({
-                  where: { rut: rutOriginal },
-                  select: funcionarioSelect
-              })
-            : null);
+    let funcionarioActual = funcionarioPorRutNormalizado;
+    if (!funcionarioActual && rutOriginal !== data.rut) {
+        funcionarioActual = await prisma.funcionario.findUnique({
+            where: { rut: rutOriginal },
+            select: funcionarioSelect
+        });
+    }
+    if (!funcionarioActual) {
+        const filasRut = await prisma.$queryRaw<{ rut: string }[]>`
+            SELECT rut
+            FROM funcionarios
+            WHERE UPPER(REPLACE(REPLACE(REPLACE(rut, '.', ''), '-', ''), ' ', '')) = ${rutSinFormato(data.rut)}
+            LIMIT 1
+        `;
+        const rutEquivalente = filasRut[0]?.rut;
+        if (rutEquivalente) {
+            funcionarioActual = await prisma.funcionario.findUnique({
+                where: { rut: rutEquivalente },
+                select: funcionarioSelect
+            });
+        }
+    }
+    const rutsIdentidad = Array.from(new Set([data.rut, rutOriginal, funcionarioActual?.rut].filter((rut): rut is string => Boolean(rut))));
+    const emailDuplicado = await prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: { in: rutsIdentidad } } }, select: { rut: true } });
 
     if (!rolDestino) return { ok: false, error: "Rol no existe" };
     if (!centro) return { ok: false, error: "Centro no existe" };
