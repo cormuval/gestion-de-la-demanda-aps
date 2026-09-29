@@ -60,7 +60,7 @@ export function AppShell({ user, permisos, children, defaultOpen = true }: AppSh
                         <span className="text-sm font-semibold">Gestion Demanda</span>
                     </div>
                 </header>
-                <main className="px-4 py-6 md:px-8">{children}</main>
+                <div className="px-4 py-6 md:px-8">{children}</div>
             </SidebarInset>
         </SidebarProvider>
     );
