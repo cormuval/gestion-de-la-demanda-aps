@@ -26,10 +26,19 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuTrigger
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
 import { ListaPendientes } from "@/modules/solicitudes/components/PendientesCascada";
 import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
@@ -96,6 +105,27 @@ function asUsuarioOption<T extends readonly string[]>(options: T, value: string 
     return options.includes(value ?? "") ? (value as T[number]) : "";
 }
 
+function formatFechaSolicitud(value: Date | string): string {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("es-CL");
+}
+
+function DescripcionSolicitudCell({ descripcion }: { descripcion: string | null }) {
+    if (!descripcion) return <span className="text-muted-foreground">-</span>;
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <span className="line-clamp-2 max-w-[20rem] cursor-help">{descripcion}</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-sm">
+                <p>{descripcion}</p>
+            </TooltipContent>
+        </Tooltip>
+    );
+}
+
 function toUsuarioForm(usuario: SolicitudRow["usuario"]): UsuarioEditFormState {
     const genero = asUsuarioOption(GENEROS_USUARIO, usuario?.genero);
     return {
@@ -121,7 +151,6 @@ export function RevisarSolicitudesView() {
     const [catalogos, setCatalogos] = useState<RevisionCatalogos>(emptyCatalogos);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [actionsOpen, setActionsOpen] = useState<string | null>(null);
     const [rechazoSolicitud, setRechazoSolicitud] = useState<SolicitudRow | null>(null);
     const [realizarSolicitud, setRealizarSolicitud] = useState<SolicitudRow | null>(null);
     const [razonRechazo, setRazonRechazo] = useState<RazonRechazo | "">("");
@@ -177,7 +206,6 @@ export function RevisarSolicitudesView() {
 
     function openRechazo(solicitud: SolicitudRow) {
         accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        setActionsOpen(null);
         setRechazoSolicitud(solicitud);
         setRazonRechazo("");
         setObservacionRechazo("");
@@ -185,7 +213,6 @@ export function RevisarSolicitudesView() {
 
     function openRealizar(solicitud: SolicitudRow) {
         accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        setActionsOpen(null);
         setRealizarSolicitud(solicitud);
         setCitas([emptyCita()]);
     }
@@ -203,14 +230,12 @@ export function RevisarSolicitudesView() {
     }
 
     async function openOtrasSolicitudes(solicitud: SolicitudRow) {
-        setActionsOpen(null);
         setOtrasSolicitudBase(solicitud);
         await cargarContexto(solicitud);
     }
 
     function openEditarUsuario(solicitud: SolicitudRow) {
         accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        setActionsOpen(null);
         setEditingUsuario(solicitud);
         setUsuarioForm(toUsuarioForm(solicitud.usuario));
     }
@@ -404,77 +429,92 @@ export function RevisarSolicitudesView() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="overflow-x-auto rounded-md border">
-                        <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
-                            <thead className="bg-muted text-muted-foreground">
-                                <tr>
-                                    <th className="w-[92px] px-3 py-2 font-medium">ID</th>
-                                    <th className="w-[90px] px-3 py-2 font-medium">Fecha</th>
-                                    <th className="w-[110px] px-3 py-2 font-medium">RUT</th>
-                                    <th className="w-[150px] px-3 py-2 font-medium">Nombre usuario</th>
-                                    <th className="w-[180px] px-3 py-2 font-medium">Tipo solicitud</th>
-                                    <th className="w-[170px] px-3 py-2 font-medium">Motivo</th>
-                                    <th className="w-[95px] px-3 py-2 font-medium">Prioridad</th>
-                                    <th className="w-[230px] px-3 py-2 font-medium">Descripcion</th>
-                                    <th className="w-[160px] px-3 py-2 font-medium">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.solicitudes.length === 0 ? (
-                                    <tr>
-                                        <td className="px-3 py-6 text-center text-muted-foreground" colSpan={9}>
-                                            No hay solicitudes en espera de validacion para los filtros actuales.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    data.solicitudes.map((s) => (
-                                        <tr key={s.id_solicitud} className="border-t">
-                                            <td className="px-3 py-3 font-medium">
-                                                <CodigoId id={s.id_solicitud} />
-                                            </td>
-                                            <td className="px-3 py-3">{new Date(s.fecha_inicio).toLocaleDateString("es-CL")}</td>
-                                            <td className="px-3 py-3">{s.rut_usuario}</td>
-                                            <td className="px-3 py-3">
-                                                {s.usuario?.nombre} {s.usuario?.apellido}
-                                            </td>
-                                            <td className="px-3 py-3">{s.tipoSolicitud?.nombre_tipo_solicitud || "-"}</td>
-                                            <td className="px-3 py-3">{s.motivo?.nombre_motivo || "-"}</td>
-                                            <td className="px-3 py-3">
-                                                <Badge variant="muted">{s.priorizacion_admin ?? "-"}</Badge>
-                                            </td>
-                                            <td className="px-3 py-3">{s.descripcion || "-"}</td>
-                                            <td className="relative px-3 py-3">
-                                                <Button type="button" variant="outline" className="w-full justify-center" onClick={() => setActionsOpen((current) => (current === s.id_solicitud ? null : s.id_solicitud))}>
-                                                    <MoreHorizontal size={16} />
-                                                    Gestionar
-                                                </Button>
-                                                {actionsOpen === s.id_solicitud && (
-                                                    <div className="absolute right-3 z-20 mt-2 w-60 rounded-md border bg-background p-2 shadow-lg">
-                                                        <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openRealizar(s)}>
-                                                            <Check size={16} />
-                                                            Realizar solicitud
-                                                        </Button>
-                                                        <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openRechazo(s)}>
-                                                            <X size={16} />
-                                                            Rechazar solicitud
-                                                        </Button>
-                                                        <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openOtrasSolicitudes(s)}>
-                                                            <Eye size={16} />
-                                                            Otras solicitudes y citas
-                                                        </Button>
-                                                        <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => openEditarUsuario(s)}>
-                                                            <Edit size={16} />
-                                                            Editar usuario
-                                                        </Button>
+                    <TooltipProvider>
+                        <div className="rounded-md border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Solicitud</TableHead>
+                                        <TableHead>Paciente</TableHead>
+                                        <TableHead>Tipo / Motivo</TableHead>
+                                        <TableHead>Prioridad</TableHead>
+                                        <TableHead>Descripcion</TableHead>
+                                        <TableHead className="text-right">Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {data.solicitudes.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell className="py-6 text-center text-muted-foreground" colSpan={6}>
+                                                No hay solicitudes en espera de validacion para los filtros actuales.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        data.solicitudes.map((s) => (
+                                            <TableRow key={s.id_solicitud}>
+                                                <TableCell className="align-top font-medium">
+                                                    <div className="flex flex-col gap-1">
+                                                        <CodigoId id={s.id_solicitud} />
+                                                        <span className="text-xs font-normal text-muted-foreground">{formatFechaSolicitud(s.fecha_inicio)}</span>
                                                     </div>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span>
+                                                            {s.usuario?.nombre} {s.usuario?.apellido}
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground">{s.rut_usuario}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span>{s.tipoSolicitud?.nombre_tipo_solicitud || "-"}</span>
+                                                        <span className="text-xs text-muted-foreground">{s.motivo?.nombre_motivo || "Sin motivo"}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <Badge variant="muted">{s.priorizacion_admin ?? "-"}</Badge>
+                                                </TableCell>
+                                                <TableCell className="max-w-[20rem] align-top">
+                                                    <DescripcionSolicitudCell descripcion={s.descripcion} />
+                                                </TableCell>
+                                                <TableCell className="align-top text-right">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button type="button" variant="outline" size="sm">
+                                                                <MoreHorizontal data-icon="inline-start" />
+                                                                Gestionar
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuGroup>
+                                                                <DropdownMenuItem onSelect={() => openRealizar(s)}>
+                                                                    <Check />
+                                                                    Realizar solicitud
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onSelect={() => openRechazo(s)}>
+                                                                    <X />
+                                                                    Rechazar solicitud
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onSelect={() => openOtrasSolicitudes(s)}>
+                                                                    <Eye />
+                                                                    Otras solicitudes
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onSelect={() => openEditarUsuario(s)}>
+                                                                    <Edit />
+                                                                    Editar usuario
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuGroup>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </TooltipProvider>
                     <div className="flex items-center justify-between">
                         <Button type="button" variant="outline" disabled={loading || data.page <= 1} onClick={() => cambiarPagina(data.page - 1)}>
                             Anterior
@@ -686,7 +726,7 @@ function ResumenGestionModal({
 
                     {resumen.citas.length > 0 ? (
                         <div className="overflow-x-auto rounded-md border">
-                            <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+                            <table className="w-full min-w-[640px] text-left text-sm">
                                 <thead className="bg-muted text-muted-foreground">
                                     <tr>
                                         <th className="w-[220px] px-3 py-2 font-medium">Profesional</th>
