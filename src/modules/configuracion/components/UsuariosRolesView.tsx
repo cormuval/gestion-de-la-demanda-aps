@@ -756,7 +756,7 @@ function RowActions({
 }: {
     active: boolean;
     onEdit: () => void;
-    onToggle: () => void | Promise<void>;
+    onToggle: () => void | Promise<unknown>;
     editDisabled?: boolean;
     toggleDisabled?: boolean;
     title?: string;

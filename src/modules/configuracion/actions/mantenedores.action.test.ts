@@ -25,9 +25,11 @@ vi.mock("@/shared/lib/logger", () => ({
 }));
 
 import { guardarFuncionario, guardarMotivo, guardarPermisosRol, guardarPrestacion, guardarProfesional, guardarRol, guardarTipoSolicitud } from "./mantenedores.action";
-import { prisma } from "@/shared/lib/prisma";
+import { prisma as prismaClient } from "@/shared/lib/prisma";
 import { getPermisosRol, requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+
+const prisma = prismaClient as any;
 
 const user = {
     rut: "11.111.111-1",
