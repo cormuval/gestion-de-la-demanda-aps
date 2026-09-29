@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 // config
 import type { Permiso } from "@/config/permisos";
@@ -24,34 +24,34 @@ const usuario: SessionUser = {
     rol: { id: 2, nombre: "Orientador" }
 };
 
-function renderShell(permisos: Permiso[]) {
+function renderShell(permisos: Permiso[], defaultOpen = true) {
     return render(
-        <AppShell user={usuario} permisos={permisos}>
+        <AppShell user={usuario} permisos={permisos} defaultOpen={defaultOpen}>
             <div>Contenido de prueba</div>
         </AppShell>
     );
 }
 
 describe("AppShell", () => {
-    it("filtra el nav por permisos: solo comunicador.ver muestra Llamadas", () => {
+    it("filtra el nav por permisos: solo comunicador.ver muestra Llamadas una vez", () => {
         renderShell(["comunicador.ver"]);
 
-        expect(screen.getAllByText("Llamadas")).toHaveLength(2);
+        expect(screen.getAllByText("Llamadas")).toHaveLength(1);
         expect(screen.queryAllByText("Solicitudes")).toHaveLength(0);
         expect(screen.queryAllByText("Revisar solicitudes")).toHaveLength(0);
         expect(screen.queryAllByText("Dashboard")).toHaveLength(0);
         expect(screen.queryAllByText("Configuracion")).toHaveLength(0);
     });
 
-    it("muestra multiples links cuando hay multiples permisos", () => {
+    it("muestra multiples links cuando hay multiples permisos sin duplicarlos en header movil", () => {
         renderShell(["solicitudes.ver", "solicitudes.gestionar"]);
 
-        expect(screen.getAllByText("Solicitudes")).toHaveLength(2);
-        expect(screen.getAllByText("Revisar solicitudes")).toHaveLength(2);
+        expect(screen.getAllByText("Solicitudes")).toHaveLength(1);
+        expect(screen.getAllByText("Revisar solicitudes")).toHaveLength(1);
         expect(screen.queryAllByText("Llamadas")).toHaveLength(0);
     });
 
-    it("sin permisos no renderiza ningun link de navegacion, pero el shell sigue montando", () => {
+    it("sin permisos no renderiza links, pero el shell sigue montando", () => {
         renderShell([]);
 
         expect(screen.queryAllByText("Solicitudes")).toHaveLength(0);
@@ -61,7 +61,7 @@ describe("AppShell", () => {
         expect(screen.queryAllByText("Configuracion")).toHaveLength(0);
 
         expect(screen.getByText("Orientador de Prueba")).toBeInTheDocument();
-        expect(screen.getAllByText("Salir")).toHaveLength(2);
+        expect(screen.getByRole("button", { name: "Salir" })).toBeInTheDocument();
     });
 
     it("muestra los datos del usuario: nombre, centro y rol", () => {
@@ -76,5 +76,29 @@ describe("AppShell", () => {
         renderShell(["dashboard.ver"]);
 
         expect(screen.getByText("Contenido de prueba")).toBeInTheDocument();
+    });
+
+    it("renderiza colapsado cuando defaultOpen es false", () => {
+        renderShell(["comunicador.ver"], false);
+
+        expect(screen.getByTestId("app-sidebar-wrapper")).toHaveAttribute("data-state", "collapsed");
+    });
+
+    it("el trigger alterna el estado expanded y collapsed", () => {
+        renderShell(["comunicador.ver"]);
+
+        const wrapper = screen.getByTestId("app-sidebar-wrapper");
+        expect(wrapper).toHaveAttribute("data-state", "expanded");
+
+        fireEvent.click(screen.getByRole("button", { name: "Alternar menu lateral" }));
+
+        expect(wrapper).toHaveAttribute("data-state", "collapsed");
+    });
+
+    it("marca el item activo segun usePathname", () => {
+        renderShell(["comunicador.ver"]);
+
+        const link = screen.getByRole("link", { name: /Llamadas/i });
+        expect(link.closest("[data-active]")).toHaveAttribute("data-active", "true");
     });
 });

@@ -6,10 +6,22 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 // components
-import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
-// lib
-import { cn } from "@/shared/lib/utils";
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarHeader,
+    SidebarInset,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarProvider,
+    SidebarRail,
+    SidebarTrigger,
+    useSidebar
+} from "@/shared/components/ui/sidebar";
 // config
 import { navVisible } from "@/config/navegacion";
 import type { Permiso } from "@/config/permisos";
@@ -20,103 +32,111 @@ interface AppShellProps {
     user: SessionUser;
     permisos: Permiso[];
     children: React.ReactNode;
+    defaultOpen?: boolean;
 }
 
-export function AppShell({ user, permisos, children }: AppShellProps) {
+interface AppSidebarProps {
+    user: SessionUser;
+    permisos: Permiso[];
+}
+
+export function AppShell({ user, permisos, children, defaultOpen = true }: AppShellProps) {
+    return (
+        <SidebarProvider
+            defaultOpen={defaultOpen}
+            style={
+                {
+                    "--sidebar-width": "16rem",
+                    "--sidebar-width-icon": "3rem"
+                } as React.CSSProperties
+            }
+        >
+            <AppSidebar user={user} permisos={permisos} />
+            <SidebarInset>
+                <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card/95 px-4 backdrop-blur md:px-6">
+                    <SidebarTrigger aria-label="Alternar menu lateral" />
+                    <div className="flex items-center gap-2 md:hidden">
+                        <Image src="/assets/logo-cmv.png" alt="Corporacion Municipal Valparaiso" width={32} height={32} className="h-8 w-auto" />
+                        <span className="text-sm font-semibold">Gestion Demanda</span>
+                    </div>
+                </header>
+                <main className="px-4 py-6 md:px-8">{children}</main>
+            </SidebarInset>
+        </SidebarProvider>
+    );
+}
+
+function AppSidebar({ user, permisos }: AppSidebarProps) {
     const pathname = usePathname();
+    const { state, setOpenMobile } = useSidebar();
     const navLinks = navVisible(permisos);
     const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
+    function closeMobileNav() {
+        setOpenMobile(false);
+    }
+
     return (
-        <div className="min-h-screen bg-background">
-            <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r bg-card md:flex md:flex-col">
-                <div className="border-b p-5">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md">
-                            <Image
-                                src="/assets/logo-cmv.png"
-                                alt="Corporacion Municipal Valparaiso"
-                                width={40}
-                                height={40}
-                                className="h-10 w-auto"
-                                priority
-                            />
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold">Gestion Demanda</p>
-                            <p className="text-xs text-muted-foreground">Valparaiso</p>
-                        </div>
+        <Sidebar collapsible="icon" data-testid="app-sidebar-wrapper" data-state={state}>
+            <SidebarHeader className="border-b">
+                <div className="flex h-14 items-center gap-3 px-2">
+                    <div className="flex size-10 items-center justify-center overflow-hidden rounded-md">
+                        <Image
+                            src="/assets/logo-cmv.png"
+                            alt="Corporacion Municipal Valparaiso"
+                            width={40}
+                            height={40}
+                            className="h-10 w-auto"
+                            priority
+                        />
+                    </div>
+                    <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                        <p className="truncate text-sm font-semibold">Gestion Demanda</p>
+                        <p className="truncate text-xs text-muted-foreground">Valparaiso</p>
                     </div>
                 </div>
+            </SidebarHeader>
 
-                <nav className="flex-1 space-y-1 p-3">
-                    {navLinks.map(({ href, label, icon: Icon }) => {
-                        const active = isActive(href);
-                        return (
-                            <Link
-                                key={href}
-                                href={href}
-                                className={cn(
-                                    "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
-                                    active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                )}
-                            >
-                                <Icon size={18} />
-                                <span>{label}</span>
-                            </Link>
-                        );
-                    })}
-                </nav>
+            <SidebarContent>
+                <SidebarGroup>
+                    <SidebarMenu>
+                        {navLinks.map(({ href, label, icon: Icon }) => {
+                            const active = isActive(href);
+                            return (
+                                <SidebarMenuItem key={href}>
+                                    <SidebarMenuButton asChild isActive={active} tooltip={label}>
+                                        <Link href={href} onClick={closeMobileNav}>
+                                            <Icon />
+                                            <span>{label}</span>
+                                        </Link>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            );
+                        })}
+                    </SidebarMenu>
+                </SidebarGroup>
+            </SidebarContent>
 
-                <div className="border-t p-4">
-                    <div className="mb-3 space-y-2">
-                        <p className="truncate text-sm font-medium">{user.nombre}</p>
-                        <p className="truncate text-xs text-muted-foreground">{user.centro_nombre || "Sin centro"}</p>
-                        <div className="flex items-center gap-2">
-                            <Badge variant="muted">{user.rol.nombre}</Badge>
+            <SidebarFooter className="border-t">
+                <SidebarMenu>
+                    <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+                        <div className="flex flex-col gap-2 rounded-md px-2 py-1.5">
+                            <p className="truncate text-sm font-medium">{user.nombre}</p>
+                            <p className="truncate text-xs text-muted-foreground">{user.centro_nombre || "Sin centro"}</p>
+                            <div className="flex">
+                                <Badge variant="muted">{user.rol.nombre}</Badge>
+                            </div>
                         </div>
-                    </div>
-                    <Button variant="outline" className="w-full justify-start" onClick={() => signOut({ redirectTo: "/auth/login" })}>
-                        <LogOut size={16} />
-                        Salir
-                    </Button>
-                </div>
-            </aside>
-
-            <div className="md:pl-72">
-                <header className="sticky top-0 z-10 border-b bg-card/95 px-4 py-3 backdrop-blur md:hidden">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Image
-                                src="/assets/logo-cmv.png"
-                                alt="Corporacion Municipal Valparaiso"
-                                width={32}
-                                height={32}
-                                className="h-8 w-auto"
-                            />
-                            <span className="text-sm font-semibold">Gestion Demanda</span>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => signOut({ redirectTo: "/auth/login" })}>
-                            Salir
-                        </Button>
-                    </div>
-                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                        {navLinks.map(({ href, label }) => (
-                            <Link
-                                key={href}
-                                href={href}
-                                className={cn(
-                                    "whitespace-nowrap rounded-md border px-3 py-2 text-sm",
-                                    isActive(href) ? "bg-primary text-primary-foreground" : ""
-                                )}
-                            >
-                                {label}
-                            </Link>
-                        ))}
-                    </div>
-                </header>
-                <main className="mx-auto max-w-7xl px-4 py-6 md:px-8">{children}</main>
-            </div>
-        </div>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton tooltip="Salir" onClick={() => signOut({ redirectTo: "/auth/login" })}>
+                            <LogOut />
+                            <span>Salir</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarFooter>
+            <SidebarRail />
+        </Sidebar>
     );
 }
