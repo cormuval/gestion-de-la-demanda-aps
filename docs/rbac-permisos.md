@@ -54,6 +54,7 @@ export const PERMISOS = {
     "comunicador.llamar":   { modulo: "Comunicador",   etiqueta: "Registrar llamada" },
     "comunicador.paciente": { modulo: "Comunicador",   etiqueta: "Editar datos del paciente" },
     "dashboard.ver":        { modulo: "Dashboard",     etiqueta: "Ver indicadores" },
+    "some.ver":             { modulo: "SOME",          etiqueta: "Ver panel SOME" },
     "config.ver":           { modulo: "Configuracion", etiqueta: "Ver configuracion" },
     "config.funcionarios":  { modulo: "Configuracion", etiqueta: "Editar funcionarios" },
     "config.roles":         { modulo: "Configuracion", etiqueta: "Editar roles y permisos" },
@@ -181,16 +182,21 @@ El seed ademas reporta claves huerfanas (filas en BD que ya no existen en el cat
 
 ## 6. Salvaguardas
 
-**Anti-lockout.** `guardarPermisosRol` impide que un usuario se quite `config.roles` a su propio rol:
+**Anti-escalada.** El mantenedor de roles y funcionarios aplica la regla "no otorgar lo que no
+tienes". Un actor no puede asignar un rol, editar un rol/funcionario superior, ni marcar permisos
+que su propio rol no posee. Estas reglas viven en `src/modules/configuracion/utils/privilegios.ts`
+y se usan tanto en las Server Actions como en la UI preventiva.
 
-```ts
-if (data.rol_id === user.rol.id && !permisos.includes("config.roles")) {
-    throw new Error("No puedes quitar el permiso de editar roles a tu propio rol");
-}
-```
+**Auto-edicion.** Un funcionario puede actualizar datos no sensibles de su propio registro, pero no
+puede cambiar su rol, estado ni centro. Tampoco puede renombrar ni desactivar su propio rol.
 
-Limitacion conocida: **no** protege el caso de quitarle `config.roles` a *otro* rol siendo el ultimo
-administrador. Si se toca esa area, tenerlo presente.
+**Ultimo administrador.** Las actions impiden desactivar o degradar al ultimo funcionario activo
+cuyo rol activo incluye `config.roles`. La regla cubre cambios de funcionario, estado de rol y
+matriz de permisos del rol.
+
+**Nombre reservado.** `Administrador` es un nombre reservado para cerrar el vector legacy donde
+algunas rutas aun comparan `user.rol.nombre === "Administrador"`. La deuda definitiva es reemplazar
+esa comparacion por un permiso explicito, registrada en #21.
 
 **Validacion en escritura.** `permisosRolSchema` (Zod) refina cada string con `esPermiso`, y ademas
 `guardarPermisosRol` filtra contra `CLAVES_PERMISOS` — lo que tambien normaliza el orden. Una clave
@@ -311,8 +317,9 @@ Si agregas una pagina o una action sin guard, la suite falla. Ese es el punto.
 
 ## 10. Anti-patrones
 
-- **Chequear por nombre de rol.** `if (user.rol.nombre === "Administrador")` es exactamente lo que
-  este RBAC vino a eliminar. Siempre por permiso.
+- **Chequear por nombre de rol.** `if (user.rol.nombre === "Administrador")` es deuda legacy. Hoy el
+  mantenedor reserva ese nombre para evitar escalada, pero el patron correcto sigue siendo autorizar
+  por permisos. Ver #21 para eliminar la comparacion restante.
 - **Confiar en que la UI oculta el boton.** El filtrado de `NAV` y de pestanas es cosmetico.
 - **Guard despues de la logica.** Debe ser la primera linea: leer datos y despues validar ya filtro
   informacion.

@@ -18,19 +18,46 @@ export interface RolConPermisos {
 
 const GRUPOS = agruparPermisos();
 
-export function PermisosRolModal({ rol, onClose, onSaved }: { rol: RolConPermisos; onClose: () => void; onSaved: () => void }) {
+export function PermisosRolModal({
+    rol,
+    permisosActor,
+    esRolPropio,
+    onClose,
+    onSaved
+}: {
+    rol: RolConPermisos;
+    permisosActor: Permiso[];
+    esRolPropio: boolean;
+    onClose: () => void;
+    onSaved: () => void;
+}) {
     const [seleccion, setSeleccion] = useState<Permiso[]>(() => rol.permisos.map((fila) => fila.permiso).filter(esPermiso));
     const [saving, setSaving] = useState(false);
+    const permisosActorSet = new Set(permisosActor);
 
     const alternar = (permiso: Permiso, activo: boolean) => {
         setSeleccion((actual) => (activo ? [...actual, permiso] : actual.filter((clave) => clave !== permiso)));
     };
 
+    function checkboxDisabled(permiso: Permiso): boolean {
+        return !permisosActorSet.has(permiso) || (esRolPropio && permiso === "config.roles");
+    }
+
+    function checkboxTitle(permiso: Permiso): string | undefined {
+        if (esRolPropio && permiso === "config.roles") return "No puedes quitar el permiso de editar roles a tu propio rol";
+        if (!permisosActorSet.has(permiso)) return "Tu rol no tiene este permiso";
+        return undefined;
+    }
+
     const submit = async (event: FormEvent) => {
         event.preventDefault();
         setSaving(true);
         try {
-            await guardarPermisosRol({ rol_id: rol.id_rol, permisos: seleccion });
+            const result = await guardarPermisosRol({ rol_id: rol.id_rol, permisos: seleccion });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Permisos actualizados");
             onSaved();
         } catch (err: unknown) {
@@ -63,6 +90,8 @@ export function PermisosRolModal({ rol, onClose, onSaved }: { rol: RolConPermiso
                                             type="checkbox"
                                             checked={seleccion.includes(permiso.clave)}
                                             onChange={(event) => alternar(permiso.clave, event.target.checked)}
+                                            disabled={checkboxDisabled(permiso.clave)}
+                                            title={checkboxTitle(permiso.clave)}
                                             className="h-4 w-4 rounded border-input"
                                         />
                                         <span>{permiso.etiqueta}</span>

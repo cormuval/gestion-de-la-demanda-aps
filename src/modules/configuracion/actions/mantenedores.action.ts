@@ -19,11 +19,25 @@ import {
     type TipoSolicitudConfigInput
 } from "../schemas/mantenedores.schema";
 // lib
-import { requirePermiso } from "@/shared/lib/permisos";
+import { getPermisosRol, requirePermiso } from "@/shared/lib/permisos";
 import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
+// types
+import type { ResultadoAccion } from "@/shared/types/resultado";
+import type { Funcionario, Role } from "@prisma/client";
 // config
-import { CLAVES_PERMISOS } from "@/config/permisos";
+import { CLAVES_PERMISOS, esPermiso, type Permiso } from "@/config/permisos";
+// utils
+import { normalizarRut } from "@/modules/solicitudes/utils/rut";
+import {
+    quedaAdministrador,
+    validarAsignacionRol,
+    validarEdicionFuncionario,
+    validarEdicionRol,
+    validarPermisosRol,
+    type AdminEvaluado,
+    type RolEvaluado
+} from "../utils/privilegios";
 
 function centroData(centros: Partial<Record<(typeof CENTRO_COLUMNAS)[number], "1" | "0">>) {
     return CENTRO_COLUMNAS.reduce(
@@ -38,6 +52,38 @@ function centroData(centros: Partial<Record<(typeof CENTRO_COLUMNAS)[number], "1
 function searchContains(search?: string) {
     const value = search?.trim();
     return value ? { contains: value } : undefined;
+}
+
+function permisosValidos(filas: { permiso: string }[]): Set<Permiso> {
+    return new Set(filas.map((fila) => fila.permiso).filter(esPermiso));
+}
+
+function rutSinFormato(rut: string): string {
+    return normalizarRut(rut).replace("-", "");
+}
+
+function rolEvaluado(rol: { id_rol: number; nombre_rol: string; estado: string; permisos: { permiso: string }[] }): RolEvaluado {
+    return {
+        id_rol: rol.id_rol,
+        nombre_rol: rol.nombre_rol,
+        estado: rol.estado,
+        permisos: permisosValidos(rol.permisos)
+    };
+}
+
+async function adminsActivos(): Promise<AdminEvaluado[]> {
+    const funcionarios = await prisma.funcionario.findMany({
+        where: {
+            estado: "Activo",
+            role: { estado: "Activo", permisos: { some: { permiso: "config.roles" } } }
+        },
+        select: { rut: true, rol_id: true }
+    });
+    return funcionarios;
+}
+
+async function logBloqueo(accion: "CREATE" | "UPDATE", user: { rut: string; nombre: string }, resourceId: string, regla: string, error: string) {
+    await AuditLogger.logSecurity(accion, false, { rut: user.rut, name: user.nombre }, { resourceId, details: regla, error });
 }
 
 export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) {
@@ -140,21 +186,52 @@ export async function guardarMotivo(input: MotivoConfigInput) {
     return saved;
 }
 
-export async function guardarRol(input: RolConfigInput) {
+export async function guardarRol(input: RolConfigInput): Promise<ResultadoAccion<Role>> {
     const user = await requirePermiso("config.roles");
     const data = rolConfigSchema.parse(input);
-    const duplicated = await prisma.role.findFirst({
-        where: { nombre_rol: data.nombre_rol, ...(data.id_rol ? { NOT: { id_rol: data.id_rol } } : {}) },
-        select: { id_rol: true }
+    const accion = data.id_rol ? "UPDATE" : "CREATE";
+    const actorPermisos = await getPermisosRol(user.rol.id);
+
+    const [duplicated, rolActual] = await Promise.all([
+        prisma.role.findFirst({
+            where: { nombre_rol: data.nombre_rol, ...(data.id_rol ? { NOT: { id_rol: data.id_rol } } : {}) },
+            select: { id_rol: true }
+        }),
+        data.id_rol
+            ? prisma.role.findUnique({
+                  where: { id_rol: data.id_rol },
+                  include: { permisos: { select: { permiso: true } } }
+              })
+            : Promise.resolve(null)
+    ]);
+    if (data.id_rol && !rolActual) return { ok: false, error: "Rol no existe" };
+
+    const requiereAdmins = Boolean(rolActual && rolActual.estado === "Activo" && data.estado !== "Activo" && permisosValidos(rolActual.permisos).has("config.roles"));
+    const admins = requiereAdmins ? await adminsActivos() : [];
+    const quedaAdmin = !requiereAdmins || quedaAdministrador(admins, { tipo: "rol", rol_id: data.id_rol ?? 0 });
+    const error = validarEdicionRol({
+        actorRolId: user.rol.id,
+        actorPermisos,
+        rolActual: rolActual ? rolEvaluado(rolActual) : null,
+        data: { nombre_rol: data.nombre_rol, estado: data.estado },
+        quedaAdmin
     });
-    if (duplicated) throw new Error("Ya existe un rol con ese nombre");
+
+    if (error) {
+        await logBloqueo(accion, user, data.id_rol ? `rol:${data.id_rol}` : "rol:nuevo", `regla=guardarRol rol=${data.id_rol ?? "nuevo"}`, error);
+        return { ok: false, error };
+    }
+    if (duplicated) return { ok: false, error: "Ya existe un rol con ese nombre" };
 
     const saved = data.id_rol
         ? await prisma.role.update({ where: { id_rol: data.id_rol }, data: { nombre_rol: data.nombre_rol, estado: data.estado } })
         : await prisma.role.create({ data: { nombre_rol: data.nombre_rol, estado: data.estado } });
 
-    await AuditLogger.logDataAccess(data.id_rol ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `rol:${saved.id_rol}`);
-    return saved;
+    const details = rolActual
+        ? `Rol guardado: nombre_rol ${rolActual.nombre_rol}->${saved.nombre_rol} estado ${rolActual.estado}->${saved.estado}`
+        : `Rol creado: nombre_rol ${saved.nombre_rol} estado ${saved.estado}`;
+    await AuditLogger.logDataAccess(accion, true, { rut: user.rut, name: user.nombre }, `rol:${saved.id_rol}`, { details });
+    return { ok: true, data: saved };
 }
 
 export async function guardarProfesional(input: ProfesionalConfigInput) {
@@ -198,19 +275,101 @@ export async function guardarPrestacion(input: PrestacionConfigInput) {
     return saved;
 }
 
-export async function guardarFuncionario(input: FuncionarioConfigInput) {
+export async function guardarFuncionario(input: FuncionarioConfigInput): Promise<ResultadoAccion<Funcionario>> {
     const user = await requirePermiso("config.funcionarios");
     const data = funcionarioConfigSchema.parse(input);
-    const [rol, centro, funcionarioActual, emailDuplicado] = await Promise.all([
-        prisma.role.findUnique({ where: { id_rol: data.rol_id }, select: { id_rol: true } }),
+    const actorPermisos = await getPermisosRol(user.rol.id);
+    const rutOriginal = input.rut.trim();
+    const funcionarioSelect = {
+        rut: true,
+        rol_id: true,
+        estado: true,
+        centro_id: true,
+        role: {
+            select: {
+                id_rol: true,
+                nombre_rol: true,
+                estado: true,
+                permisos: { select: { permiso: true } }
+            }
+        }
+    } as const;
+    const [rolDestino, centro, funcionarioPorRutNormalizado] = await Promise.all([
+        prisma.role.findUnique({
+            where: { id_rol: data.rol_id },
+            include: { permisos: { select: { permiso: true } } }
+        }),
         prisma.centro.findUnique({ where: { id_centro: data.centro_id }, select: { id_centro: true } }),
-        prisma.funcionario.findUnique({ where: { rut: data.rut }, select: { rut: true } }),
-        prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: data.rut } }, select: { rut: true } })
+        prisma.funcionario.findUnique({
+            where: { rut: data.rut },
+            select: funcionarioSelect
+        })
     ]);
+    let funcionarioActual = funcionarioPorRutNormalizado;
+    if (!funcionarioActual && rutOriginal !== data.rut) {
+        funcionarioActual = await prisma.funcionario.findUnique({
+            where: { rut: rutOriginal },
+            select: funcionarioSelect
+        });
+    }
+    if (!funcionarioActual) {
+        const filasRut = await prisma.$queryRaw<{ rut: string }[]>`
+            SELECT rut
+            FROM funcionarios
+            WHERE UPPER(REPLACE(REPLACE(REPLACE(rut, '.', ''), '-', ''), ' ', '')) = ${rutSinFormato(data.rut)}
+            LIMIT 1
+        `;
+        const rutEquivalente = filasRut[0]?.rut;
+        if (rutEquivalente) {
+            funcionarioActual = await prisma.funcionario.findUnique({
+                where: { rut: rutEquivalente },
+                select: funcionarioSelect
+            });
+        }
+    }
+    const rutsIdentidad = Array.from(new Set([data.rut, rutOriginal, funcionarioActual?.rut].filter((rut): rut is string => Boolean(rut))));
+    const emailDuplicado = await prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: { in: rutsIdentidad } } }, select: { rut: true } });
 
-    if (!rol) throw new Error("Rol no existe");
-    if (!centro) throw new Error("Centro no existe");
-    if (emailDuplicado) throw new Error("Ya existe un funcionario con ese email");
+    if (!rolDestino) return { ok: false, error: "Rol no existe" };
+    if (!centro) return { ok: false, error: "Centro no existe" };
+    if (emailDuplicado) return { ok: false, error: "Ya existe un funcionario con ese email" };
+
+    const rolDestinoEvaluado = rolEvaluado(rolDestino);
+    const errorAsignacion = validarAsignacionRol(actorPermisos, rolDestinoEvaluado);
+    if (errorAsignacion) {
+        await logBloqueo(funcionarioActual ? "UPDATE" : "CREATE", user, `funcionario:${data.rut}`, `regla=F1 rol_destino=${data.rol_id}`, errorAsignacion);
+        return { ok: false, error: errorAsignacion };
+    }
+
+    const requiereAdmins = Boolean(
+        funcionarioActual &&
+            funcionarioActual.estado === "Activo" &&
+            funcionarioActual.role.estado === "Activo" &&
+            permisosValidos(funcionarioActual.role.permisos).has("config.roles") &&
+            (data.estado !== "Activo" || data.rol_id !== funcionarioActual.rol_id)
+    );
+    const admins = requiereAdmins ? (await adminsActivos()).map((admin) => ({ ...admin, rut: normalizarRut(admin.rut) })) : [];
+    const errorEdicion = validarEdicionFuncionario({
+        actorRut: normalizarRut(user.rut),
+        actorPermisos,
+        rolDestino: rolDestinoEvaluado,
+        funcionarioActual: funcionarioActual
+            ? {
+                  rut: normalizarRut(funcionarioActual.rut),
+                  rol_id: funcionarioActual.rol_id,
+                  estado: funcionarioActual.estado,
+                  centro_id: funcionarioActual.centro_id,
+                  rol: rolEvaluado(funcionarioActual.role)
+              }
+            : null,
+        data: { rol_id: data.rol_id, estado: data.estado, centro_id: data.centro_id },
+        quedaAdmin: !requiereAdmins || quedaAdministrador(admins, { tipo: "funcionario", rut: data.rut })
+    });
+
+    if (errorEdicion) {
+        await logBloqueo(funcionarioActual ? "UPDATE" : "CREATE", user, `funcionario:${data.rut}`, `regla=guardarFuncionario rut=${data.rut}`, errorEdicion);
+        return { ok: false, error: errorEdicion };
+    }
 
     const payload = {
         email: data.email,
@@ -222,38 +381,57 @@ export async function guardarFuncionario(input: FuncionarioConfigInput) {
     };
 
     const saved = funcionarioActual
-        ? await prisma.funcionario.update({ where: { rut: data.rut }, data: payload })
+        ? await prisma.funcionario.update({ where: { rut: funcionarioActual.rut }, data: payload })
         : await prisma.funcionario.create({ data: { rut: data.rut, ...payload } });
 
-    await AuditLogger.logDataAccess(funcionarioActual ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `funcionario:${saved.rut}`);
-    return saved;
+    const details = funcionarioActual
+        ? `Funcionario guardado: rol_id ${funcionarioActual.rol_id}->${saved.rol_id} estado ${funcionarioActual.estado}->${saved.estado} centro ${funcionarioActual.centro_id ?? "-"}->${saved.centro_id ?? "-"}`
+        : `Funcionario creado: rol_id ${saved.rol_id} estado ${saved.estado} centro ${saved.centro_id ?? "-"}`;
+    await AuditLogger.logDataAccess(funcionarioActual ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `funcionario:${saved.rut}`, { details });
+    return { ok: true, data: saved };
 }
 
-export async function guardarPermisosRol(input: PermisosRolInput) {
+export async function guardarPermisosRol(input: PermisosRolInput): Promise<ResultadoAccion<{ id_rol: number; permisos: Permiso[] }>> {
     const user = await requirePermiso("config.roles");
     const data = permisosRolSchema.parse(input);
     const permisos = CLAVES_PERMISOS.filter((clave) => data.permisos.includes(clave));
+    const actorPermisos = await getPermisosRol(user.rol.id);
 
-    // Evita que un administrador se deje sin acceso al mantenedor de roles.
-    if (data.rol_id === user.rol.id && !permisos.includes("config.roles")) {
-        throw new Error("No puedes quitar el permiso de editar roles a tu propio rol");
+    const rolActual = await prisma.role.findUnique({
+        where: { id_rol: data.rol_id },
+        include: { permisos: { select: { permiso: true } } }
+    });
+    if (!rolActual) return { ok: false, error: "Rol no existe" };
+
+    const rol = rolEvaluado(rolActual);
+    const requiereAdmins = rol.permisos.has("config.roles") && !permisos.includes("config.roles");
+    const admins = requiereAdmins ? await adminsActivos() : [];
+    const quedaAdmin = !requiereAdmins || quedaAdministrador(admins, { tipo: "rol", rol_id: data.rol_id });
+    const error = validarPermisosRol({
+        actorRolId: user.rol.id,
+        actorPermisos,
+        rolActual: rol,
+        permisosResultantes: permisos,
+        quedaAdmin
+    });
+
+    if (error) {
+        await logBloqueo("UPDATE", user, `rol:${data.rol_id}`, `regla=guardarPermisosRol rol=${data.rol_id}`, error);
+        return { ok: false, error };
     }
 
-    const previos = await prisma.rolPermiso.findMany({ where: { rol_id: data.rol_id }, select: { permiso: true } });
+    const previos = rol.permisos;
 
     await prisma.$transaction([
         prisma.rolPermiso.deleteMany({ where: { rol_id: data.rol_id } }),
         prisma.rolPermiso.createMany({ data: permisos.map((permiso) => ({ rol_id: data.rol_id, permiso })) })
     ]);
 
-    await AuditLogger.logDataAccess(
-        "UPDATE",
-        true,
-        { rut: user.rut, name: user.nombre },
-        `rol:${data.rol_id} permisos antes=[${previos.map((fila) => fila.permiso).join(",")}] despues=[${permisos.join(",")}]`
-    );
+    await AuditLogger.logDataAccess("UPDATE", true, { rut: user.rut, name: user.nombre }, `rol:${data.rol_id}`, {
+        details: `Permisos de rol actualizados: antes=[${[...previos].join(",")}] despues=[${permisos.join(",")}]`
+    });
 
-    return { id_rol: data.rol_id, permisos };
+    return { ok: true, data: { id_rol: data.rol_id, permisos } };
 }
 
 export type MantenedoresConfig = Awaited<ReturnType<typeof getMantenedoresConfig>>;

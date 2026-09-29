@@ -24,7 +24,9 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { PermisosRolModal, type RolConPermisos } from "@/modules/configuracion/components/PermisosRolModal";
 // config
-import type { Permiso } from "@/config/permisos";
+import { esPermiso, type Permiso } from "@/config/permisos";
+// utils
+import { esNombreReservado, esSubconjunto } from "@/modules/configuracion/utils/privilegios";
 
 type ConfigData = Awaited<ReturnType<typeof getMantenedoresConfig>>;
 type TabKey = "tipos" | "motivos" | "roles" | "profesionales" | "prestaciones" | "funcionarios";
@@ -68,6 +70,10 @@ interface FuncionarioForm {
     programa_asociado: (typeof PROGRAMAS_FUNCIONARIO)[number] | "";
     estado: "Activo" | "Inactivo";
 }
+export interface ActorConfig {
+    rut: string;
+    rolId: number;
+}
 
 // Cada pestana requiere el permiso de edicion de su area: asi un rol ve solo las
 // secciones de Configuracion que realmente puede administrar (el servidor igual
@@ -108,8 +114,9 @@ function asProgramaFuncionario(value: string | null): (typeof PROGRAMAS_FUNCIONA
     return PROGRAMAS_FUNCIONARIO.find((programa) => programa === value) ?? PROGRAMAS_FUNCIONARIO[0];
 }
 
-export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
+export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; actor: ActorConfig | null }) {
     const tabsVisibles = useMemo(() => tabs.filter((tab) => permisos.includes(tab.permiso)), [permisos]);
+    const permisosActor = useMemo(() => new Set(permisos), [permisos]);
     const [activeTab, setActiveTab] = useState<TabKey>(() => tabsVisibles[0]?.key ?? "funcionarios");
     const [data, setData] = useState<ConfigData>(emptyData);
     const [search, setSearch] = useState("");
@@ -133,6 +140,27 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
     const tiposActivos = useMemo(() => data.tiposSolicitud.filter((tipo) => tipo.estado === "1"), [data.tiposSolicitud]);
     const profesionalesActivos = useMemo(() => data.profesionales.filter((profesional) => profesional.estado === "Activo"), [data.profesionales]);
     const rolesActivos = useMemo(() => data.roles.filter((rol) => rol.estado === "Activo"), [data.roles]);
+    const editandoRolReservado = Boolean(rolForm.id_rol && esNombreReservado(rolPorId(rolForm.id_rol)?.nombre_rol ?? ""));
+    const editandoFuncionarioPropio = Boolean(editingFuncionarioRut && actor?.rut === editingFuncionarioRut);
+
+    function rolPorId(rolId: number) {
+        return data.roles.find((rol) => rol.id_rol === rolId);
+    }
+
+    function permisosRol(rolId: number): Permiso[] | null {
+        const rol = rolPorId(rolId);
+        if (!rol) return null;
+        return rol.permisos.map((fila) => fila.permiso).filter(esPermiso);
+    }
+
+    function esRolSuperior(rolId: number): boolean {
+        const permisos = permisosRol(rolId);
+        return !permisos || !esSubconjunto(permisos, permisosActor);
+    }
+
+    function motivoRolSuperior(rolId: number): string | undefined {
+        return esRolSuperior(rolId) ? "Tiene privilegios que tu rol no posee" : undefined;
+    }
 
     async function loadData(nextSearch = search) {
         setLoading(true);
@@ -202,7 +230,11 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
         event.preventDefault();
         setSaving(true);
         try {
-            await guardarRol(rolForm);
+            const result = await guardarRol(rolForm);
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Rol guardado");
             setModal(null);
             await loadData();
@@ -248,11 +280,15 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
         setSaving(true);
         try {
             if (!funcionarioForm.programa_asociado) throw new Error("Programa asociado requerido");
-            await guardarFuncionario({
+            const result = await guardarFuncionario({
                 ...funcionarioForm,
                 rol_id: Number(funcionarioForm.rol_id),
                 programa_asociado: funcionarioForm.programa_asociado
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Funcionario guardado");
             setModal(null);
             await loadData();
@@ -356,27 +392,54 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
 
                     {activeTab === "roles" && (
                         <Table headers={["Rol", "Estado", "Acciones"]}>
-                            {data.roles.map((rol) => (
-                                <tr key={rol.id_rol} className="border-t">
-                                    <td className="px-3 py-3 font-medium">{rol.nombre_rol}</td>
-                                    <td className="px-3 py-3"><EstadoBadge active={rol.estado === "Activo"} /></td>
-                                    <td className="px-3 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <Button type="button" variant="outline" size="sm" onClick={() => setRolPermisos({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, permisos: rol.permisos })}>
-                                                Permisos
-                                            </Button>
-                                            <RowActions
-                                                active={rol.estado === "Activo"}
-                                                onEdit={() => {
-                                                    setRolForm({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Activo" : "Inactivo" });
-                                                    setModal("roles");
-                                                }}
-                                                onToggle={() => guardarRol({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Inactivo" : "Activo" }).then(() => loadData()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))}
-                                            />
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {data.roles.map((rol) => {
+                                const superior = esRolSuperior(rol.id_rol);
+                                const propio = actor?.rolId === rol.id_rol;
+                                const motivo = motivoRolSuperior(rol.id_rol) ?? (propio ? "No puedes renombrar ni desactivar tu propio rol" : undefined);
+
+                                return (
+                                    <tr key={rol.id_rol} className="border-t">
+                                        <td className="px-3 py-3 font-medium">{rol.nombre_rol}</td>
+                                        <td className="px-3 py-3"><EstadoBadge active={rol.estado === "Activo"} /></td>
+                                        <td className="px-3 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setRolPermisos({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, permisos: rol.permisos })}
+                                                    disabled={superior}
+                                                    title={superior ? motivo : undefined}
+                                                >
+                                                    Permisos
+                                                </Button>
+                                                <RowActions
+                                                    active={rol.estado === "Activo"}
+                                                    editDisabled={superior || propio}
+                                                    toggleDisabled={superior || propio}
+                                                    title={motivo}
+                                                    onEdit={() => {
+                                                        setRolForm({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Activo" : "Inactivo" });
+                                                        setModal("roles");
+                                                    }}
+                                                    onToggle={async () => {
+                                                        try {
+                                                            const result = await guardarRol({ id_rol: rol.id_rol, nombre_rol: rol.nombre_rol, estado: rol.estado === "Activo" ? "Inactivo" : "Activo" });
+                                                            if (!result.ok) {
+                                                                toast.error(result.error);
+                                                                return;
+                                                            }
+                                                            await loadData();
+                                                        } catch (err: unknown) {
+                                                            toast.error(err instanceof Error ? err.message : "Error al cambiar estado");
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </Table>
                     )}
 
@@ -440,48 +503,64 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {data.funcionarios.map((funcionario) => (
-                                        <tr key={funcionario.rut} className="border-t align-top">
-                                            <td className="px-3 py-3 font-medium">{funcionario.rut}</td>
-                                            <td className="break-all px-3 py-3 leading-5" title={funcionario.email}>{funcionario.email}</td>
-                                            <td className="px-3 py-3 leading-5">{funcionario.nombre}</td>
-                                            <td className="px-3 py-3 leading-5">{funcionario.role.nombre_rol}</td>
-                                            <td className="px-3 py-3 leading-5">{nombreCentro(funcionario.centro_id)}</td>
-                                            <td className="px-3 py-3">{funcionario.programa_asociado || "-"}</td>
-                                            <td className="px-3 py-3"><EstadoBadge active={funcionario.estado === "Activo"} /></td>
-                                            <td className="px-3 py-3">
-                                                <RowActions
-                                                    active={funcionario.estado === "Activo"}
-                                                    onEdit={() => {
-                                                        setFuncionarioForm({
-                                                            rut: funcionario.rut,
-                                                            email: funcionario.email,
-                                                            nombre: funcionario.nombre,
-                                                            rol_id: String(funcionario.rol_id),
-                                                            centro_id: funcionario.centro_id ?? "",
-                                                            programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
-                                                            estado: funcionario.estado === "Activo" ? "Activo" : "Inactivo"
-                                                        });
-                                                        setEditingFuncionarioRut(funcionario.rut);
-                                                        setModal("funcionarios");
-                                                    }}
-                                                    onToggle={() =>
-                                                        guardarFuncionario({
-                                                            rut: funcionario.rut,
-                                                            email: funcionario.email,
-                                                            nombre: funcionario.nombre,
-                                                            rol_id: funcionario.rol_id,
-                                                            centro_id: funcionario.centro_id ?? "",
-                                                            programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
-                                                            estado: funcionario.estado === "Activo" ? "Inactivo" : "Activo"
-                                                        })
-                                                            .then(() => loadData())
-                                                            .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))
-                                                    }
-                                                />
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {data.funcionarios.map((funcionario) => {
+                                        const superior = esRolSuperior(funcionario.rol_id);
+                                        const propio = actor?.rut === funcionario.rut;
+                                        const motivo = motivoRolSuperior(funcionario.rol_id) ?? (propio ? "No puedes cambiar tu propio rol, estado o centro" : undefined);
+
+                                        return (
+                                            <tr key={funcionario.rut} className="border-t align-top">
+                                                <td className="px-3 py-3 font-medium">{funcionario.rut}</td>
+                                                <td className="break-all px-3 py-3 leading-5" title={funcionario.email}>{funcionario.email}</td>
+                                                <td className="px-3 py-3 leading-5">{funcionario.nombre}</td>
+                                                <td className="px-3 py-3 leading-5">{funcionario.role.nombre_rol}</td>
+                                                <td className="px-3 py-3 leading-5">{nombreCentro(funcionario.centro_id)}</td>
+                                                <td className="px-3 py-3">{funcionario.programa_asociado || "-"}</td>
+                                                <td className="px-3 py-3"><EstadoBadge active={funcionario.estado === "Activo"} /></td>
+                                                <td className="px-3 py-3">
+                                                    <RowActions
+                                                        active={funcionario.estado === "Activo"}
+                                                        editDisabled={superior}
+                                                        toggleDisabled={superior || propio}
+                                                        title={motivo}
+                                                        onEdit={() => {
+                                                            setFuncionarioForm({
+                                                                rut: funcionario.rut,
+                                                                email: funcionario.email,
+                                                                nombre: funcionario.nombre,
+                                                                rol_id: String(funcionario.rol_id),
+                                                                centro_id: funcionario.centro_id ?? "",
+                                                                programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
+                                                                estado: funcionario.estado === "Activo" ? "Activo" : "Inactivo"
+                                                            });
+                                                            setEditingFuncionarioRut(funcionario.rut);
+                                                            setModal("funcionarios");
+                                                        }}
+                                                        onToggle={async () => {
+                                                            try {
+                                                                const result = await guardarFuncionario({
+                                                                    rut: funcionario.rut,
+                                                                    email: funcionario.email,
+                                                                    nombre: funcionario.nombre,
+                                                                    rol_id: funcionario.rol_id,
+                                                                    centro_id: funcionario.centro_id ?? "",
+                                                                    programa_asociado: asProgramaFuncionario(funcionario.programa_asociado),
+                                                                    estado: funcionario.estado === "Activo" ? "Inactivo" : "Activo"
+                                                                });
+                                                                if (!result.ok) {
+                                                                    toast.error(result.error);
+                                                                    return;
+                                                                }
+                                                                await loadData();
+                                                            } catch (err: unknown) {
+                                                                toast.error(err instanceof Error ? err.message : "Error al cambiar estado");
+                                                            }
+                                                        }}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -527,7 +606,14 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
             {modal === "roles" && (
                 <ConfigModal title={rolForm.id_rol ? "Editar rol" : "Agregar rol"} saving={saving} onClose={() => setModal(null)} onSubmit={submitRol}>
                     <Field label="Nombre rol">
-                        <Input value={rolForm.nombre_rol} onChange={(event) => setRolForm((current) => ({ ...current, nombre_rol: event.target.value }))} required maxLength={50} />
+                        <Input
+                            aria-label="Nombre rol"
+                            value={rolForm.nombre_rol}
+                            onChange={(event) => setRolForm((current) => ({ ...current, nombre_rol: event.target.value }))}
+                            required
+                            maxLength={50}
+                            disabled={editandoRolReservado}
+                        />
                     </Field>
                     <Field label="Estado">
                         <EstadoActivoSelect value={rolForm.estado as "Activo" | "Inactivo"} onChange={(estado) => setRolForm((current) => ({ ...current, estado }))} />
@@ -570,6 +656,11 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
 
             {modal === "funcionarios" && (
                 <ConfigModal title={editingFuncionarioRut ? "Editar funcionario" : "Agregar funcionario"} saving={saving} onClose={() => setModal(null)} onSubmit={submitFuncionario}>
+                    {editandoFuncionarioPropio && (
+                        <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground sm:col-span-2">
+                            No puedes cambiar tu propio rol, estado o centro
+                        </p>
+                    )}
                     <Field label="RUT">
                         <Input
                             value={funcionarioForm.rut}
@@ -585,17 +676,21 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
                         <Input value={funcionarioForm.nombre} onChange={(event) => setFuncionarioForm((current) => ({ ...current, nombre: event.target.value }))} required maxLength={50} />
                     </Field>
                     <Field label="Rol">
-                        <Select value={funcionarioForm.rol_id} onChange={(event) => setFuncionarioForm((current) => ({ ...current, rol_id: event.target.value }))} required>
+                        <Select aria-label="Rol" value={funcionarioForm.rol_id} onChange={(event) => setFuncionarioForm((current) => ({ ...current, rol_id: event.target.value }))} required disabled={editandoFuncionarioPropio}>
                             <option value="">Seleccionar</option>
-                            {data.roles.map((rol) => (
-                                <option key={rol.id_rol} value={rol.id_rol}>
-                                    {rol.nombre_rol}
-                                </option>
-                            ))}
+                            {data.roles.map((rol) => {
+                                const superior = esRolSuperior(rol.id_rol);
+                                return (
+                                    <option key={rol.id_rol} value={rol.id_rol} disabled={superior}>
+                                        {rol.nombre_rol}
+                                        {superior ? " (requiere mas permisos)" : ""}
+                                    </option>
+                                );
+                            })}
                         </Select>
                     </Field>
                     <Field label="Centro">
-                        <Select value={funcionarioForm.centro_id} onChange={(event) => setFuncionarioForm((current) => ({ ...current, centro_id: event.target.value }))} required>
+                        <Select aria-label="Centro" value={funcionarioForm.centro_id} onChange={(event) => setFuncionarioForm((current) => ({ ...current, centro_id: event.target.value }))} required disabled={editandoFuncionarioPropio}>
                             <option value="">Seleccionar</option>
                             {data.centros.map((centro) => (
                                 <option key={centro.id_centro} value={centro.id_centro}>
@@ -615,7 +710,7 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
                         </Select>
                     </Field>
                     <Field label="Estado">
-                        <EstadoActivoSelect value={funcionarioForm.estado} onChange={(estado) => setFuncionarioForm((current) => ({ ...current, estado }))} />
+                        <EstadoActivoSelect ariaLabel="Estado" value={funcionarioForm.estado} onChange={(estado) => setFuncionarioForm((current) => ({ ...current, estado }))} disabled={editandoFuncionarioPropio} />
                     </Field>
                 </ConfigModal>
             )}
@@ -623,6 +718,8 @@ export function UsuariosRolesView({ permisos }: { permisos: Permiso[] }) {
             {rolPermisos && (
                 <PermisosRolModal
                     rol={rolPermisos}
+                    permisosActor={permisos}
+                    esRolPropio={actor?.rolId === rolPermisos.id_rol}
                     onClose={() => setRolPermisos(null)}
                     onSaved={() => {
                         setRolPermisos(null);
@@ -653,14 +750,28 @@ function Table({ headers, children }: { headers: string[]; children: ReactNode }
     );
 }
 
-function RowActions({ active, onEdit, onToggle }: { active: boolean; onEdit: () => void; onToggle: () => void }) {
+function RowActions({
+    active,
+    onEdit,
+    onToggle,
+    editDisabled = false,
+    toggleDisabled = false,
+    title
+}: {
+    active: boolean;
+    onEdit: () => void;
+    onToggle: () => void | Promise<unknown>;
+    editDisabled?: boolean;
+    toggleDisabled?: boolean;
+    title?: string;
+}) {
     return (
         <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+            <Button type="button" variant="outline" size="sm" onClick={onEdit} disabled={editDisabled} title={editDisabled ? title : undefined}>
                 <Edit size={14} />
                 Editar
             </Button>
-            <Button type="button" variant={active ? "secondary" : "default"} size="sm" onClick={onToggle}>
+            <Button type="button" variant={active ? "secondary" : "default"} size="sm" onClick={onToggle} disabled={toggleDisabled} title={toggleDisabled ? title : undefined}>
                 {active ? "Desactivar" : "Activar"}
             </Button>
         </div>
@@ -716,9 +827,19 @@ function EstadoBinarioSelect({ value, onChange }: { value: "1" | "0"; onChange: 
     );
 }
 
-function EstadoActivoSelect({ value, onChange }: { value: "Activo" | "Inactivo"; onChange: (value: "Activo" | "Inactivo") => void }) {
+function EstadoActivoSelect({
+    value,
+    onChange,
+    disabled = false,
+    ariaLabel
+}: {
+    value: "Activo" | "Inactivo";
+    onChange: (value: "Activo" | "Inactivo") => void;
+    disabled?: boolean;
+    ariaLabel?: string;
+}) {
     return (
-        <Select value={value} onChange={(event) => onChange(event.target.value as "Activo" | "Inactivo")} required>
+        <Select aria-label={ariaLabel} value={value} onChange={(event) => onChange(event.target.value as "Activo" | "Inactivo")} required disabled={disabled}>
             <option value="Activo">Activo</option>
             <option value="Inactivo">Inactivo</option>
         </Select>

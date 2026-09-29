@@ -19,8 +19,19 @@ const rol: RolConPermisos = {
     permisos: [{ permiso: "solicitudes.ver" }, { permiso: "comunicador.ver" }]
 };
 
-function renderModal(onClose = vi.fn(), onSaved = vi.fn()) {
-    render(<PermisosRolModal rol={rol} onClose={onClose} onSaved={onSaved} />);
+function renderModal(props: Partial<React.ComponentProps<typeof PermisosRolModal>> = {}) {
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    render(
+        <PermisosRolModal
+            rol={rol}
+            permisosActor={["solicitudes.ver", "comunicador.ver", "config.roles"]}
+            esRolPropio={false}
+            onClose={onClose}
+            onSaved={onSaved}
+            {...props}
+        />
+    );
     return { onClose, onSaved };
 }
 
@@ -42,7 +53,7 @@ describe("PermisosRolModal", () => {
     });
 
     it("guardar la seleccion: desmarcar un permiso lo saca del array enviado y conserva los demas", async () => {
-        (guardarPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        (guardarPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: { id_rol: 3, permisos: ["comunicador.ver"] } });
         renderModal();
 
         fireEvent.click(screen.getByLabelText("Ver solicitudes"));
@@ -57,7 +68,7 @@ describe("PermisosRolModal", () => {
     });
 
     it("marcar un permiso nuevo: el array enviado incluye la clave recien marcada", async () => {
-        (guardarPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        (guardarPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: { id_rol: 3, permisos: ["comunicador.ver"] } });
         renderModal();
 
         fireEvent.click(screen.getByLabelText("Editar roles y permisos"));
@@ -72,13 +83,39 @@ describe("PermisosRolModal", () => {
     });
 
     it("exito: llama a toast.success y al callback onSaved", async () => {
-        (guardarPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        (guardarPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: { id_rol: 3, permisos: ["comunicador.ver"] } });
         const { onSaved } = renderModal();
 
         fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
         await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Permisos actualizados"));
         expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it("deshabilita permisos que el actor no tiene", () => {
+        renderModal({ permisosActor: ["solicitudes.ver", "comunicador.ver"] });
+
+        const editarRoles = screen.getByLabelText("Editar roles y permisos") as HTMLInputElement;
+        expect(editarRoles).toBeDisabled();
+        expect(editarRoles).toHaveAttribute("title", "Tu rol no tiene este permiso");
+    });
+
+    it("deshabilita config.roles en el rol propio", () => {
+        renderModal({ esRolPropio: true });
+
+        const editarRoles = screen.getByLabelText("Editar roles y permisos") as HTMLInputElement;
+        expect(editarRoles).toBeDisabled();
+        expect(editarRoles).toHaveAttribute("title", "No puedes quitar el permiso de editar roles a tu propio rol");
+    });
+
+    it("muestra toast de negocio cuando la action retorna ok false", async () => {
+        (guardarPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "No puedes otorgar permisos que tu rol no tiene: Editar funcionarios" });
+        const { onSaved } = renderModal();
+
+        fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No puedes otorgar permisos que tu rol no tiene: Editar funcionarios"));
+        expect(onSaved).not.toHaveBeenCalled();
     });
 
     it("error: llama a toast.error con el mensaje, no invoca onSaved y el boton vuelve a decir Guardar", async () => {
