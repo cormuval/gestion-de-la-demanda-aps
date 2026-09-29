@@ -6,5 +6,10 @@ import { UsuariosRolesView } from "@/modules/configuracion/components/UsuariosRo
 export default async function UsuariosRolesPage() {
     await requirePermisoPagina("config.ver");
     const contexto = await getSessionPermisos();
-    return <UsuariosRolesView permisos={contexto ? [...contexto.permisos] : []} />;
+    return (
+        <UsuariosRolesView
+            permisos={contexto ? [...contexto.permisos] : []}
+            actor={contexto ? { rut: contexto.user.rut, rolId: contexto.user.rol.id } : null}
+        />
+    );
 }
