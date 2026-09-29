@@ -405,6 +405,50 @@ describe("anti escalada en funcionarios", () => {
         expect(result).toEqual({ ok: false, error: "Debe quedar al menos un administrador activo" });
         expect(prisma.funcionario.update).not.toHaveBeenCalled();
     });
+
+    it("bloquea degradar al ultimo administrador aunque el RUT almacenado tenga puntos", async () => {
+        (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ...user,
+            rut: "99.999.999-9",
+            rol: { id: 99, nombre: "Supervisor" }
+        });
+        prisma.role.findUnique.mockResolvedValue({
+            id_rol: 2,
+            nombre_rol: "SOME",
+            estado: "Activo",
+            permisos: [{ permiso: "config.funcionarios" }]
+        });
+        prisma.centro.findUnique.mockResolvedValue({ id_centro: "650" });
+        prisma.funcionario.findUnique
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({
+                rut: "11.111.111-1",
+                rol_id: 1,
+                estado: "Activo",
+                centro_id: "650",
+                role: {
+                    id_rol: 1,
+                    nombre_rol: "Administrador",
+                    estado: "Activo",
+                    permisos: [{ permiso: "config.roles" }, { permiso: "config.funcionarios" }]
+                }
+            });
+        prisma.funcionario.findFirst.mockResolvedValueOnce(null);
+        prisma.funcionario.findMany.mockResolvedValue([{ rut: "11.111.111-1", rol_id: 1 }]);
+
+        const result = await guardarFuncionario({
+            rut: "11.111.111-1",
+            email: "admin@demo.local",
+            nombre: "Admin",
+            rol_id: 2,
+            centro_id: "650",
+            programa_asociado: "Programa cardiovascular",
+            estado: "Activo"
+        });
+
+        expect(result).toEqual({ ok: false, error: "Debe quedar al menos un administrador activo" });
+        expect(prisma.funcionario.update).not.toHaveBeenCalled();
+    });
 });
 
 describe("anti escalada en roles", () => {

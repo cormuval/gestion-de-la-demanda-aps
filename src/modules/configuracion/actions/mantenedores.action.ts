@@ -28,6 +28,7 @@ import type { Funcionario, Role } from "@prisma/client";
 // config
 import { CLAVES_PERMISOS, esPermiso, type Permiso } from "@/config/permisos";
 // utils
+import { normalizarRut } from "@/modules/solicitudes/utils/rut";
 import {
     quedaAdministrador,
     validarAsignacionRol,
@@ -274,7 +275,23 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
     const user = await requirePermiso("config.funcionarios");
     const data = funcionarioConfigSchema.parse(input);
     const actorPermisos = await getPermisosRol(user.rol.id);
-    const [rolDestino, centro, funcionarioActual, emailDuplicado] = await Promise.all([
+    const rutOriginal = input.rut.trim();
+    const rutsIdentidad = Array.from(new Set([data.rut, rutOriginal]));
+    const funcionarioSelect = {
+        rut: true,
+        rol_id: true,
+        estado: true,
+        centro_id: true,
+        role: {
+            select: {
+                id_rol: true,
+                nombre_rol: true,
+                estado: true,
+                permisos: { select: { permiso: true } }
+            }
+        }
+    } as const;
+    const [rolDestino, centro, funcionarioPorRutNormalizado, emailDuplicado] = await Promise.all([
         prisma.role.findUnique({
             where: { id_rol: data.rol_id },
             include: { permisos: { select: { permiso: true } } }
@@ -282,23 +299,18 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
         prisma.centro.findUnique({ where: { id_centro: data.centro_id }, select: { id_centro: true } }),
         prisma.funcionario.findUnique({
             where: { rut: data.rut },
-            select: {
-                rut: true,
-                rol_id: true,
-                estado: true,
-                centro_id: true,
-                role: {
-                    select: {
-                        id_rol: true,
-                        nombre_rol: true,
-                        estado: true,
-                        permisos: { select: { permiso: true } }
-                    }
-                }
-            }
+            select: funcionarioSelect
         }),
-        prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: data.rut } }, select: { rut: true } })
+        prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: { in: rutsIdentidad } } }, select: { rut: true } })
     ]);
+    const funcionarioActual =
+        funcionarioPorRutNormalizado ??
+        (rutOriginal !== data.rut
+            ? await prisma.funcionario.findUnique({
+                  where: { rut: rutOriginal },
+                  select: funcionarioSelect
+              })
+            : null);
 
     if (!rolDestino) return { ok: false, error: "Rol no existe" };
     if (!centro) return { ok: false, error: "Centro no existe" };
@@ -318,14 +330,14 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
             permisosValidos(funcionarioActual.role.permisos).has("config.roles") &&
             (data.estado !== "Activo" || data.rol_id !== funcionarioActual.rol_id)
     );
-    const admins = requiereAdmins ? await adminsActivos() : [];
+    const admins = requiereAdmins ? (await adminsActivos()).map((admin) => ({ ...admin, rut: normalizarRut(admin.rut) })) : [];
     const errorEdicion = validarEdicionFuncionario({
-        actorRut: user.rut,
+        actorRut: normalizarRut(user.rut),
         actorPermisos,
         rolDestino: rolDestinoEvaluado,
         funcionarioActual: funcionarioActual
             ? {
-                  rut: funcionarioActual.rut,
+                  rut: normalizarRut(funcionarioActual.rut),
                   rol_id: funcionarioActual.rol_id,
                   estado: funcionarioActual.estado,
                   centro_id: funcionarioActual.centro_id,
@@ -351,7 +363,7 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
     };
 
     const saved = funcionarioActual
-        ? await prisma.funcionario.update({ where: { rut: data.rut }, data: payload })
+        ? await prisma.funcionario.update({ where: { rut: funcionarioActual.rut }, data: payload })
         : await prisma.funcionario.create({ data: { rut: data.rut, ...payload } });
 
     const details = funcionarioActual
