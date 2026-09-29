@@ -122,6 +122,9 @@ Modulos: `solicitudes`, `comunicador` (citas+llamados unificados), `dashboard`, 
 - Solicitudes pendientes: `estado_solicitud = 'En Curso'`.
 - Citas/gestiones pendientes: `respuesta_usuario` en `Sin llamadas`, `No contesta (1)`, `No contesta (2)`.
 - Autorizacion RBAC: catalogo de permisos en `src/config/permisos.ts`; asignacion por rol en la tabla `roles_permisos`, editable desde Configuracion -> Roles -> Permisos.
+- Anti-escalada RBAC: desde Configuracion nadie puede otorgar permisos que su propio rol no tiene,
+  editar roles/funcionarios superiores, cambiar su propio rol/estado/centro, ni dejar el sistema sin
+  administradores activos. Ver `docs/rbac-permisos.md`.
 - Paginas protegidas con `requirePermisoPagina`; Server Actions con `requirePermiso`. El middleware solo valida autenticacion.
 - El seed siembra permisos solo para roles sin ninguno (bootstrap); una vez configurado un rol, el mantenedor es la fuente de verdad.
 - **Antes de tocar permisos, leer `docs/rbac-permisos.md`**: explica que vive en codigo y que en BD, el flujo completo, las salvaguardas, y el **procedimiento paso a paso para crear, quitar o renombrar un permiso** (incluye checklist). Agregar un permiso es cambio de codigo + deploy; no se puede crear desde la UI.
