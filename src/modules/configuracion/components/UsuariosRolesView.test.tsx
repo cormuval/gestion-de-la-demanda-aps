@@ -120,6 +120,22 @@ describe("UsuariosRolesView: pestanas segun permisos", () => {
         expect(within(filaAdmin).getByRole("button", { name: "Desactivar" })).toBeDisabled();
     });
 
+    it("deshabilita funcionarios cuando la busqueda no trae permisos de su rol", async () => {
+        (getMantenedoresConfig as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+            ...dataBase,
+            roles: [rolSome],
+            funcionarios: [dataBase.funcionarios[0]]
+        });
+
+        render(<UsuariosRolesView permisos={["config.ver", "config.funcionarios"]} actor={{ rut: "22.222.222-2", rolId: 2 }} />);
+
+        await screen.findByText("Administrador");
+        const filaAdmin = screen.getByText("admin@demo.local").closest("tr") as HTMLElement;
+
+        expect(within(filaAdmin).getByRole("button", { name: "Editar" })).toBeDisabled();
+        expect(within(filaAdmin).getByRole("button", { name: "Desactivar" })).toBeDisabled();
+    });
+
     it("en edicion propia deshabilita rol, centro y estado con aviso", async () => {
         render(<UsuariosRolesView permisos={["config.ver", "config.funcionarios"]} actor={{ rut: "22.222.222-2", rolId: 2 }} />);
 

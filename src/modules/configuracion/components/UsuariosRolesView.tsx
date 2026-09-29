@@ -147,12 +147,15 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
         return data.roles.find((rol) => rol.id_rol === rolId);
     }
 
-    function permisosRol(rolId: number): Permiso[] {
-        return rolPorId(rolId)?.permisos.map((fila) => fila.permiso).filter(esPermiso) ?? [];
+    function permisosRol(rolId: number): Permiso[] | null {
+        const rol = rolPorId(rolId);
+        if (!rol) return null;
+        return rol.permisos.map((fila) => fila.permiso).filter(esPermiso);
     }
 
     function esRolSuperior(rolId: number): boolean {
-        return !esSubconjunto(permisosRol(rolId), permisosActor);
+        const permisos = permisosRol(rolId);
+        return !permisos || !esSubconjunto(permisos, permisosActor);
     }
 
     function motivoRolSuperior(rolId: number): string | undefined {
