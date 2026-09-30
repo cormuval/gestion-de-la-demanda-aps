@@ -498,7 +498,7 @@ export function RevisarSolicitudesView() {
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onSelect={() => openOtrasSolicitudes(s)}>
                                                                     <Eye />
-                                                                    Otras solicitudes
+                                                                    Otras solicitudes y citas
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onSelect={() => openEditarUsuario(s)}>
                                                                     <Edit />

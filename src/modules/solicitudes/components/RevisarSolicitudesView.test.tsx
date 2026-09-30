@@ -214,7 +214,7 @@ describe("RevisarSolicitudesView tabla compacta", () => {
 
         expect(screen.getByRole("menuitem", { name: /Realizar solicitud/i })).toBeInTheDocument();
         expect(screen.getByRole("menuitem", { name: /Rechazar solicitud/i })).toBeInTheDocument();
-        expect(screen.getByRole("menuitem", { name: /Otras solicitudes/i })).toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: "Otras solicitudes y citas" })).toBeInTheDocument();
         expect(screen.getByRole("menuitem", { name: /Editar usuario/i })).toBeInTheDocument();
     });
 
