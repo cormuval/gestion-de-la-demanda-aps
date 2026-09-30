@@ -24,6 +24,14 @@
         --input: 214 22% 84%;
         --ring: 187 85% 26%;
         --radius: 0.5rem;
+        --sidebar-background: var(--card);
+        --sidebar-foreground: var(--foreground);
+        --sidebar-primary: var(--primary);
+        --sidebar-primary-foreground: var(--primary-foreground);
+        --sidebar-accent: var(--muted);
+        --sidebar-accent-foreground: var(--foreground);
+        --sidebar-border: var(--border);
+        --sidebar-ring: var(--ring);
     }
 }
 

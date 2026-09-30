@@ -10,6 +10,17 @@ vi.mock("@/modules/solicitudes/actions/gestionarSolicitud.action", () => ({ gest
 vi.mock("@/modules/solicitudes/actions/guardarUsuario.action", () => ({ actualizarUsuario: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/getOtrasSolicitudes.action", () => ({ getOtrasSolicitudes: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/editarCita.action", () => ({ editarCita: vi.fn() }));
+vi.mock("@/shared/components/ui/dropdown-menu", () => ({
+    DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div role="menu">{children}</div>,
+    DropdownMenuGroup: ({ children }: { children: React.ReactNode }) => <div role="group">{children}</div>,
+    DropdownMenuItem: ({ children, onSelect }: { children: React.ReactNode; onSelect?: (event: Event) => void }) => (
+        <button type="button" role="menuitem" onClick={(event) => onSelect?.(event.nativeEvent)}>
+            {children}
+        </button>
+    )
+}));
 
 // actions
 import { getOtrasSolicitudes } from "@/modules/solicitudes/actions/getOtrasSolicitudes.action";
@@ -66,13 +77,18 @@ beforeEach(() => {
     } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
 });
 
+async function openGestionMenu() {
+    fireEvent.click(screen.getByRole("button", { name: /Gestionar/i }));
+    await screen.findByRole("menuitem", { name: /Realizar solicitud/i });
+}
+
 describe("RevisarSolicitudesView contexto de citas", () => {
     it("abre otras solicitudes y citas con acciones condicionales", async () => {
         render(<RevisarSolicitudesView />);
 
         await screen.findByText("SOL-1");
-        fireEvent.click(screen.getByRole("button", { name: /Gestionar/i }));
-        fireEvent.click(screen.getByRole("button", { name: /Otras solicitudes y citas/i }));
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledWith("12345678-5", "SOL-1"));
         expect(screen.getByText("Solicitudes y citas en curso")).toBeInTheDocument();
@@ -94,8 +110,8 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         render(<RevisarSolicitudesView />);
 
         await screen.findByText("SOL-1");
-        fireEvent.click(screen.getByRole("button", { name: /Gestionar/i }));
-        fireEvent.click(screen.getByRole("button", { name: /Otras solicitudes y citas/i }));
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
         const botonAccion = within(modalContexto).getByRole("button", { name: accion });
@@ -133,8 +149,8 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         render(<RevisarSolicitudesView />);
 
         await screen.findByText("SOL-1");
-        fireEvent.click(screen.getByRole("button", { name: /Gestionar/i }));
-        fireEvent.click(screen.getByRole("button", { name: /Otras solicitudes y citas/i }));
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
         const botonRechazar = within(modalContexto).getByRole("button", { name: "Rechazar" });
@@ -154,5 +170,79 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         await waitFor(() => expect(screen.queryByRole("dialog", { name: "Resumen de gestion" })).not.toBeInTheDocument());
         expect(modalContexto).toBeInTheDocument();
         expect(botonRechazar).toHaveFocus();
+    });
+});
+
+describe("RevisarSolicitudesView tabla compacta", () => {
+    it("muestra una fila agrupando solicitud, paciente y tipo con motivo", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+
+        expect(screen.getByRole("columnheader", { name: "Solicitud" })).toBeInTheDocument();
+        expect(screen.getByRole("columnheader", { name: "Paciente" })).toBeInTheDocument();
+        expect(screen.getByRole("columnheader", { name: "Tipo / Motivo" })).toBeInTheDocument();
+        expect(screen.queryByRole("columnheader", { name: "RUT" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("columnheader", { name: "Nombre usuario" })).not.toBeInTheDocument();
+
+        expect(screen.getByText("Juan Perez")).toBeInTheDocument();
+        expect(screen.getByText("12345678-5")).toBeInTheDocument();
+        expect(screen.getByText("Atencion")).toBeInTheDocument();
+        expect(screen.getByText("Control")).toBeInTheDocument();
+    });
+
+    it("muestra Sin motivo cuando la solicitud no tiene motivo", async () => {
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({
+            solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-3", motivo: null }],
+            total: 1,
+            page: 1,
+            pageSize: 100,
+            totalPages: 1
+        } as Awaited<ReturnType<typeof getSolicitudes>>);
+
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-3");
+        expect(screen.getByText("Sin motivo")).toBeInTheDocument();
+    });
+
+    it("abre Gestionar como menu con las cuatro acciones", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+
+        expect(screen.getByRole("menuitem", { name: /Realizar solicitud/i })).toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: /Rechazar solicitud/i })).toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: "Otras solicitudes y citas" })).toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: /Editar usuario/i })).toBeInTheDocument();
+    });
+
+    it("cada opcion de Gestionar abre su flujo principal", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+        expect(await screen.findByRole("dialog", { name: "Realizar solicitud" })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+        expect(await screen.findByRole("dialog", { name: "Rechazar solicitud" })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledWith("12345678-5", "SOL-1"));
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Cerrar" }));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Solicitudes y citas en curso" })).not.toBeInTheDocument());
+
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Editar usuario/i }));
+        expect(await screen.findByRole("dialog", { name: /Editar usuario/i })).toBeInTheDocument();
     });
 });
