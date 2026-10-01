@@ -153,7 +153,7 @@ export async function crearSolicitud(input: CrearSolicitudInput): Promise<Result
             }
         });
 
-        if (duplicada) return { duplicada } as const;
+        if (duplicada) return { duplicada, solicitud: null } as const;
 
         const fechaIngreso = new Date();
         const edadIngreso = calcularEdad(usuario.fecha_nacimiento, fechaIngreso);
@@ -199,10 +199,10 @@ export async function crearSolicitud(input: CrearSolicitudInput): Promise<Result
             }
         });
 
-        return { solicitud } as const;
+        return { duplicada: null, solicitud } as const;
     });
 
-    if ("duplicada" in resultado) {
+    if (resultado.duplicada) {
         await AuditLogger.logDataAccess("CREATE", false, { id: user.email, name: user.nombre, rut: user.rut }, resultado.duplicada.id_solicitud, {
             details: `Solicitud duplicada bloqueada para RUT ${usuario.rut}`
         });
