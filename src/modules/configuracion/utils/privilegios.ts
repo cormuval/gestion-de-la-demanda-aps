@@ -75,10 +75,6 @@ export function esNombreReservado(nombre: string): boolean {
     return nombre.trim().toLocaleLowerCase("es-CL") === NOMBRE_ROL_RESERVADO.toLocaleLowerCase("es-CL");
 }
 
-export function rolTienePermiso(rol: RolEvaluado | null, permiso: Permiso): boolean {
-    return Boolean(rol?.permisos.has(permiso));
-}
-
 export function quedaAdministrador(admins: AdminEvaluado[], cambio: CambioAdmin): boolean {
     return admins.some((admin) => {
         if (cambio.tipo === "funcionario") return admin.rut !== cambio.rut;

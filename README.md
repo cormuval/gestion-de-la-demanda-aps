@@ -1,66 +1,35 @@
-# Gestion de la Demanda
+# Gestion de la Demanda — APS Valparaiso
 
-Aplicacion web (Next.js App Router + TypeScript) para gestionar la demanda de atencion en APS (Valparaiso): solicitudes, comunicador (citas + llamados), dashboard y configuracion. App unica: front y back en Next.js.
+Sistema web que apoya a los centros de salud de atencion primaria de Valparaiso a gestionar la
+demanda de atencion de sus pacientes: desde que se recibe una solicitud hasta que el paciente queda
+coordinado para recibir su prestacion.
 
-## Stack
+## Como funciona
 
-- Next.js 15 (App Router) + React 19 + TypeScript (strict)
-- Tailwind CSS v3 + shadcn/ui (estilo new-york)
-- Backend integrado via Server Actions; Prisma + MySQL 8.4 (Docker)
-- Autenticacion NextAuth v5 (Google OAuth)
-- Zod + react-hook-form, sonner (toasts), Vitest (tests)
+1. **Ingreso de solicitudes.** El equipo registra lo que el paciente necesita (prestacion, motivo,
+   prioridad), viendo antes lo que ya tiene pendiente para no duplicar solicitudes.
+2. **Revision y gestion.** Las solicitudes se revisan, se realizan o se rechazan. Al gestionarlas se
+   generan las citas y, en el mismo espacio, quedan a la vista las demas solicitudes y citas
+   pendientes del paciente.
+3. **Contacto telefonico.** Desde la cola de llamadas se contacta al paciente para coordinar la
+   entrega de la prestacion, registrando cada intento y su resultado.
 
-## Estructura
+El sistema esta pensado **en el paciente completo**: en cada etapa muestra lo que ya existe para el,
+de modo que no se repitan acciones y las revisiones y llamadas sean eficientes.
 
-- `src/app` — rutas (grupo `(app)` protegido) y `api/auth`
-- `src/modules/[modulo]` — dominios (actions, components, schemas, types)
-- `src/shared` — ui (shadcn), layout, lib (prisma, auth, logger), types
-- `prisma` — schema y seed
+## Complementos
 
-Convenciones y arquitectura detalladas: ver [AGENTS.md](./AGENTS.md).
+- **Dashboard:** indicadores de solicitudes, citas y llamados.
+- **SOME:** panel de seguimiento de citas por centro.
+- **Configuracion:** funcionarios, roles y permisos, y catalogos (tipos de solicitud, motivos,
+  prestaciones, profesionales).
 
-## Puesta en marcha
+## Acceso
 
-1. Instala dependencias:
-   ```bash
-   npm install
-   ```
-2. Copia `.env.example` a `.env` y completa:
-   - `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` (cliente OAuth de Google)
-   - `AUTH_SECRET` (generalo con `npx auth secret`)
-   - `DATABASE_URL` (apunta a MySQL en el puerto `3308`)
-3. Levanta MySQL (Docker, host `3308`):
-   ```bash
-   npm run services:up
-   ```
-4. Prepara la base:
-   ```bash
-   npm run db:generate && npm run db:push && npm run db:seed && npm run db:seed:ref
-   ```
-   - `db:seed` crea roles, menus y funcionarios demo.
-   - `db:seed:ref` carga datos de referencia reales (centros, profesionales, prestaciones, tipos de solicitud y motivos) desde `prisma/seed-data/referencia.sql`.
-5. Inicia la app:
-   ```bash
-   npm run dev
-   ```
-   Disponible en http://localhost:3000
+Ingresan solo funcionarios registrados y activos, con su cuenta Google. Lo que cada
+uno ve y puede hacer depende de los permisos de su rol y de su centro.
 
-## Autenticacion
+## Desarrollo
 
-- Login 100% Google OAuth. Solo entran correos registrados como `funcionarios` con `estado = 'Activo'` (los `@demo.local` del seed no sirven con Google real; usa un correo real sembrado en el seed).
-- En el cliente OAuth de Google, registra el redirect URI:
-  ```
-  http://localhost:3000/api/auth/callback/google
-  ```
-
-## Reglas de pendientes
-
-- Solicitudes pendientes: `solicitudes.estado_solicitud = 'En Curso'`.
-- Citas/gestiones pendientes: `llamadas.respuesta_usuario` en `Sin llamadas`, `No contesta (1)`, `No contesta (2)`.
-
-## Tests
-
-```bash
-npm test        # Vitest
-npm run lint    # ESLint
-```
+Aplicacion Next.js + MySQL. Stack, puesta en marcha local, convenciones y metodologia de trabajo:
+ver [AGENTS.md](./AGENTS.md). Decisiones de diseno de cada funcionalidad: `docs/superpowers/specs/`.

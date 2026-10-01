@@ -1,23 +1,18 @@
 # Implementacion basada en ER
 
-El schema inicial conserva las entidades visibles en el diagrama ER:
+Fuente de verdad: `prisma/schema.prisma` (cambios versionados en `prisma/migrations/`).
 
-- `roles`
-- `menu`
-- `funcionarios`
-- `usuarios`
-- `solicitudes`
-- `llamadas`
-- `motivos`
-- `tipo_solicitud`
-- `prestaciones`
-- `profesionales`
-- `estadisticas`
+Entidades: `roles`, `roles_permisos`, `funcionarios`, `usuarios` (pacientes), `centros`,
+`solicitudes`, `citas`, `llamadas`, `tipo_solicitud`, `motivos`, `prestaciones`, `profesionales`,
+`estadisticas` y `logs`.
 
-Se agrego `password_hash` en `funcionarios` (actualmente opcional; el login es Google OAuth) y `role_id` en `menu` para materializar permisos por rol.
+Relacion del flujo principal: `solicitudes` 1—N `citas` 1—N `llamadas`.
 
-Las columnas principales del ER se mantienen en snake case para facilitar comparacion con la base original, incluyendo `estado_solicitud`, `rut_usuario`, `rut_orientador`, `rut_gestor`, `tipo_solicitud_id`, `motivo_id`, `centro_id`, `disponibilidad_llamada` y `priorizacion_admin`.
+Las columnas principales del ER original se mantienen en snake case para facilitar la comparacion con
+la base original (`estado_solicitud`, `rut_usuario`, `rut_orientador`, `rut_gestor`,
+`tipo_solicitud_id`, `motivo_id`, `centro_id`, `disponibilidad_llamada`, `priorizacion_admin`).
 
-## AuditLog
-
-Se agrego el modelo `AuditLog` (tabla `logs`) para registrar auditoria de autenticacion y acceso a datos desde las Server Actions. `funcionarios.password_hash` quedo opcional porque el login es via Google OAuth.
+- `funcionarios.password_hash` es opcional: el login es Google OAuth.
+- La tabla `menu` se elimino (migracion `20260724184201_eliminar_tabla_menu`); el acceso se rige por
+  `roles_permisos` (ver `docs/rbac-permisos.md`).
+- `logs` (modelo `AuditLog`) registra auditoria de autenticacion y acceso a datos desde las Server Actions.

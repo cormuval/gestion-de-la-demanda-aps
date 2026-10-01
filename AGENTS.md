@@ -1,10 +1,26 @@
 # AGENTS.md — Gestion de la Demanda (APS)
 
-App web para gestionar la demanda de atencion en salud primaria (Valparaiso): solicitudes, comunicador (citas + llamados), dashboard y configuracion. App unica Next.js (front + back).
+## Constitucion
 
-## Metodologia de desarrollo (SDD + superpowers)
+Aplicacion web para apoyar la gestion de la demanda de atencion en la salud primaria (Valparaiso).
+Su flujo principal, y razon de ser, es: **se ingresa una solicitud → la solicitud se gestiona → se
+contacta telefonicamente al usuario para coordinar la entrega de la prestacion**. Asi se gestiona la
+demanda. Todo lo demas (dashboard, SOME, configuracion, catalogos) es complementario a ese flujo y
+no debe competir con el ni complicarlo. App unica Next.js (front + back).
 
-El proyecto se desarrolla con **SDD (Subagent-Driven Development)** sobre el framework
+**Premisa: integralidad centrada en el paciente.** En las tres etapas el sistema mira al paciente
+completo, no solo la solicitud en curso, para no duplicar acciones y hacer eficientes las revisiones
+y llamadas:
+
+- **Ingreso:** evitar solicitudes duplicadas para el mismo paciente.
+- **Gestion:** al revisar una solicitud, mostrar en el mismo espacio las demas pendientes del paciente.
+- **Contacto:** al llamar, mostrar todo lo pendiente del paciente para resolverlo en un solo llamado.
+
+Toda funcionalidad nueva de estas etapas debe respetar esta premisa.
+
+## Metodologia de desarrollo (SDD)
+
+El proyecto se desarrolla con **SDD (Subagent-Driven Development)** usando el framework
 **superpowers**. No es opcional para trabajo de fondo: es la forma en que se toman y se documentan
 las decisiones del proyecto.
 
@@ -15,40 +31,16 @@ del proceso**: el spec y el plan quedan versionados en el repo antes de escribir
 **Cuando basta el flujo directo:** correcciones puntuales, ajustes de copy, refactors mecanicos sin
 cambio de comportamiento. Ante la duda, aplicar SDD.
 
-Ciclo:
-
-1. `brainstorming` — explorar intencion y requisitos **antes** de disenar.
-2. `writing-plans` — spec en `docs/superpowers/specs/AAAA-MM-DD-<tema>-design.md` y plan por tareas
-   en `docs/superpowers/plans/AAAA-MM-DD-<tema>.md`.
-3. `using-git-worktrees` — aislar la rama de trabajo.
-4. `subagent-driven-development` (o `executing-plans`) — ejecutar el plan tarea por tarea.
-5. `test-driven-development` — test que falla, implementacion, test que pasa. En cada tarea.
-6. `systematic-debugging` — ante cualquier bug o test rojo, antes de proponer un fix.
-7. `verification-before-completion` — correr los comandos y confirmar la salida **antes** de decir
-   que algo esta listo. Evidencia antes de afirmaciones.
-8. `requesting-code-review` / `receiving-code-review` — revisar con rigor tecnico, no por cortesia.
-9. `finishing-a-development-branch` — cerrar e integrar.
-
 ### Skills requeridas en cada entorno local
-
-Las skills **se versionan en `.agents/skills/`**, junto con `skills-lock.json`. Un clon nuevo ya las
-trae; no hay que instalarlas para leerlas.
-
-`.claude/skills/` **no** se versiona (esta en `.gitignore`): son symlinks a `.agents/skills/` con
-rutas absolutas, propias de cada maquina. Se regeneran localmente ejecutando el instalador, que es
-idempotente:
 
 ```bash
 npx skills add obra/superpowers
 npx skills add https://github.com/shadcn/ui --skill shadcn
+npx skills add https://github.com/google-labs-code/stitch-skills --skill shadcn-ui
 ```
 
 Esos mismos comandos son los que hay que correr si en un entorno **faltan** las skills o hay que
-actualizarlas. Se instalan **todas** las de superpowers: `brainstorming`, `systematic-debugging`,
-`writing-plans`, `using-superpowers`, `requesting-code-review`, `test-driven-development`,
-`executing-plans`, `subagent-driven-development`, `verification-before-completion`,
-`receiving-code-review`, `writing-skills`, `dispatching-parallel-agents`, `using-git-worktrees`,
-`finishing-a-development-branch`.
+actualizarlas. Se deben instalar **todas** las de superpowers.
 
 La skill **`shadcn` es obligatoria**: todo el frontend se construye sobre shadcn/ui, y esa skill
 aporta el contexto del proyecto, la documentacion de componentes y los ejemplos de uso.
@@ -62,21 +54,26 @@ todo el equipo quede en la misma version.
 - Prisma + MySQL 8.4 (Docker) — backend via Server Actions
 - NextAuth v5 (Auth.js) con Google OAuth
 - Tailwind v3 + shadcn/ui (estilo new-york) + sonner (toasts)
-- Zod + react-hook-form; Vitest + Testing Library
+- Zod; Vitest + Testing Library
 
-## Estructura
+## Arquitectura
 
 ```
 prisma/                      schema.prisma + seed.ts
 src/
   app/                       rutas; grupo (app) protegido; auth/; api/auth/[...nextauth]
   modules/[modulo]/          actions/ components/ hooks/ schemas/ types/ utils/
-  shared/                    components/(ui shadcn, layout) · lib/(prisma, auth, logger) · types/ · utils/
-  config/                    constantes
+  shared/                    components/(ui shadcn, layout) · hooks/ · lib/(prisma, auth, permisos, logger) · types/
+  config/                    constantes (permisos, navegacion)
   auth.ts · auth.config.ts · middleware.ts
 ```
 
-Modulos: `solicitudes`, `comunicador` (citas+llamados unificados), `dashboard`, `usuarios-roles`, `catalogos`.
+Modulos: `solicitudes`, `comunicador` (citas + llamados), `dashboard`, `some`, `configuracion`
+(funcionarios, roles, permisos), `catalogos`.
+
+**La aplicacion es modular y la convencion se respeta en todo el ciclo de desarrollo.** Lo exclusivo
+de un modulo o entidad (actions, componentes, hooks, schemas, tipos, interfaces, utils) vive en
+`src/modules/[modulo]/`. Solo lo que comparten varios modulos va a `src/shared/`.
 
 ## Comandos
 
@@ -84,53 +81,55 @@ Modulos: `solicitudes`, `comunicador` (citas+llamados unificados), `dashboard`, 
 - `npm run db:generate | db:push | db:seed | db:studio`
 - `npm run services:up | services:down` (MySQL por Docker, host **3308**)
 
-## Entorno local
+## Configuracion del Entorno local
 
-1. `cp .env.example .env`; completar `AUTH_GOOGLE_ID/SECRET`, `AUTH_SECRET` (`npx auth secret`), `DATABASE_URL` (puerto 3308).
+1. `npm install`; `cp .env.example .env`; completar `AUTH_GOOGLE_ID/SECRET`, `AUTH_SECRET` (`npx auth secret`), `DATABASE_URL` (puerto 3308).
 2. `npm run services:up && npm run db:generate && npm run db:push && npm run db:seed && npm run db:seed:ref`
-   - `db:seed`: roles, permisos, funcionarios demo. `db:seed:ref`: datos de referencia reales (centros, profesionales, prestaciones, tipos, motivos) desde `prisma/seed-data/referencia.sql`.
-3. `npm run dev` → http://localhost:3000
-- Login Google requiere redirect URI `http://localhost:3000/api/auth/callback/google` registrado en el cliente OAuth.
+   - `db:seed`: roles, permisos, funcionarios demo. `db:seed:ref`: datos de referencia reales desde `prisma/seed-data/referencia.sql`.
+3. `npm run dev` → http://localhost:3000 (Google OAuth requiere el redirect URI `http://localhost:3000/api/auth/callback/google`; para entrar, usar un correo real sembrado como funcionario activo, los `@demo.local` no sirven).
 
 ## Convenciones
 
 - Idioma: espanol (UI, comentarios, commits). Indentacion: 4 espacios.
-- TypeScript strict; tipos explicitos. `interface` para objetos, `type`/`as const` para uniones.
+- `interface` para objetos, `type`/`as const` para uniones; tipos explicitos.
 - Alias `@/` -> `src/`. Imports categorizados con comentarios (`// lib`, `// components`, ...).
-- Componentes PascalCase; funciones/vars camelCase; Server Actions con sufijo `.action.ts`.
 - Revisar `shared/components/ui` antes de crear componentes nuevos.
 
 ## Backend (Server Actions)
 
-- Mutaciones/consultas internas en `src/modules/[modulo]/actions/*.action.ts` con `'use server'`.
-- Validar inputs con Zod. Control de acceso con `requirePermiso('modulo.accion')` de `src/shared/lib/permisos.ts`.
+- En `src/modules/[modulo]/actions/*.action.ts`. API Routes solo para integraciones externas (hoy: `api/auth/[...nextauth]`).
+- Validar inputs con Zod; control de acceso con `requirePermiso('modulo.accion')`.
+- Devolver `ResultadoAccion<T>` (`src/shared/types/resultado.ts`) en vez de lanzar errores: en produccion Next oculta el mensaje.
 - Auditar operaciones de datos con `AuditLogger` (`src/shared/lib/logger.ts`, tabla `logs`).
-- API Routes solo para integraciones externas (hoy: `api/auth/[...nextauth]`).
-- Feedback de UI con `toast` (sonner); manejo de errores con `try/catch`. Sin `console.log` en produccion.
+- Feedback de UI con `toast` (sonner). Sin `console.log` en produccion.
 
 ## Auth
 
 - NextAuth v5 Google. Split config: `auth.config.ts` (edge-safe, sin Prisma) + `auth.ts` (callbacks con Prisma).
-- `signIn` solo permite emails que existan en `funcionarios` con `estado = 'Activo'`.
-- La sesion expone `rut`, `nombre`, `rol` y `centro`; los permisos se leen por request desde `roles_permisos` (`src/shared/lib/permisos.ts`).
-- `signIn` tambien exige que el `Role` del funcionario este activo.
+- `signIn` solo permite emails de `funcionarios` con `estado = 'Activo'` y cuyo `Role` este activo.
+- La sesion expone `rut`, `nombre`, `rol` y `centro`; los permisos se leen por request desde `roles_permisos`.
 
-## Datos y reglas de negocio
+## Reglas de negocio
 
-- Modelos clave: `Funcionario`/`Role`/`RolPermiso`, `Usuario`, `Solicitud`, `Llamada`, `TipoSolicitud`/`Motivo`.
-- Una cita (solicitud) puede tener varias llamadas (`Llamada.cita_id -> Solicitud`).
+- Modelos clave: `Funcionario`/`Role`/`RolPermiso`, `Usuario` (paciente), `Solicitud`, `Cita`, `Llamada`, `TipoSolicitud`/`Motivo`.
+- Una solicitud genera citas (`Cita.solicitud_id`) y cada cita puede tener varias llamadas (`Llamada.cita_id`).
 - Solicitudes pendientes: `estado_solicitud = 'En Curso'`.
-- Citas/gestiones pendientes: `respuesta_usuario` en `Sin llamadas`, `No contesta (1)`, `No contesta (2)`.
-- Autorizacion RBAC: catalogo de permisos en `src/config/permisos.ts`; asignacion por rol en la tabla `roles_permisos`, editable desde Configuracion -> Roles -> Permisos.
-- Anti-escalada RBAC: desde Configuracion nadie puede otorgar permisos que su propio rol no tiene,
-  editar roles/funcionarios superiores, cambiar su propio rol/estado/centro, ni dejar el sistema sin
-  administradores activos. Ver `docs/rbac-permisos.md`.
-- Paginas protegidas con `requirePermisoPagina`; Server Actions con `requirePermiso`. El middleware solo valida autenticacion.
-- El seed siembra permisos solo para roles sin ninguno (bootstrap); una vez configurado un rol, el mantenedor es la fuente de verdad.
-- **Antes de tocar permisos, leer `docs/rbac-permisos.md`**: explica que vive en codigo y que en BD, el flujo completo, las salvaguardas, y el **procedimiento paso a paso para crear, quitar o renombrar un permiso** (incluye checklist). Agregar un permiso es cambio de codigo + deploy; no se puede crear desde la UI.
+- Citas pendientes: `estado_cita` en `ESTADOS_PENDIENTES` (`src/modules/comunicador/types/comunicador.ts`).
+
+## Permisos (RBAC)
+
+**Antes de tocar permisos, leer `docs/rbac-permisos.md`** (que vive en codigo y que en BD, salvaguardas
+y checklist para crear, quitar o renombrar un permiso).
+
+- Catalogo en `src/config/permisos.ts`; asignacion por rol en `roles_permisos`, editable desde
+  Configuracion -> Roles -> Permisos. Agregar un permiso es cambio de codigo + deploy.
+- Paginas con `requirePermisoPagina`; Server Actions con `requirePermiso`. El middleware solo valida autenticacion.
+- Anti-escalada: nadie puede otorgar permisos que su rol no tiene, editar roles/funcionarios
+  superiores, cambiar su propio rol/estado/centro, ni dejar el sistema sin administradores activos.
+- El seed siembra permisos solo para roles sin ninguno; luego el mantenedor es la fuente de verdad.
 
 ## Documentacion del proyecto
 
-- `docs/rbac-permisos.md` — RBAC: catalogo, `roles_permisos`, guards, y como crear un permiso nuevo.
+- `docs/rbac-permisos.md` — RBAC.
 - `docs/er-implementacion.md` — modelo de datos.
-- `docs/superpowers/specs/` y `docs/superpowers/plans/` — specs y planes SDD de cada feature (fuente para entender por que algo esta hecho como esta).
+- `docs/superpowers/specs/` y `docs/superpowers/plans/` — specs y planes SDD de cada feature (por que algo esta hecho como esta).
