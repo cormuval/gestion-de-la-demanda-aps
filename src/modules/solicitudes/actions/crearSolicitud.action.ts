@@ -5,14 +5,61 @@ import crypto from "node:crypto";
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
-import { CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "@/modules/catalogos/utils/centroTipoSolicitud";
+import { type CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "@/modules/catalogos/utils/centroTipoSolicitud";
 // schemas
 import { crearSolicitudSchema, CrearSolicitudInput } from "../schemas/solicitud.schema";
+// types
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // utils
 import { calcularEdad } from "../utils/priorizacion";
 import { normalizarRut } from "../utils/rut";
+import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada, type SolicitudEnCurso } from "../utils/duplicados";
 
-async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string> {
+interface SolicitudCreada {
+    id_solicitud: string;
+    estado_solicitud: string;
+    fecha_inicio: Date;
+    centro_id: string | null;
+    descripcion: string | null;
+    disponibilidad_llamada: string | null;
+    priorizacion_admin: number | null;
+    ultimo_control: string | null;
+    accion: string | null;
+    usuario: {
+        rut: string;
+        nombre: string;
+        apellido: string;
+        nombre_social: string | null;
+        telefono: string | null;
+        telefono_alternativo: string | null;
+    };
+    tipoSolicitud: { id_tipo_solicitud: number; nombre_tipo_solicitud: string };
+    motivo: { id_motivo: number; nombre_motivo: string } | null;
+}
+
+interface CrearSolicitudOk {
+    solicitud: SolicitudCreada;
+    voucher: {
+        id_solicitud: string;
+        fecha_inicio: Date;
+        rut: string;
+        usuario: {
+            rut: string;
+            nombre: string;
+            apellido: string;
+            nombre_social: string | null;
+            telefono: string | null;
+            telefono_alternativo: string | null;
+        };
+        tipoSolicitud: { id_tipo_solicitud: number; nombre_tipo_solicitud: string };
+        motivo: { id_motivo: number; nombre_motivo: string } | null;
+        profesional: string;
+        centro: string;
+        disponibilidad_llamada: string | null;
+    };
+}
+
+async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string | null> {
     if (centroSesion) return centroSesion;
 
     const funcionario = await prisma.funcionario.findUnique({
@@ -20,8 +67,7 @@ async function getCentroFuncionario(rutFuncionario: string, centroSesion: string
         select: { centro_id: true }
     });
 
-    if (!funcionario?.centro_id) throw new Error("El funcionario activo no tiene centro asignado");
-    return funcionario.centro_id;
+    return funcionario?.centro_id ?? null;
 }
 
 async function getNombreCentro(centroId: string): Promise<string | null> {
@@ -42,14 +88,16 @@ function buildTipoSolicitudWhere(idTipoSolicitud: number, centroColumna: CentroT
     };
 }
 
-export async function crearSolicitud(input: CrearSolicitudInput) {
+export async function crearSolicitud(input: CrearSolicitudInput): Promise<ResultadoAccion<CrearSolicitudOk>> {
     const user = await requirePermiso("solicitudes.crear");
 
     const data = crearSolicitudSchema.parse(input);
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
+    if (!centroId) return { ok: false, error: "El funcionario activo no tiene centro asignado" };
+
     const nombreCentro = await getNombreCentro(centroId);
     const centroColumna = getColumnaTipoSolicitudPorCentro(nombreCentro);
-    if (!centroColumna) throw new Error("No se pudo validar el centro del funcionario para el tipo de solicitud");
+    if (!centroColumna) return { ok: false, error: "No se pudo validar el centro del funcionario para el tipo de solicitud" };
 
     const [usuario, tipoSolicitud, motivo, motivosActivos] = await Promise.all([
         prisma.usuario.findUnique({
@@ -82,21 +130,28 @@ export async function crearSolicitud(input: CrearSolicitudInput) {
         prisma.motivo.count({ where: { tipo_solicitud_id: data.tipo_solicitud_id, estado: "1" } })
     ]);
 
-    if (!usuario) throw new Error("Debes crear o confirmar el usuario antes de ingresar la solicitud");
-    if (!tipoSolicitud) throw new Error("Tipo de solicitud inactivo, no encontrado o no habilitado para el centro del funcionario");
-    if (data.motivo_id && !motivo) throw new Error("Motivo inactivo, no encontrado o no asociado al tipo de solicitud");
-    if (!data.motivo_id && motivosActivos > 0) throw new Error("Motivo requerido para el tipo de solicitud seleccionado");
+    if (!usuario) return { ok: false, error: "Debes crear o confirmar el usuario antes de ingresar la solicitud" };
+    if (!tipoSolicitud) return { ok: false, error: "Tipo de solicitud inactivo, no encontrado o no habilitado para el centro del funcionario" };
+    if (data.motivo_id && !motivo) return { ok: false, error: "Motivo inactivo, no encontrado o no asociado al tipo de solicitud" };
+    if (!data.motivo_id && motivosActivos > 0) return { ok: false, error: "Motivo requerido para el tipo de solicitud seleccionado" };
 
-    const solicitudDuplicada = await prisma.solicitud.findFirst({
+    const solicitudesEnCurso = await prisma.solicitud.findMany({
         where: {
             rut_usuario: usuario.rut,
-            tipo_solicitud_id: data.tipo_solicitud_id,
-            motivo_id: data.motivo_id,
             estado_solicitud: "En Curso"
         },
-        select: { id_solicitud: true }
+        select: {
+            id_solicitud: true,
+            fecha_inicio: true,
+            tipo_solicitud_id: true,
+            motivo_id: true
+        }
     });
-    if (solicitudDuplicada) throw new Error("El usuario ya posee una solicitud en curso del mismo tipo y motivo.");
+    const solicitudDuplicada = buscarSolicitudDuplicada<SolicitudEnCurso>(solicitudesEnCurso, {
+        tipo_solicitud_id: data.tipo_solicitud_id,
+        motivo_id: data.motivo_id
+    });
+    if (solicitudDuplicada) return { ok: false, error: mensajeSolicitudDuplicada(solicitudDuplicada) };
 
     const fechaIngreso = new Date();
     const edadIngreso = calcularEdad(usuario.fecha_nacimiento, fechaIngreso);
@@ -147,17 +202,20 @@ export async function crearSolicitud(input: CrearSolicitudInput) {
     });
 
     return {
-        solicitud,
-        voucher: {
-            id_solicitud: solicitud.id_solicitud,
-            fecha_inicio: solicitud.fecha_inicio,
-            rut: solicitud.usuario.rut,
-            usuario: solicitud.usuario,
-            tipoSolicitud: solicitud.tipoSolicitud,
-            motivo: solicitud.motivo,
-            profesional: user.nombre,
-            centro: nombreCentro ?? centroId,
-            disponibilidad_llamada: solicitud.disponibilidad_llamada
+        ok: true,
+        data: {
+            solicitud,
+            voucher: {
+                id_solicitud: solicitud.id_solicitud,
+                fecha_inicio: solicitud.fecha_inicio,
+                rut: solicitud.usuario.rut,
+                usuario: solicitud.usuario,
+                tipoSolicitud: solicitud.tipoSolicitud,
+                motivo: solicitud.motivo,
+                profesional: user.nombre,
+                centro: nombreCentro ?? centroId,
+                disponibilidad_llamada: solicitud.disponibilidad_llamada
+            }
         }
     };
 }
