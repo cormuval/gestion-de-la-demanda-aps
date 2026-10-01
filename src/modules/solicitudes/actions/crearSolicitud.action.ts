@@ -13,7 +13,7 @@ import type { ResultadoAccion } from "@/shared/types/resultado";
 // utils
 import { calcularEdad } from "../utils/priorizacion";
 import { normalizarRut } from "../utils/rut";
-import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada, type SolicitudEnCurso } from "../utils/duplicados";
+import { mensajeSolicitudDuplicada } from "../utils/duplicados";
 
 interface SolicitudCreada {
     id_solicitud: string;
@@ -135,67 +135,81 @@ export async function crearSolicitud(input: CrearSolicitudInput): Promise<Result
     if (data.motivo_id && !motivo) return { ok: false, error: "Motivo inactivo, no encontrado o no asociado al tipo de solicitud" };
     if (!data.motivo_id && motivosActivos > 0) return { ok: false, error: "Motivo requerido para el tipo de solicitud seleccionado" };
 
-    const solicitudesEnCurso = await prisma.solicitud.findMany({
-        where: {
-            rut_usuario: usuario.rut,
-            estado_solicitud: "En Curso"
-        },
-        select: {
-            id_solicitud: true,
-            fecha_inicio: true,
-            tipo_solicitud_id: true,
-            motivo_id: true
-        }
-    });
-    const solicitudDuplicada = buscarSolicitudDuplicada<SolicitudEnCurso>(solicitudesEnCurso, {
-        tipo_solicitud_id: data.tipo_solicitud_id,
-        motivo_id: data.motivo_id
-    });
-    if (solicitudDuplicada) return { ok: false, error: mensajeSolicitudDuplicada(solicitudDuplicada) };
+    const resultado = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT rut FROM usuarios WHERE rut = ${usuario.rut} FOR UPDATE`;
 
-    const fechaIngreso = new Date();
-    const edadIngreso = calcularEdad(usuario.fecha_nacimiento, fechaIngreso);
-
-    const solicitud = await prisma.solicitud.create({
-        data: {
-            id_solicitud: `SOL-${crypto.randomUUID()}`,
-            rut_orientador: user.rut,
-            rut_usuario: usuario.rut,
-            tipo_solicitud_id: data.tipo_solicitud_id,
-            motivo_id: data.motivo_id,
-            descripcion: data.descripcion || null,
-            disponibilidad_llamada: data.disponibilidad_llamada || null,
-            priorizacion_admin: usuario.priorizacion_administrativa,
-            ultimo_control: edadIngreso === null ? null : String(edadIngreso),
-            accion: "En espera de validación",
-            estado_solicitud: "En Curso",
-            fecha_inicio: fechaIngreso,
-            centro_id: centroId
-        },
-        select: {
-            id_solicitud: true,
-            estado_solicitud: true,
-            fecha_inicio: true,
-            centro_id: true,
-            descripcion: true,
-            disponibilidad_llamada: true,
-            priorizacion_admin: true,
-            ultimo_control: true,
-            accion: true,
-            usuario: {
-                select: {
-                    rut: true,
-                    nombre: true,
-                    apellido: true,
-                    nombre_social: true,
-                    telefono: true,
-                    telefono_alternativo: true
-                }
+        const duplicada = await tx.solicitud.findFirst({
+            where: {
+                rut_usuario: usuario.rut,
+                tipo_solicitud_id: data.tipo_solicitud_id,
+                motivo_id: data.motivo_id,
+                estado_solicitud: "En Curso"
             },
-            tipoSolicitud: { select: { id_tipo_solicitud: true, nombre_tipo_solicitud: true } },
-            motivo: { select: { id_motivo: true, nombre_motivo: true } }
-        }
+            select: {
+                id_solicitud: true,
+                fecha_inicio: true,
+                tipo_solicitud_id: true,
+                motivo_id: true
+            }
+        });
+
+        if (duplicada) return { duplicada } as const;
+
+        const fechaIngreso = new Date();
+        const edadIngreso = calcularEdad(usuario.fecha_nacimiento, fechaIngreso);
+
+        const solicitud = await tx.solicitud.create({
+            data: {
+                id_solicitud: `SOL-${crypto.randomUUID()}`,
+                rut_orientador: user.rut,
+                rut_usuario: usuario.rut,
+                tipo_solicitud_id: data.tipo_solicitud_id,
+                motivo_id: data.motivo_id,
+                descripcion: data.descripcion || null,
+                disponibilidad_llamada: data.disponibilidad_llamada || null,
+                priorizacion_admin: usuario.priorizacion_administrativa,
+                ultimo_control: edadIngreso === null ? null : String(edadIngreso),
+                accion: "En espera de validación",
+                estado_solicitud: "En Curso",
+                fecha_inicio: fechaIngreso,
+                centro_id: centroId
+            },
+            select: {
+                id_solicitud: true,
+                estado_solicitud: true,
+                fecha_inicio: true,
+                centro_id: true,
+                descripcion: true,
+                disponibilidad_llamada: true,
+                priorizacion_admin: true,
+                ultimo_control: true,
+                accion: true,
+                usuario: {
+                    select: {
+                        rut: true,
+                        nombre: true,
+                        apellido: true,
+                        nombre_social: true,
+                        telefono: true,
+                        telefono_alternativo: true
+                    }
+                },
+                tipoSolicitud: { select: { id_tipo_solicitud: true, nombre_tipo_solicitud: true } },
+                motivo: { select: { id_motivo: true, nombre_motivo: true } }
+            }
+        });
+
+        return { solicitud } as const;
     });
+
+    if ("duplicada" in resultado) {
+        await AuditLogger.logDataAccess("CREATE", false, { id: user.email, name: user.nombre, rut: user.rut }, resultado.duplicada.id_solicitud, {
+            details: `Solicitud duplicada bloqueada para RUT ${usuario.rut}`
+        });
+        return { ok: false, error: mensajeSolicitudDuplicada(resultado.duplicada) };
+    }
+
+    const { solicitud } = resultado;
 
     await AuditLogger.logDataAccess("CREATE", true, { id: user.email, name: user.nombre, rut: user.rut }, solicitud.id_solicitud, {
         details: `Solicitud creada para RUT ${usuario.rut}`
