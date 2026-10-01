@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Printer, Search, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Printer, Search, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getCatalogos } from "@/modules/catalogos/actions/getCatalogos.action";
@@ -16,6 +16,7 @@ import { acortarId } from "@/shared/lib/acortarId";
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
 import { PendientesCascada } from "@/modules/solicitudes/components/PendientesCascada";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
@@ -24,10 +25,13 @@ import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 // types
 import type { Catalogos } from "@/modules/catalogos/types/catalogos";
+// utils
+import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada } from "@/modules/solicitudes/utils/duplicados";
 
 type UsuarioConfirmado = NonNullable<Awaited<ReturnType<typeof getUsuarioPorRut>>["usuario"]>;
 type Pendientes = Awaited<ReturnType<typeof getPendientes>>;
-type VoucherSolicitud = Awaited<ReturnType<typeof crearSolicitud>>["voucher"];
+type CrearSolicitudResult = Awaited<ReturnType<typeof crearSolicitud>>;
+type VoucherSolicitud = Extract<CrearSolicitudResult, { ok: true }>["data"]["voucher"];
 
 type SolicitudFormState = {
     tipo_solicitud_id: string;
@@ -152,6 +156,15 @@ export function IngresarSolicitudView() {
         return catalogos.motivos.filter((m) => String(m.tipo_solicitud_id) === String(solicitudForm.tipo_solicitud_id));
     }, [catalogos.motivos, solicitudForm.tipo_solicitud_id]);
     const requiereMotivo = Boolean(solicitudForm.tipo_solicitud_id && motivosFiltrados.length > 0);
+    const solicitudDuplicada = useMemo(() => {
+        if (!pendientes || !usuarioConfirmado || !solicitudForm.tipo_solicitud_id) return null;
+        if (requiereMotivo && !solicitudForm.motivo_id) return null;
+
+        return buscarSolicitudDuplicada(pendientes.solicitudesPendientes, {
+            tipo_solicitud_id: Number(solicitudForm.tipo_solicitud_id),
+            motivo_id: requiereMotivo ? Number(solicitudForm.motivo_id) : null
+        });
+    }, [pendientes, usuarioConfirmado, solicitudForm.tipo_solicitud_id, solicitudForm.motivo_id, requiereMotivo]);
 
     function updateSolicitudField(field: keyof SolicitudFormState, value: string) {
         setSolicitudForm((current) => ({ ...current, [field]: value, ...(field === "tipo_solicitud_id" ? { motivo_id: "" } : {}) }));
@@ -250,13 +263,25 @@ export function IngresarSolicitudView() {
                 toast.error("Selecciona una disponibilidad de llamada valida");
                 return;
             }
-            const { solicitud, voucher } = await crearSolicitud({
+            const result = await crearSolicitud({
                 rut_usuario: usuarioConfirmado.rut,
                 disponibilidad_llamada: solicitudForm.disponibilidad_llamada,
                 tipo_solicitud_id: Number(solicitudForm.tipo_solicitud_id),
                 motivo_id: requiereMotivo ? Number(solicitudForm.motivo_id) : null,
                 descripcion: solicitudForm.descripcion
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                try {
+                    const actualizados = await getPendientes(usuarioConfirmado.rut);
+                    setPendientes(actualizados);
+                } catch {
+                    // El toast original es el mensaje importante para el usuario.
+                }
+                return;
+            }
+
+            const { solicitud, voucher } = result.data;
             toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
             limpiarIngresoSolicitud();
@@ -349,8 +374,17 @@ export function IngresarSolicitudView() {
                                     <Textarea value={solicitudForm.descripcion} onChange={(e) => updateSolicitudField("descripcion", e.target.value)} />
                                 </Field>
                             </div>
+                            {solicitudDuplicada && (
+                                <div className="lg:col-span-2">
+                                    <Alert variant="destructive">
+                                        <AlertTriangle />
+                                        <AlertTitle>Solicitud duplicada</AlertTitle>
+                                        <AlertDescription>{mensajeSolicitudDuplicada(solicitudDuplicada)}</AlertDescription>
+                                    </Alert>
+                                </div>
+                            )}
                             <div className="lg:col-span-2">
-                                <Button disabled={submittingSolicitud}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
+                                <Button disabled={submittingSolicitud || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
                             </div>
                         </form>
                     </CardContent>
