@@ -16,7 +16,9 @@ export type Regla =
     | "valor fuera de catalogo"
     | "correo duplicado"
     | "funcionario duplicado por RUT"
-    | "advertencia: referencia opcional anulada";
+    | "advertencia: referencia opcional anulada"
+    | "advertencia: correo duplicado con alias"
+    | "advertencia: RUT de destino reemplazado";
 
 export interface Rechazo {
     tabla: Tabla;
@@ -243,11 +245,47 @@ export function esCitaPendiente(estado: string | null): boolean {
     return estado !== null && (ESTADOS_CITA_PENDIENTE as readonly string[]).includes(estado);
 }
 
-// Alcance confirmado: desde 2025, mas todo lo pendiente de cualquier fecha.
-export function solicitudEnAlcance(s: Pick<SolicitudOrigen, "fecha_inicio" | "estado_solicitud" | "id_solicitud">, conCitaPendiente: ReadonlySet<string>): boolean {
-    if (s.fecha_inicio !== null && s.fecha_inicio >= FECHA_CORTE) return true;
-    if (estadoSolicitud(s.estado_solicitud) === "En Curso") return true;
-    return conCitaPendiente.has(s.id_solicitud);
+export interface Alcance {
+    solicitudes: Set<string>;
+    citas: Set<string>;
+    llamadas: Set<string>;
+}
+
+// Alcance confirmado: desde 2025, mas todo lo pendiente de cualquier fecha. Se cierra hacia arriba:
+// una llamada en alcance arrastra su cita, y una cita en alcance arrastra su solicitud, aunque
+// sean anteriores a 2025, para no romper las relaciones obligatorias.
+export function calcularAlcance(
+    solicitudes: Pick<SolicitudOrigen, "id_solicitud" | "fecha_inicio" | "estado_solicitud">[],
+    citas: Pick<CitaOrigen, "id_cita" | "solicitud_id" | "estado_cita" | "fecha_creacion">[],
+    llamadas: Pick<LlamadaOrigen, "id_llamada" | "cita_id" | "fecha_llamada">[]
+): Alcance {
+    const desdeCorte = (fecha: Date | null) => fecha !== null && fecha >= FECHA_CORTE;
+
+    const alcance: Alcance = { solicitudes: new Set(), citas: new Set(), llamadas: new Set() };
+    for (const s of solicitudes) {
+        if (desdeCorte(s.fecha_inicio) || estadoSolicitud(s.estado_solicitud) === "En Curso") alcance.solicitudes.add(s.id_solicitud);
+    }
+    for (const c of citas) {
+        if (desdeCorte(c.fecha_creacion) || esCitaPendiente(c.estado_cita) || (c.solicitud_id !== null && alcance.solicitudes.has(c.solicitud_id))) alcance.citas.add(c.id_cita);
+    }
+    for (const l of llamadas) {
+        if (desdeCorte(l.fecha_llamada) || (l.cita_id !== null && alcance.citas.has(l.cita_id))) {
+            alcance.llamadas.add(l.id_llamada);
+            if (l.cita_id !== null) alcance.citas.add(l.cita_id);
+        }
+    }
+    // Cierre hacia arriba: las citas arrastradas por llamadas y las de 2025 traen su solicitud.
+    for (const c of citas) {
+        if (alcance.citas.has(c.id_cita) && c.solicitud_id !== null) alcance.solicitudes.add(c.solicitud_id);
+    }
+    // Y hacia abajo: las solicitudes arrastradas traen todas sus citas y llamadas, para no migrar casos a medias.
+    for (const c of citas) {
+        if (c.solicitud_id !== null && alcance.solicitudes.has(c.solicitud_id)) alcance.citas.add(c.id_cita);
+    }
+    for (const l of llamadas) {
+        if (l.cita_id !== null && alcance.citas.has(l.cita_id)) alcance.llamadas.add(l.id_llamada);
+    }
+    return alcance;
 }
 
 function rechazo(tabla: Tabla, clave: string, regla: Regla, detalle: string): { ok: false; rechazo: Rechazo } {
@@ -294,10 +332,18 @@ export function transformarFuncionario(f: FuncionarioOrigen, rolPorIdOrigen: Rea
     };
 }
 
-// Correo unico en destino: entre repetidos se conserva el activo (a igualdad, el primero).
-export function deduplicarFuncionarios(funcionarios: FuncionarioDestino[]): { aceptados: FuncionarioDestino[]; rechazos: Rechazo[] } {
+// "local@dominio" -> "local+<rut>@dominio": conserva al funcionario (y sus registros) con un correo unico.
+export function correoAlias(email: string, rut: string): string {
+    const arroba = email.lastIndexOf("@");
+    return arroba < 0 ? `${email}+${rut}` : `${email.slice(0, arroba)}+${rut}${email.slice(arroba)}`;
+}
+
+// Correo unico en destino: entre repetidos, el activo conserva el correo (a igualdad, el primero) y los
+// demas se migran con un alias, porque pueden tener solicitudes, citas o llamadas asociadas.
+export function deduplicarFuncionarios(funcionarios: FuncionarioDestino[]): { aceptados: FuncionarioDestino[]; rechazos: Rechazo[]; advertencias: Rechazo[] } {
     const porRut = new Map<string, FuncionarioDestino>();
     const rechazos: Rechazo[] = [];
+    const advertencias: Rechazo[] = [];
     for (const f of funcionarios) {
         if (porRut.has(f.rut)) {
             rechazos.push({ tabla: "funcionarios", clave: f.rut, regla: "funcionario duplicado por RUT", detalle: f.email });
@@ -305,19 +351,23 @@ export function deduplicarFuncionarios(funcionarios: FuncionarioDestino[]): { ac
         }
         porRut.set(f.rut, f);
     }
-    const porEmail = new Map<string, FuncionarioDestino>();
-    for (const f of porRut.values()) {
-        const previo = porEmail.get(f.email);
-        if (!previo) {
-            porEmail.set(f.email, f);
-            continue;
+    const porEmail = new Map<string, FuncionarioDestino[]>();
+    for (const f of porRut.values()) porEmail.set(f.email, [...(porEmail.get(f.email) ?? []), f]);
+
+    const aceptados: FuncionarioDestino[] = [];
+    for (const grupo of porEmail.values()) {
+        const titular = grupo.find((f) => f.estado === "Activo") ?? grupo[0];
+        for (const f of grupo) {
+            if (f === titular) {
+                aceptados.push(f);
+                continue;
+            }
+            const alias = correoAlias(f.email, f.rut);
+            aceptados.push({ ...f, email: alias });
+            advertencias.push({ tabla: "funcionarios", clave: f.rut, regla: "advertencia: correo duplicado con alias", detalle: `${f.email} es de ${titular.rut}; se migra como ${alias}` });
         }
-        const ganador = previo.estado !== "Activo" && f.estado === "Activo" ? f : previo;
-        const perdedor = ganador === f ? previo : f;
-        porEmail.set(f.email, ganador);
-        rechazos.push({ tabla: "funcionarios", clave: perdedor.rut, regla: "correo duplicado", detalle: `${perdedor.email} queda con ${ganador.rut}` });
     }
-    return { aceptados: [...porEmail.values()], rechazos };
+    return { aceptados, rechazos, advertencias };
 }
 
 export function transformarUsuario(u: UsuarioOrigen): Resultado<UsuarioDestino> {

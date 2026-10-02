@@ -17,12 +17,10 @@ import { PrismaClient } from "@prisma/client";
 
 // reglas
 import {
+    calcularAlcance,
     deduplicarFuncionarios,
     deduplicarUsuarios,
-    esCitaPendiente,
-    FECHA_CORTE,
     nombreRolDestino,
-    solicitudEnAlcance,
     transformarCita,
     transformarFuncionario,
     transformarLlamada,
@@ -193,18 +191,26 @@ async function main(): Promise<void> {
         // ---------- Funcionarios ----------
         const funcionariosT = separar(funcionariosOrigen.map((f) => transformarFuncionario(f, rolPorIdOrigen)));
         const funcionariosD = deduplicarFuncionarios(funcionariosT.aceptados);
+        // Funcionarios ya presentes en destino con el mismo correo y otro RUT (p. ej. los del seed con RUT
+        // de relleno) toman el RUT real de AppSheet. Las FK hacia funcionarios son ON UPDATE CASCADE.
         const existentes = await destino.funcionario.findMany({ select: { rut: true, email: true } });
         const rutPorEmailDestino = new Map(existentes.map((f) => [f.email.toLowerCase(), f.rut]));
-        const funcionarios: FuncionarioDestino[] = [];
+        const rutsDestino = new Set(existentes.map((f) => f.rut));
+        const reemplazosRut: { desde: string; hasta: string }[] = [];
         const rechazosFuncionarios: Rechazo[] = [...funcionariosT.rechazos, ...funcionariosD.rechazos];
+        const advertenciasFuncionarios: Rechazo[] = [...funcionariosD.advertencias];
         for (const f of funcionariosD.aceptados) {
             const rutExistente = rutPorEmailDestino.get(f.email);
-            if (rutExistente !== undefined && rutExistente !== f.rut) {
-                rechazosFuncionarios.push({ tabla: "funcionarios", clave: f.rut, regla: "correo duplicado", detalle: `${f.email} ya existe en destino con RUT ${rutExistente}` });
+            if (rutExistente === undefined || rutExistente === f.rut) continue;
+            if (rutsDestino.has(f.rut)) {
+                rechazosFuncionarios.push({ tabla: "funcionarios", clave: f.rut, regla: "correo duplicado", detalle: `${f.email} es de ${rutExistente} en destino y el RUT ${f.rut} tambien existe` });
                 continue;
             }
-            funcionarios.push(f);
+            reemplazosRut.push({ desde: rutExistente, hasta: f.rut });
+            advertenciasFuncionarios.push({ tabla: "funcionarios", clave: f.rut, regla: "advertencia: RUT de destino reemplazado", detalle: `${f.email}: ${rutExistente} -> ${f.rut}` });
         }
+        const rechazadosPorRut = new Set(rechazosFuncionarios.map((r) => r.clave));
+        const funcionarios: FuncionarioDestino[] = funcionariosD.aceptados.filter((f) => !rechazadosPorRut.has(f.rut));
         const rutsFuncionarios = new Set([...funcionarios.map((f) => f.rut), ...existentes.map((f) => f.rut)]);
 
         // ---------- Usuarios (validos; luego se insertan solo los referenciados) ----------
@@ -219,16 +225,10 @@ async function main(): Promise<void> {
         const usuariosPorRut = new Map(usuariosD.aceptados.map((u) => [u.rut, u]));
 
         // ---------- Alcance ----------
-        const conCitaPendiente = new Set(citasOrigen.filter((c) => esCitaPendiente(c.estado_cita) && c.solicitud_id).map((c) => c.solicitud_id as string));
-        const solicitudesAlcance = solicitudesOrigen.filter((s) => solicitudEnAlcance(s, conCitaPendiente));
-        const idsSolicitudesAlcance = new Set(solicitudesAlcance.map((s) => s.id_solicitud));
-        const citasAlcance = citasOrigen.filter(
-            (c) => (c.solicitud_id !== null && idsSolicitudesAlcance.has(c.solicitud_id)) || (c.fecha_creacion !== null && c.fecha_creacion >= FECHA_CORTE) || esCitaPendiente(c.estado_cita)
-        );
-        const idsCitasAlcance = new Set(citasAlcance.map((c) => c.id_cita));
-        const llamadasAlcance = llamadasOrigen.filter(
-            (l) => (l.cita_id !== null && idsCitasAlcance.has(l.cita_id)) || (l.fecha_llamada !== null && l.fecha_llamada >= FECHA_CORTE)
-        );
+        const alcance = calcularAlcance(solicitudesOrigen, citasOrigen, llamadasOrigen);
+        const solicitudesAlcance = solicitudesOrigen.filter((s) => alcance.solicitudes.has(s.id_solicitud));
+        const citasAlcance = citasOrigen.filter((c) => alcance.citas.has(c.id_cita));
+        const llamadasAlcance = llamadasOrigen.filter((l) => alcance.llamadas.has(l.id_llamada));
 
         // ---------- Solicitudes, citas y llamadas ----------
         const referencias = { funcionarios: rutsFuncionarios, usuarios: new Set(usuariosPorRut.keys()), solicitudes: new Set<string>(), citas: new Set<string>() };
@@ -256,6 +256,9 @@ async function main(): Promise<void> {
                 await destino.solicitud.deleteMany();
                 await destino.usuario.deleteMany();
             }
+            for (const { desde, hasta } of reemplazosRut) {
+                await destino.funcionario.update({ where: { rut: desde }, data: { rut: hasta } });
+            }
             insertados.funcionarios = await insertarEnLotes(funcionarios, (data) => destino.funcionario.createMany({ data, skipDuplicates: true }));
             insertados.usuarios = await insertarEnLotes(usuarios, (data) => destino.usuario.createMany({ data, skipDuplicates: true }));
             insertados.solicitudes = await insertarEnLotes<SolicitudDestino>(solicitudes.aceptados, (data) => destino.solicitud.createMany({ data, skipDuplicates: true }));
@@ -265,7 +268,7 @@ async function main(): Promise<void> {
 
         // ---------- Reporte ----------
         const resumen: Resumen[] = [
-            { tabla: "funcionarios", leidos: funcionariosOrigen.length, enAlcance: funcionariosOrigen.length, aceptados: funcionarios.length, rechazados: rechazosFuncionarios.length, advertencias: 0, insertados: insertados.funcionarios },
+            { tabla: "funcionarios", leidos: funcionariosOrigen.length, enAlcance: funcionariosOrigen.length, aceptados: funcionarios.length, rechazados: rechazosFuncionarios.length, advertencias: advertenciasFuncionarios.length, insertados: insertados.funcionarios },
             { tabla: "usuarios", leidos: usuariosOrigen.length, enAlcance: rutsEnAlcance.size, aceptados: usuarios.length, rechazados: rechazosUsuarios.length, advertencias: 0, insertados: insertados.usuarios },
             { tabla: "solicitudes", leidos: solicitudesOrigen.length, enAlcance: solicitudesAlcance.length, aceptados: solicitudes.aceptados.length, rechazados: solicitudes.rechazos.length, advertencias: solicitudes.advertencias.length, insertados: insertados.solicitudes },
             { tabla: "citas", leidos: citasOrigen.length, enAlcance: citasAlcance.length, aceptados: citas.aceptados.length, rechazados: citas.rechazos.length, advertencias: citas.advertencias.length, insertados: insertados.citas },
@@ -273,6 +276,7 @@ async function main(): Promise<void> {
         ];
         const rechazos = [
             ...rechazosFuncionarios,
+            ...advertenciasFuncionarios,
             ...rechazosUsuarios,
             ...solicitudes.rechazos,
             ...solicitudes.advertencias,

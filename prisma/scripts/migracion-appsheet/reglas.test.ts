@@ -6,9 +6,10 @@ import {
     estadoFuncionario,
     estadoSolicitud,
     nombreRolDestino,
+    calcularAlcance,
+    correoAlias,
     resolverPrestacion,
     rutNormalizado,
-    solicitudEnAlcance,
     transformarCita,
     transformarFuncionario,
     transformarLlamada,
@@ -148,17 +149,43 @@ describe("reglas transversales", () => {
 });
 
 describe("alcance", () => {
-    const sinPendientes = new Set<string>();
+    const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
-    it("incluye lo creado desde 2025", () => {
-        expect(solicitudEnAlcance({ ...solicitud, estado_solicitud: "Realizado" }, sinPendientes)).toBe(true);
+    it("incluye lo creado desde 2025 y lo pendiente de cualquier fecha", () => {
+        const a = calcularAlcance(
+            [
+                { id_solicitud: "NUEVA", fecha_inicio: d("2025-02-01"), estado_solicitud: "Realizado" },
+                { id_solicitud: "VIEJA_EN_CURSO", fecha_inicio: d("2024-02-01"), estado_solicitud: "En curso" },
+                { id_solicitud: "VIEJA_CERRADA", fecha_inicio: d("2024-02-01"), estado_solicitud: "Realizado" }
+            ],
+            [{ id_cita: "C1", solicitud_id: "VIEJA_CERRADA", estado_cita: "Cita Aceptada", fecha_creacion: d("2024-03-01") }],
+            []
+        );
+        expect([...a.solicitudes].sort()).toEqual(["NUEVA", "VIEJA_EN_CURSO"]);
+        expect(a.citas.size).toBe(0);
     });
 
-    it("incluye lo anterior a 2025 si sigue en curso o tiene una cita pendiente", () => {
-        const antigua = { ...solicitud, fecha_inicio: new Date("2024-05-01T00:00:00Z"), estado_solicitud: "Realizado" };
-        expect(solicitudEnAlcance(antigua, sinPendientes)).toBe(false);
-        expect(solicitudEnAlcance({ ...antigua, estado_solicitud: "En curso" }, sinPendientes)).toBe(true);
-        expect(solicitudEnAlcance(antigua, new Set(["SOL-1"]))).toBe(true);
+    it("una llamada de 2025 arrastra su cita y su solicitud anteriores", () => {
+        const a = calcularAlcance(
+            [{ id_solicitud: "S", fecha_inicio: d("2024-02-01"), estado_solicitud: "Realizado" }],
+            [
+                { id_cita: "C", solicitud_id: "S", estado_cita: "Cita Aceptada", fecha_creacion: d("2024-03-01") },
+                { id_cita: "C_HERMANA", solicitud_id: "S", estado_cita: "Cita Aceptada", fecha_creacion: d("2024-03-01") }
+            ],
+            [{ id_llamada: "L", cita_id: "C", fecha_llamada: d("2025-01-10") }]
+        );
+        expect(a.solicitudes.has("S")).toBe(true);
+        expect([...a.citas].sort()).toEqual(["C", "C_HERMANA"]);
+        expect(a.llamadas.has("L")).toBe(true);
+    });
+
+    it("una cita pendiente arrastra su solicitud cerrada", () => {
+        const a = calcularAlcance(
+            [{ id_solicitud: "S", fecha_inicio: d("2023-02-01"), estado_solicitud: "Realizado" }],
+            [{ id_cita: "C", solicitud_id: "S", estado_cita: "No contesta (1)", fecha_creacion: d("2023-03-01") }],
+            []
+        );
+        expect(a.solicitudes.has("S")).toBe(true);
     });
 });
 
@@ -173,11 +200,14 @@ describe("funcionarios", () => {
         expect(r.ok && r.data).toMatchObject({ rol_id: 8, estado: "Activo", email: "ana@cmvalparaiso.cl" });
     });
 
-    it("conserva el funcionario activo cuando el correo se repite", () => {
+    it("con correo repetido, el activo conserva el correo y el otro se migra con alias", () => {
         const base: FuncionarioDestino = { rut: "1111111-6", email: "x@cmv.cl", nombre: "X", rol_id: 8, estado: "Activo", codigo: null, rut_consulta: null, centro_id: null, programa_asociado: null, invitacion_app: null };
-        const { aceptados, rechazos } = deduplicarFuncionarios([{ ...base, rut: "11111112-2", estado: "Inactivo" }, base]);
-        expect(aceptados.map((f) => f.rut)).toEqual(["1111111-6"]);
-        expect(rechazos[0]).toMatchObject({ clave: "11111112-2", regla: "correo duplicado" });
+        const { aceptados, rechazos, advertencias } = deduplicarFuncionarios([{ ...base, rut: "11111112-2", estado: "Inactivo" }, base]);
+        expect(rechazos).toHaveLength(0);
+        expect(aceptados.find((f) => f.rut === "1111111-6")?.email).toBe("x@cmv.cl");
+        expect(aceptados.find((f) => f.rut === "11111112-2")?.email).toBe("x+11111112-2@cmv.cl");
+        expect(advertencias[0]).toMatchObject({ clave: "11111112-2", regla: "advertencia: correo duplicado con alias" });
+        expect(correoAlias("sin-arroba", "1-9")).toBe("sin-arroba+1-9");
     });
 });
 
