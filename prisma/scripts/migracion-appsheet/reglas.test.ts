@@ -6,7 +6,6 @@ import {
     estadoFuncionario,
     estadoSolicitud,
     nombreRolDestino,
-    calcularAlcance,
     correoAlias,
     resolverPrestacion,
     rutNormalizado,
@@ -145,47 +144,6 @@ describe("reglas transversales", () => {
         expect(nombreRolDestino("Some")).toBe("SOME");
         expect(nombreRolDestino("Vizualizador")).toBe("Visualizador");
         expect(nombreRolDestino("Gestor")).toBe("Gestor");
-    });
-});
-
-describe("alcance", () => {
-    const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
-
-    it("incluye lo creado desde 2025 y lo pendiente de cualquier fecha", () => {
-        const a = calcularAlcance(
-            [
-                { id_solicitud: "NUEVA", fecha_inicio: d("2025-02-01"), estado_solicitud: "Realizado" },
-                { id_solicitud: "VIEJA_EN_CURSO", fecha_inicio: d("2024-02-01"), estado_solicitud: "En curso" },
-                { id_solicitud: "VIEJA_CERRADA", fecha_inicio: d("2024-02-01"), estado_solicitud: "Realizado" }
-            ],
-            [{ id_cita: "C1", solicitud_id: "VIEJA_CERRADA", estado_cita: "Cita Aceptada", fecha_creacion: d("2024-03-01") }],
-            []
-        );
-        expect([...a.solicitudes].sort()).toEqual(["NUEVA", "VIEJA_EN_CURSO"]);
-        expect(a.citas.size).toBe(0);
-    });
-
-    it("una llamada de 2025 arrastra su cita y su solicitud anteriores", () => {
-        const a = calcularAlcance(
-            [{ id_solicitud: "S", fecha_inicio: d("2024-02-01"), estado_solicitud: "Realizado" }],
-            [
-                { id_cita: "C", solicitud_id: "S", estado_cita: "Cita Aceptada", fecha_creacion: d("2024-03-01") },
-                { id_cita: "C_HERMANA", solicitud_id: "S", estado_cita: "Cita Aceptada", fecha_creacion: d("2024-03-01") }
-            ],
-            [{ id_llamada: "L", cita_id: "C", fecha_llamada: d("2025-01-10") }]
-        );
-        expect(a.solicitudes.has("S")).toBe(true);
-        expect([...a.citas].sort()).toEqual(["C", "C_HERMANA"]);
-        expect(a.llamadas.has("L")).toBe(true);
-    });
-
-    it("una cita pendiente arrastra su solicitud cerrada", () => {
-        const a = calcularAlcance(
-            [{ id_solicitud: "S", fecha_inicio: d("2023-02-01"), estado_solicitud: "Realizado" }],
-            [{ id_cita: "C", solicitud_id: "S", estado_cita: "No contesta (1)", fecha_creacion: d("2023-03-01") }],
-            []
-        );
-        expect(a.solicitudes.has("S")).toBe(true);
     });
 });
 

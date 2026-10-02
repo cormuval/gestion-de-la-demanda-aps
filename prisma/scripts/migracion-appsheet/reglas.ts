@@ -4,9 +4,6 @@
 // utils
 import { normalizarRut } from "../../../src/modules/solicitudes/utils/rut";
 
-export const FECHA_CORTE = new Date("2025-01-01T00:00:00.000Z");
-export const ESTADOS_CITA_PENDIENTE = ["Sin llamadas", "No contesta (1)", "No contesta (2)", "Solo llamada de aviso"] as const;
-
 export type Tabla = "roles" | "funcionarios" | "usuarios" | "solicitudes" | "citas" | "llamadas";
 
 export type Regla =
@@ -239,53 +236,6 @@ export function estadoSolicitud(valor: string | null): string | null {
     const limpio = vacioANull(valor);
     if (limpio !== null && limpio.trim().toLowerCase() === "en curso") return "En Curso";
     return limpio;
-}
-
-export function esCitaPendiente(estado: string | null): boolean {
-    return estado !== null && (ESTADOS_CITA_PENDIENTE as readonly string[]).includes(estado);
-}
-
-export interface Alcance {
-    solicitudes: Set<string>;
-    citas: Set<string>;
-    llamadas: Set<string>;
-}
-
-// Alcance confirmado: desde 2025, mas todo lo pendiente de cualquier fecha. Se cierra hacia arriba:
-// una llamada en alcance arrastra su cita, y una cita en alcance arrastra su solicitud, aunque
-// sean anteriores a 2025, para no romper las relaciones obligatorias.
-export function calcularAlcance(
-    solicitudes: Pick<SolicitudOrigen, "id_solicitud" | "fecha_inicio" | "estado_solicitud">[],
-    citas: Pick<CitaOrigen, "id_cita" | "solicitud_id" | "estado_cita" | "fecha_creacion">[],
-    llamadas: Pick<LlamadaOrigen, "id_llamada" | "cita_id" | "fecha_llamada">[]
-): Alcance {
-    const desdeCorte = (fecha: Date | null) => fecha !== null && fecha >= FECHA_CORTE;
-
-    const alcance: Alcance = { solicitudes: new Set(), citas: new Set(), llamadas: new Set() };
-    for (const s of solicitudes) {
-        if (desdeCorte(s.fecha_inicio) || estadoSolicitud(s.estado_solicitud) === "En Curso") alcance.solicitudes.add(s.id_solicitud);
-    }
-    for (const c of citas) {
-        if (desdeCorte(c.fecha_creacion) || esCitaPendiente(c.estado_cita) || (c.solicitud_id !== null && alcance.solicitudes.has(c.solicitud_id))) alcance.citas.add(c.id_cita);
-    }
-    for (const l of llamadas) {
-        if (desdeCorte(l.fecha_llamada) || (l.cita_id !== null && alcance.citas.has(l.cita_id))) {
-            alcance.llamadas.add(l.id_llamada);
-            if (l.cita_id !== null) alcance.citas.add(l.cita_id);
-        }
-    }
-    // Cierre hacia arriba: las citas arrastradas por llamadas y las de 2025 traen su solicitud.
-    for (const c of citas) {
-        if (alcance.citas.has(c.id_cita) && c.solicitud_id !== null) alcance.solicitudes.add(c.solicitud_id);
-    }
-    // Y hacia abajo: las solicitudes arrastradas traen todas sus citas y llamadas, para no migrar casos a medias.
-    for (const c of citas) {
-        if (c.solicitud_id !== null && alcance.solicitudes.has(c.solicitud_id)) alcance.citas.add(c.id_cita);
-    }
-    for (const l of llamadas) {
-        if (l.cita_id !== null && alcance.citas.has(l.cita_id)) alcance.llamadas.add(l.id_llamada);
-    }
-    return alcance;
 }
 
 function rechazo(tabla: Tabla, clave: string, regla: Regla, detalle: string): { ok: false; rechazo: Rechazo } {

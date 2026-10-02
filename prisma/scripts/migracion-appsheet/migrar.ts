@@ -8,7 +8,8 @@
 // Sin --ejecutar solo simula: lee, transforma y escribe el reporte, sin tocar el destino.
 // --vaciar=<base> borra llamadas, citas, solicitudes y usuarios del destino antes de cargar;
 // exige repetir el nombre de la base de destino para evitar vaciar la equivocada.
-// Re-ejecutar no duplica: se inserta por clave primaria original (INSERT IGNORE).
+// Se migra todo el historico (decision del 02/10/2026). Re-ejecutar no duplica: se inserta por
+// clave primaria original (INSERT IGNORE).
 
 // lib
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -17,7 +18,6 @@ import { PrismaClient } from "@prisma/client";
 
 // reglas
 import {
-    calcularAlcance,
     deduplicarFuncionarios,
     deduplicarUsuarios,
     nombreRolDestino,
@@ -213,7 +213,7 @@ async function main(): Promise<void> {
         const funcionarios: FuncionarioDestino[] = funcionariosD.aceptados.filter((f) => !rechazadosPorRut.has(f.rut));
         const rutsFuncionarios = new Set([...funcionarios.map((f) => f.rut), ...existentes.map((f) => f.rut)]);
 
-        // ---------- Usuarios (validos; luego se insertan solo los referenciados) ----------
+        // ---------- Usuarios (pacientes) ----------
         const rutOriginal = new Map<UsuarioDestino, string>();
         const usuariosT: Resultado<UsuarioDestino>[] = usuariosOrigen.map((u) => {
             const r = transformarUsuario(u);
@@ -222,29 +222,17 @@ async function main(): Promise<void> {
         });
         const usuariosS = separar(usuariosT);
         const usuariosD = deduplicarUsuarios(usuariosS.aceptados, rutOriginal);
-        const usuariosPorRut = new Map(usuariosD.aceptados.map((u) => [u.rut, u]));
-
-        // ---------- Alcance ----------
-        const alcance = calcularAlcance(solicitudesOrigen, citasOrigen, llamadasOrigen);
-        const solicitudesAlcance = solicitudesOrigen.filter((s) => alcance.solicitudes.has(s.id_solicitud));
-        const citasAlcance = citasOrigen.filter((c) => alcance.citas.has(c.id_cita));
-        const llamadasAlcance = llamadasOrigen.filter((l) => alcance.llamadas.has(l.id_llamada));
-
+        
         // ---------- Solicitudes, citas y llamadas ----------
-        const referencias = { funcionarios: rutsFuncionarios, usuarios: new Set(usuariosPorRut.keys()), solicitudes: new Set<string>(), citas: new Set<string>() };
-        const solicitudes = separar(solicitudesAlcance.map((s) => transformarSolicitud(s, catalogos, referencias)));
+        const referencias = { funcionarios: rutsFuncionarios, usuarios: new Set(usuariosD.aceptados.map((u) => u.rut)), solicitudes: new Set<string>(), citas: new Set<string>() };
+        const solicitudes = separar(solicitudesOrigen.map((s) => transformarSolicitud(s, catalogos, referencias)));
         referencias.solicitudes = new Set(solicitudes.aceptados.map((s) => s.id_solicitud));
-        const citas = separar(citasAlcance.map((c) => transformarCita(c, catalogos, referencias)));
+        const citas = separar(citasOrigen.map((c) => transformarCita(c, catalogos, referencias)));
         referencias.citas = new Set(citas.aceptados.map((c) => c.id_cita));
-        const llamadas = separar(llamadasAlcance.map((l) => transformarLlamada(l, referencias)));
+        const llamadas = separar(llamadasOrigen.map((l) => transformarLlamada(l, referencias)));
 
-        const rutsReferenciados = new Set([...solicitudes.aceptados.map((s) => s.rut_usuario), ...citas.aceptados.map((c) => c.rut_usuario)]);
-        const usuarios = [...rutsReferenciados].map((rut) => usuariosPorRut.get(rut)).filter((u): u is UsuarioDestino => u !== undefined);
-        // Los rechazos de usuarios solo importan si el paciente tenia registros en alcance.
-        const rutsEnAlcance = new Set(
-            [...solicitudesAlcance.map((s) => s.rut_usuario), ...citasAlcance.map((c) => c.rut_usuario)].filter((r): r is string => r !== null).map((r) => r.replace(/[.\s-]/g, "").toUpperCase())
-        );
-        const rechazosUsuarios = [...usuariosS.rechazos, ...usuariosD.rechazos].filter((r) => rutsEnAlcance.has(r.clave.replace(/[.\s-]/g, "").toUpperCase()));
+        const usuarios = usuariosD.aceptados;
+        const rechazosUsuarios = [...usuariosS.rechazos, ...usuariosD.rechazos];
 
         // ---------- Escritura ----------
         const insertados: Record<Tabla, number> = { roles: 0, funcionarios: 0, usuarios: 0, solicitudes: 0, citas: 0, llamadas: 0 };
@@ -269,10 +257,10 @@ async function main(): Promise<void> {
         // ---------- Reporte ----------
         const resumen: Resumen[] = [
             { tabla: "funcionarios", leidos: funcionariosOrigen.length, enAlcance: funcionariosOrigen.length, aceptados: funcionarios.length, rechazados: rechazosFuncionarios.length, advertencias: advertenciasFuncionarios.length, insertados: insertados.funcionarios },
-            { tabla: "usuarios", leidos: usuariosOrigen.length, enAlcance: rutsEnAlcance.size, aceptados: usuarios.length, rechazados: rechazosUsuarios.length, advertencias: 0, insertados: insertados.usuarios },
-            { tabla: "solicitudes", leidos: solicitudesOrigen.length, enAlcance: solicitudesAlcance.length, aceptados: solicitudes.aceptados.length, rechazados: solicitudes.rechazos.length, advertencias: solicitudes.advertencias.length, insertados: insertados.solicitudes },
-            { tabla: "citas", leidos: citasOrigen.length, enAlcance: citasAlcance.length, aceptados: citas.aceptados.length, rechazados: citas.rechazos.length, advertencias: citas.advertencias.length, insertados: insertados.citas },
-            { tabla: "llamadas", leidos: llamadasOrigen.length, enAlcance: llamadasAlcance.length, aceptados: llamadas.aceptados.length, rechazados: llamadas.rechazos.length, advertencias: llamadas.advertencias.length, insertados: insertados.llamadas }
+            { tabla: "usuarios", leidos: usuariosOrigen.length, enAlcance: usuariosOrigen.length, aceptados: usuarios.length, rechazados: rechazosUsuarios.length, advertencias: 0, insertados: insertados.usuarios },
+            { tabla: "solicitudes", leidos: solicitudesOrigen.length, enAlcance: solicitudesOrigen.length, aceptados: solicitudes.aceptados.length, rechazados: solicitudes.rechazos.length, advertencias: solicitudes.advertencias.length, insertados: insertados.solicitudes },
+            { tabla: "citas", leidos: citasOrigen.length, enAlcance: citasOrigen.length, aceptados: citas.aceptados.length, rechazados: citas.rechazos.length, advertencias: citas.advertencias.length, insertados: insertados.citas },
+            { tabla: "llamadas", leidos: llamadasOrigen.length, enAlcance: llamadasOrigen.length, aceptados: llamadas.aceptados.length, rechazados: llamadas.rechazos.length, advertencias: llamadas.advertencias.length, insertados: insertados.llamadas }
         ];
         const rechazos = [
             ...rechazosFuncionarios,
