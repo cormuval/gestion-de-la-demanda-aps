@@ -134,7 +134,7 @@ model Solicitud {
   fecha_validacion       DateTime?
   estado_solicitud       String      @default("En Curso") @db.VarChar(50)
   centro_id              String?     @db.VarChar(50)
-  observacion_rechazo    String?     @db.VarChar(200)
+  observacion_rechazo    String?     @db.VarChar(2000)
   usuario                Usuario     @relation(fields: [rut_usuario], references: [rut])
   tipoSolicitud          TipoSolicitud @relation(fields: [tipo_solicitud_id], references: [id_tipo_solicitud])
   motivo                 Motivo?     @relation(fields: [motivo_id], references: [id_motivo])
@@ -233,7 +233,7 @@ model Cita {
   priorizacion             Int?
   centro_id                String?      @db.VarChar(50)
   fecha_creacion           DateTime     @default(now())
-  razon_rechazo            String?      @db.VarChar(150)
+  razon_rechazo            String?      @db.VarChar(350)
   solicitud                Solicitud    @relation(fields: [solicitud_id], references: [id_solicitud])
   usuario                  Usuario      @relation(fields: [rut_usuario], references: [rut])
   gestor                   Funcionario? @relation("CitasGestor", fields: [rut_gestor], references: [rut])
