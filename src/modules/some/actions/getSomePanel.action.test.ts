@@ -4,7 +4,9 @@ vi.mock("@/shared/lib/prisma", () => ({
     prisma: {
         centro: { findMany: vi.fn() },
         funcionario: { findMany: vi.fn() },
-        solicitud: { findMany: vi.fn() },
+        solicitud: { findMany: vi.fn(), groupBy: vi.fn() },
+        tipoSolicitud: { findMany: vi.fn() },
+        motivo: { findMany: vi.fn() },
         cita: { findMany: vi.fn() },
         llamada: { findMany: vi.fn() }
     }
@@ -40,6 +42,9 @@ beforeEach(() => {
         { rut: "22.222.222-2", nombre: "Orientador Demo" }
     ]);
     (prisma.solicitud.findMany as any).mockResolvedValue([]);
+    (prisma.solicitud.groupBy as any).mockResolvedValue([]);
+    (prisma.tipoSolicitud.findMany as any).mockResolvedValue([]);
+    (prisma.motivo.findMany as any).mockResolvedValue([]);
     (prisma.cita.findMany as any).mockResolvedValue([]);
     (prisma.llamada.findMany as any).mockResolvedValue([]);
 });
@@ -250,24 +255,20 @@ describe("getSomePanel", () => {
         (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "08712946-2", nombre: "Andrea Alarcon" }]);
         (prisma.solicitud.findMany as any)
             .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([
-                {
-                    id_solicitud: "SOL-1",
-                    tipoSolicitud: { nombre_tipo_solicitud: "Consulta medica" },
-                    motivo: { nombre_motivo: "Control" }
-                },
-                {
-                    id_solicitud: "SOL-2",
-                    tipoSolicitud: { nombre_tipo_solicitud: "Consulta medica" },
-                    motivo: null
-                },
-                {
-                    id_solicitud: "SOL-3",
-                    tipoSolicitud: { nombre_tipo_solicitud: "Examenes" },
-                    motivo: { nombre_motivo: "Laboratorio" }
-                }
-            ]);
+            .mockResolvedValueOnce([]);
+        (prisma.solicitud.groupBy as any).mockResolvedValue([
+            { tipo_solicitud_id: 1, motivo_id: 10, _count: { _all: 1 } },
+            { tipo_solicitud_id: 1, motivo_id: null, _count: { _all: 1 } },
+            { tipo_solicitud_id: 2, motivo_id: 20, _count: { _all: 1 } }
+        ]);
+        (prisma.tipoSolicitud.findMany as any).mockResolvedValue([
+            { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Consulta medica" },
+            { id_tipo_solicitud: 2, nombre_tipo_solicitud: "Examenes" }
+        ]);
+        (prisma.motivo.findMany as any).mockResolvedValue([
+            { id_motivo: 10, nombre_motivo: "Control" },
+            { id_motivo: 20, nombre_motivo: "Laboratorio" }
+        ]);
         (prisma.cita.findMany as any)
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([]);
@@ -275,11 +276,12 @@ describe("getSomePanel", () => {
 
         const result = await getSomePanel({ centroId: "605" });
 
-        expect(prisma.solicitud.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: { centro_id: "605", accion: "En espera de validación" }
-            })
-        );
+        expect(prisma.solicitud.groupBy).toHaveBeenCalledWith({
+            by: ["tipo_solicitud_id", "motivo_id"],
+            where: { centro_id: "605", accion: "En espera de validación" },
+            _count: { _all: true }
+        });
+        expect(prisma.solicitud.findMany).toHaveBeenCalledTimes(2);
         expect(result.solicitudesPendientes).toEqual([
             {
                 tipoSolicitud: "Consulta medica",
@@ -293,6 +295,26 @@ describe("getSomePanel", () => {
                 tipoSolicitud: "Examenes",
                 total: 1,
                 motivos: [{ motivo: "Laboratorio", total: 1 }]
+            }
+        ]);
+    });
+
+    it("usa fallback cuando solicitudes pendientes tienen catalogos faltantes", async () => {
+        (prisma.solicitud.groupBy as any).mockResolvedValue([
+            { tipo_solicitud_id: 99, motivo_id: 88, _count: { _all: 3 } },
+            { tipo_solicitud_id: 99, motivo_id: null, _count: { _all: 2 } }
+        ]);
+
+        const result = await getSomePanel();
+
+        expect(result.solicitudesPendientes).toEqual([
+            {
+                tipoSolicitud: "-",
+                total: 5,
+                motivos: [
+                    { motivo: "-", total: 3 },
+                    { motivo: "Sin motivo", total: 2 }
+                ]
             }
         ]);
     });

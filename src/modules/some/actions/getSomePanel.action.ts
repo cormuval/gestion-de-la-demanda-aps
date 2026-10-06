@@ -241,15 +241,31 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
                 prestacion: { select: { nombre_prestacion: true } }
             }
         }),
-        prisma.solicitud.findMany({
+        prisma.solicitud.groupBy({
+            by: ["tipo_solicitud_id", "motivo_id"],
             where: { centro_id: centroSeleccionado, accion: ACCION_ESPERA_VALIDACION },
-            select: {
-                id_solicitud: true,
-                tipoSolicitud: { select: { nombre_tipo_solicitud: true } },
-                motivo: { select: { nombre_motivo: true } }
-            }
+            _count: { _all: true }
         })
     ]);
+
+    const tipoSolicitudIds = Array.from(new Set(solicitudesPendientesRaw.map((grupo) => grupo.tipo_solicitud_id)));
+    const motivoIds = Array.from(new Set(solicitudesPendientesRaw.map((grupo) => grupo.motivo_id).filter((id): id is number => id !== null)));
+    const [tiposSolicitudPendiente, motivosSolicitudPendiente] = await Promise.all([
+        tipoSolicitudIds.length
+            ? prisma.tipoSolicitud.findMany({
+                  where: { id_tipo_solicitud: { in: tipoSolicitudIds } },
+                  select: { id_tipo_solicitud: true, nombre_tipo_solicitud: true }
+              })
+            : Promise.resolve([]),
+        motivoIds.length
+            ? prisma.motivo.findMany({
+                  where: { id_motivo: { in: motivoIds } },
+                  select: { id_motivo: true, nombre_motivo: true }
+              })
+            : Promise.resolve([])
+    ]);
+    const tiposSolicitudPorId = new Map(tiposSolicitudPendiente.map((tipo) => [tipo.id_tipo_solicitud, tipo.nombre_tipo_solicitud]));
+    const motivosPorId = new Map(motivosSolicitudPendiente.map((motivo) => [motivo.id_motivo, motivo.nombre_motivo]));
 
     const totales = emptyTotales();
     const serie = buildSerie(desde, rangoDias);
@@ -318,16 +334,17 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
     }
 
     const solicitudesPorTipo = new Map<string, SomeSolicitudPendienteTipo>();
-    for (const solicitud of solicitudesPendientesRaw) {
-        const tipoSolicitud = solicitud.tipoSolicitud?.nombre_tipo_solicitud ?? "-";
-        const motivo = solicitud.motivo?.nombre_motivo ?? "Sin motivo";
+    for (const grupo of solicitudesPendientesRaw) {
+        const totalGrupo = grupo._count._all;
+        const tipoSolicitud = tiposSolicitudPorId.get(grupo.tipo_solicitud_id) ?? "-";
+        const motivo = grupo.motivo_id === null ? "Sin motivo" : (motivosPorId.get(grupo.motivo_id) ?? "-");
         const tipoRow = solicitudesPorTipo.get(tipoSolicitud) ?? { tipoSolicitud, total: 0, motivos: [] };
-        tipoRow.total += 1;
+        tipoRow.total += totalGrupo;
         const motivoRow = tipoRow.motivos.find((row) => row.motivo === motivo);
         if (motivoRow) {
-            motivoRow.total += 1;
+            motivoRow.total += totalGrupo;
         } else {
-            tipoRow.motivos.push({ motivo, total: 1 });
+            tipoRow.motivos.push({ motivo, total: totalGrupo });
         }
         solicitudesPorTipo.set(tipoSolicitud, tipoRow);
     }
