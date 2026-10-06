@@ -12,6 +12,8 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/shared/components/ui/chart";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 // lib
 import { acortarId } from "@/shared/lib/acortarId";
 
@@ -265,30 +267,31 @@ function DetalleSolicitudes({ data }: { data: DashboardFuncionarioData }) {
                 <CardDescription>Registros creados con el RUT orientador del funcionario activo.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[760px] table-fixed text-left text-sm">
-                        <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-                            <tr>
-                                <th className="w-[120px] px-3 py-2 font-medium">Fecha</th>
-                                <th className="w-[180px] px-3 py-2 font-medium">Solicitud</th>
-                                <th className="w-[130px] px-3 py-2 font-medium">RUT paciente</th>
-                                <th className="px-3 py-2 font-medium">Tipo</th>
-                                <th className="w-[120px] px-3 py-2 font-medium">Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                            <TableRow>
+                                <TableHead>Solicitud</TableHead>
+                                <TableHead>Paciente</TableHead>
+                                <TableHead>Tipo</TableHead>
+                                <TableHead>Estado</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {data.detalles.solicitudesIngresadas.map((solicitud) => (
-                                <tr key={solicitud.id_solicitud} className="border-t">
-                                    <td className="px-3 py-3">{formatFecha(solicitud.fecha_inicio)}</td>
-                                    <td className="px-3 py-3 font-medium"><CodigoId id={solicitud.id_solicitud} /></td>
-                                    <td className="px-3 py-3">{solicitud.rut_usuario}</td>
-                                    <td className="px-3 py-3">{solicitud.tipo_solicitud}</td>
-                                    <td className="px-3 py-3"><Badge variant="muted">{solicitud.estado_solicitud}</Badge></td>
-                                </tr>
+                                <TableRow key={solicitud.id_solicitud}>
+                                    <TableCell>
+                                        <div className="font-medium"><CodigoId id={solicitud.id_solicitud} /></div>
+                                        <div className="text-xs text-muted-foreground">{formatFecha(solicitud.fecha_inicio)}</div>
+                                    </TableCell>
+                                    <TableCell>{solicitud.rut_usuario}</TableCell>
+                                    <TableCell><div className="line-clamp-2">{solicitud.tipo_solicitud}</div></TableCell>
+                                    <TableCell><Badge variant="muted">{solicitud.estado_solicitud}</Badge></TableCell>
+                                </TableRow>
                             ))}
-                            {data.detalles.solicitudesIngresadas.length === 0 && <EmptyRow colSpan={5} />}
-                        </tbody>
-                    </table>
+                            {data.detalles.solicitudesIngresadas.length === 0 && <EmptyRow colSpan={4} />}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
         </Card>
@@ -303,28 +306,29 @@ function DetalleGestiones({ data, onVerCitas }: { data: DashboardFuncionarioData
                 <CardDescription>Solicitudes rechazadas o realizadas por fecha de validación.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[900px] table-fixed text-left text-sm">
-                        <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-                            <tr>
-                                <th className="w-[120px] px-3 py-2 font-medium">Fecha</th>
-                                <th className="w-[180px] px-3 py-2 font-medium">Solicitud</th>
-                                <th className="w-[130px] px-3 py-2 font-medium">RUT paciente</th>
-                                <th className="w-[150px] px-3 py-2 font-medium">Acción</th>
-                                <th className="w-[90px] px-3 py-2 font-medium">Citas</th>
-                                <th className="w-[150px] px-3 py-2 font-medium">Citas gestionadas</th>
-                                <th className="px-3 py-2 font-medium">Rechazo</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                            <TableRow>
+                                <TableHead>Solicitud</TableHead>
+                                <TableHead>Paciente / Acción</TableHead>
+                                <TableHead>Citas</TableHead>
+                                <TableHead>Rechazo</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {data.detalles.gestiones.map((gestion) => (
-                                <tr key={gestion.id_solicitud} className="border-t">
-                                    <td className="px-3 py-3">{formatFecha(gestion.fecha_validacion)}</td>
-                                    <td className="px-3 py-3 font-medium"><CodigoId id={gestion.id_solicitud} /></td>
-                                    <td className="px-3 py-3">{gestion.rut_usuario}</td>
-                                    <td className="px-3 py-3">{gestion.accion}</td>
-                                    <td className="px-3 py-3">{gestion.citas_creadas}</td>
-                                    <td className="px-3 py-3">
+                                <TableRow key={gestion.id_solicitud}>
+                                    <TableCell>
+                                        <div className="font-medium"><CodigoId id={gestion.id_solicitud} /></div>
+                                        <div className="text-xs text-muted-foreground">{formatFecha(gestion.fecha_validacion)}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div>{gestion.rut_usuario}</div>
+                                        <div className="text-xs text-muted-foreground">{gestion.accion || "-"}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div>{gestion.citas_creadas}</div>
                                         {gestion.citas_creadas > 0 ? (
                                             <Button type="button" variant="outline" size="sm" onClick={() => onVerCitas(gestion)}>
                                                 <Eye size={14} />
@@ -333,13 +337,15 @@ function DetalleGestiones({ data, onVerCitas }: { data: DashboardFuncionarioData
                                         ) : (
                                             "-"
                                         )}
-                                    </td>
-                                    <td className="px-3 py-3">{gestion.razon_rechazo || "-"}</td>
-                                </tr>
+                                    </TableCell>
+                                    <TableCell>
+                                        <TextoConTooltip value={gestion.razon_rechazo || "-"} />
+                                    </TableCell>
+                                </TableRow>
                             ))}
-                            {data.detalles.gestiones.length === 0 && <EmptyRow colSpan={7} />}
-                        </tbody>
-                    </table>
+                            {data.detalles.gestiones.length === 0 && <EmptyRow colSpan={4} />}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
         </Card>
@@ -354,41 +360,44 @@ function DetalleLlamadas({ data, onVerDetalle }: { data: DashboardFuncionarioDat
                 <CardDescription>Registros creados con el RUT comunicador del funcionario activo.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
-                        <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-                            <tr>
-                                <th className="w-[150px] px-3 py-2 font-medium">Fecha</th>
-                                <th className="w-[190px] px-3 py-2 font-medium">Llamada</th>
-                                <th className="w-[130px] px-3 py-2 font-medium">RUT paciente</th>
-                                <th className="w-[190px] px-3 py-2 font-medium">Cita</th>
-                                <th className="w-[160px] px-3 py-2 font-medium">Estamento</th>
-                                <th className="w-[220px] px-3 py-2 font-medium">Prestación llamada</th>
-                                <th className="w-[150px] px-3 py-2 font-medium">Respuesta</th>
-                                <th className="w-[120px] px-3 py-2 font-medium">Detalle</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                            <TableRow>
+                                <TableHead>Llamada</TableHead>
+                                <TableHead>Paciente / Cita</TableHead>
+                                <TableHead>Prestación</TableHead>
+                                <TableHead>Respuesta</TableHead>
+                                <TableHead>Detalle</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {data.detalles.llamadas.map((llamada) => (
-                                <tr key={llamada.id_llamada} className="border-t">
-                                    <td className="px-3 py-3">{formatFechaHora(llamada.fecha_llamada)}</td>
-                                    <td className="px-3 py-3 font-medium"><CodigoId id={llamada.id_llamada} /></td>
-                                    <td className="px-3 py-3">{llamada.rut_usuario}</td>
-                                    <td className="px-3 py-3"><CodigoId id={llamada.cita_id} /></td>
-                                    <td className="px-3 py-3">{llamada.estamento || "-"}</td>
-                                    <td className="px-3 py-3">{llamada.prestacion || llamada.tipo_prestacion || "-"}</td>
-                                    <td className="px-3 py-3">{llamada.respuesta_usuario}</td>
-                                    <td className="px-3 py-3">
+                                <TableRow key={llamada.id_llamada}>
+                                    <TableCell>
+                                        <div className="font-medium"><CodigoId id={llamada.id_llamada} /></div>
+                                        <div className="text-xs text-muted-foreground">{formatFechaHora(llamada.fecha_llamada)}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div>{llamada.rut_usuario}</div>
+                                        <div className="text-xs text-muted-foreground"><CodigoId id={llamada.cita_id} /></div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div>{llamada.prestacion || llamada.tipo_prestacion || "-"}</div>
+                                        <div className="text-xs text-muted-foreground">{llamada.estamento || "-"}</div>
+                                    </TableCell>
+                                    <TableCell>{llamada.respuesta_usuario}</TableCell>
+                                    <TableCell>
                                         <Button type="button" variant="outline" size="sm" onClick={() => onVerDetalle(llamada)}>
                                             <Eye size={14} />
                                             Ver
                                         </Button>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))}
-                            {data.detalles.llamadas.length === 0 && <EmptyRow colSpan={8} />}
-                        </tbody>
-                    </table>
+                            {data.detalles.llamadas.length === 0 && <EmptyRow colSpan={5} />}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
         </Card>
@@ -397,11 +406,24 @@ function DetalleLlamadas({ data, onVerDetalle }: { data: DashboardFuncionarioDat
 
 function EmptyRow({ colSpan }: { colSpan: number }) {
     return (
-        <tr>
-            <td className="px-3 py-6 text-center text-muted-foreground" colSpan={colSpan}>
+        <TableRow>
+            <TableCell className="py-6 text-center text-muted-foreground" colSpan={colSpan}>
                 Sin registros para el rango seleccionado.
-            </td>
-        </tr>
+            </TableCell>
+        </TableRow>
+    );
+}
+
+function TextoConTooltip({ value }: { value: string }) {
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="line-clamp-2 cursor-help">{value}</span>
+                </TooltipTrigger>
+                <TooltipContent>{value}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     );
 }
 
@@ -427,34 +449,39 @@ function ModalShell({ title, description, onClose, children }: { title: string; 
 function CitasGestionadasModal({ gestion, onClose }: { gestion: DashboardFuncionarioData["detalles"]["gestiones"][number]; onClose: () => void }) {
     return (
         <ModalShell title="Citas gestionadas" description={`Solicitud ${acortarId(gestion.id_solicitud)} · ${gestion.rut_usuario}`} onClose={onClose}>
-            <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[980px] table-fixed text-left text-sm">
-                    <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-                        <tr>
-                            <th className="w-[190px] px-3 py-2 font-medium">Cita</th>
-                            <th className="w-[120px] px-3 py-2 font-medium">Fecha estimada</th>
-                            <th className="w-[210px] px-3 py-2 font-medium">Tipo</th>
-                            <th className="w-[170px] px-3 py-2 font-medium">Estamento</th>
-                            <th className="w-[220px] px-3 py-2 font-medium">Prestación</th>
-                            <th className="w-[110px] px-3 py-2 font-medium">Prioridad</th>
-                            <th className="w-[130px] px-3 py-2 font-medium">Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            <div className="rounded-md border">
+                <Table>
+                    <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                        <TableRow>
+                            <TableHead>Cita</TableHead>
+                            <TableHead>Prestación</TableHead>
+                            <TableHead>Estamento / Prioridad</TableHead>
+                            <TableHead>Estado</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
                         {gestion.citas.map((cita) => (
-                            <tr key={cita.id_cita} className="border-t">
-                                <td className="px-3 py-3 font-medium"><CodigoId id={cita.id_cita} /></td>
-                                <td className="px-3 py-3">{formatFecha(cita.fecha_estimada_atencion)}</td>
-                                <td className="px-3 py-3">{cita.tipo_prestacion}</td>
-                                <td className="px-3 py-3">{cita.estamento || "-"}</td>
-                                <td className="px-3 py-3">{cita.prestacion || cita.tipo_prestacion}</td>
-                                <td className="px-3 py-3">{cita.priorizacion_clinica || "-"}</td>
-                                <td className="px-3 py-3"><Badge variant="muted">{cita.estado_cita || "-"}</Badge></td>
-                            </tr>
+                            <TableRow key={cita.id_cita}>
+                                <TableCell>
+                                    <div className="font-medium"><CodigoId id={cita.id_cita} /></div>
+                                    <div className="text-xs text-muted-foreground">{formatFecha(cita.fecha_estimada_atencion)}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <div>{cita.tipo_prestacion}</div>
+                                    {cita.prestacion && cita.prestacion !== cita.tipo_prestacion && (
+                                        <div className="text-xs text-muted-foreground">{cita.prestacion}</div>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <div>{cita.estamento || "-"}</div>
+                                    <div className="text-xs text-muted-foreground">{cita.priorizacion_clinica || "-"}</div>
+                                </TableCell>
+                                <TableCell><Badge variant="muted">{cita.estado_cita || "-"}</Badge></TableCell>
+                            </TableRow>
                         ))}
-                        {gestion.citas.length === 0 && <EmptyRow colSpan={7} />}
-                    </tbody>
-                </table>
+                        {gestion.citas.length === 0 && <EmptyRow colSpan={4} />}
+                    </TableBody>
+                </Table>
             </div>
         </ModalShell>
     );
