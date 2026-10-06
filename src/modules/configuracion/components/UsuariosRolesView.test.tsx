@@ -77,6 +77,14 @@ beforeEach(() => {
 });
 
 describe("UsuariosRolesView: pestanas segun permisos", () => {
+    it("deja el fallback de scroll horizontal al Table de shadcn en tablas genericas", async () => {
+        const { container } = render(<UsuariosRolesView permisos={["config.ver", "config.catalogos"]} actor={null} />);
+
+        await screen.findByRole("button", { name: "Tipo solicitud" });
+
+        expect(container.querySelector(".overflow-x-auto")).toBeNull();
+    });
+
     it("compacta la tabla de funcionarios y conserva sus datos y acciones", async () => {
         const { container } = render(
             <UsuariosRolesView permisos={["config.ver", "config.funcionarios"]} actor={{ rut: "11.111.111-1", rolId: 2 }} />

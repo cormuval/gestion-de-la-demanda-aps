@@ -743,7 +743,7 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
 
 function Table({ headers, children }: { headers: string[]; children: ReactNode }) {
     return (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="rounded-md border">
             <ShadcnTable>
                 <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
                     <TableRow>
