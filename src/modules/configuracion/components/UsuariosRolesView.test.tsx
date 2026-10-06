@@ -77,6 +77,26 @@ beforeEach(() => {
 });
 
 describe("UsuariosRolesView: pestanas segun permisos", () => {
+    it("compacta la tabla de funcionarios y conserva sus datos y acciones", async () => {
+        const { container } = render(
+            <UsuariosRolesView permisos={["config.ver", "config.funcionarios"]} actor={{ rut: "11.111.111-1", rolId: 2 }} />
+        );
+
+        await screen.findByText("Admin Demo");
+        const filaFuncionario = screen.getByText("Admin Demo").closest("tr") as HTMLElement;
+
+        expect(container.querySelector(".min-w-\\[1180px\\]")).toBeNull();
+        expect(container.querySelector(".table-fixed")).toBeNull();
+        expect(within(filaFuncionario).getByText("11.111.111-1")).toBeInTheDocument();
+        expect(within(filaFuncionario).getByText("admin@demo.local")).toBeInTheDocument();
+        expect(within(filaFuncionario).getByText("Administrador")).toBeInTheDocument();
+        expect(within(filaFuncionario).getByText("CESFAM Uno")).toBeInTheDocument();
+        expect(within(filaFuncionario).getByText("SOME")).toBeInTheDocument();
+        expect(within(filaFuncionario).getByText("Activo")).toBeInTheDocument();
+        expect(within(filaFuncionario).getByRole("button", { name: "Editar" })).toBeInTheDocument();
+        expect(within(filaFuncionario).getByRole("button", { name: "Desactivar" })).toBeInTheDocument();
+    });
+
     it("un rol con todos los permisos de configuracion ve todas las pestanas", async () => {
         await montar(["config.ver", "config.catalogos", "config.roles", "config.funcionarios"]);
         for (const etiqueta of TODAS_LAS_PESTANAS) {

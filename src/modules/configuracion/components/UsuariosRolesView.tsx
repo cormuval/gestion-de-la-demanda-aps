@@ -22,6 +22,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
+import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { PermisosRolModal, type RolConPermisos } from "@/modules/configuracion/components/PermisosRolModal";
 // config
 import { esPermiso, type Permiso } from "@/config/permisos";
@@ -488,36 +490,43 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                     )}
 
                     {activeTab === "funcionarios" && (
-                        <div className="overflow-x-auto rounded-md border">
-                            <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
-                                <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-                                    <tr>
-                                        <th className="w-[120px] px-3 py-2 font-medium">RUT</th>
-                                        <th className="w-[260px] px-3 py-2 font-medium">Email</th>
-                                        <th className="w-[210px] px-3 py-2 font-medium">Nombre</th>
-                                        <th className="w-[150px] px-3 py-2 font-medium">Rol</th>
-                                        <th className="w-[210px] px-3 py-2 font-medium">Centro</th>
-                                        <th className="w-[150px] px-3 py-2 font-medium">Programa</th>
-                                        <th className="w-[100px] px-3 py-2 font-medium">Estado</th>
-                                        <th className="w-[150px] px-3 py-2 font-medium">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        <div className="rounded-md border">
+                            <TooltipProvider>
+                                <ShadcnTable>
+                                    <TableHeader>
+                                        <TableRow className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                                            <TableHead>Funcionario</TableHead>
+                                            <TableHead>Rol / Centro</TableHead>
+                                            <TableHead>Programa</TableHead>
+                                            <TableHead>Estado</TableHead>
+                                            <TableHead>Acciones</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
                                     {data.funcionarios.map((funcionario) => {
                                         const superior = esRolSuperior(funcionario.rol_id);
                                         const propio = actor?.rut === funcionario.rut;
                                         const motivo = motivoRolSuperior(funcionario.rol_id) ?? (propio ? "No puedes cambiar tu propio rol, estado o centro" : undefined);
 
                                         return (
-                                            <tr key={funcionario.rut} className="border-t align-top">
-                                                <td className="px-3 py-3 font-medium">{funcionario.rut}</td>
-                                                <td className="break-all px-3 py-3 leading-5" title={funcionario.email}>{funcionario.email}</td>
-                                                <td className="px-3 py-3 leading-5">{funcionario.nombre}</td>
-                                                <td className="px-3 py-3 leading-5">{funcionario.role.nombre_rol}</td>
-                                                <td className="px-3 py-3 leading-5">{nombreCentro(funcionario.centro_id)}</td>
-                                                <td className="px-3 py-3">{funcionario.programa_asociado || "-"}</td>
-                                                <td className="px-3 py-3"><EstadoBadge active={funcionario.estado === "Activo"} /></td>
-                                                <td className="px-3 py-3">
+                                            <TableRow key={funcionario.rut} className="align-top">
+                                                <TableCell className="font-medium">
+                                                    <div>{funcionario.nombre}</div>
+                                                    <div className="text-sm font-normal text-muted-foreground">{funcionario.rut}</div>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <span className="line-clamp-2 break-all text-sm font-normal text-muted-foreground">{funcionario.email}</span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>{funcionario.email}</TooltipContent>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div>{funcionario.role.nombre_rol}</div>
+                                                    <div className="text-sm text-muted-foreground">{nombreCentro(funcionario.centro_id)}</div>
+                                                </TableCell>
+                                                <TableCell>{funcionario.programa_asociado || "-"}</TableCell>
+                                                <TableCell><EstadoBadge active={funcionario.estado === "Activo"} /></TableCell>
+                                                <TableCell>
                                                     <RowActions
                                                         active={funcionario.estado === "Activo"}
                                                         editDisabled={superior}
@@ -557,12 +566,13 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                                                             }
                                                         }}
                                                     />
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
                                         );
                                     })}
-                                </tbody>
-                            </table>
+                                    </TableBody>
+                                </ShadcnTable>
+                            </TooltipProvider>
                         </div>
                     )}
                     </>
@@ -734,18 +744,18 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
 function Table({ headers, children }: { headers: string[]; children: ReactNode }) {
     return (
         <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[780px] table-fixed text-left text-sm">
-                <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-                    <tr>
+            <ShadcnTable>
+                <TableHeader className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                    <TableRow>
                         {headers.map((header) => (
-                            <th key={header} className="px-3 py-2 font-medium">
+                            <TableHead key={header}>
                                 {header}
-                            </th>
+                            </TableHead>
                         ))}
-                    </tr>
-                </thead>
-                <tbody>{children}</tbody>
-            </table>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>{children}</TableBody>
+            </ShadcnTable>
         </div>
     );
 }
