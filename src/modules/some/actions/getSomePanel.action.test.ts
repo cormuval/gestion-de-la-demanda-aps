@@ -7,7 +7,9 @@ vi.mock("@/shared/lib/prisma", () => ({
         solicitud: { findMany: vi.fn(), groupBy: vi.fn() },
         tipoSolicitud: { findMany: vi.fn() },
         motivo: { findMany: vi.fn() },
-        cita: { findMany: vi.fn() },
+        cita: { findMany: vi.fn(), groupBy: vi.fn() },
+        profesional: { findMany: vi.fn() },
+        prestacion: { findMany: vi.fn() },
         llamada: { findMany: vi.fn() }
     }
 }));
@@ -46,6 +48,9 @@ beforeEach(() => {
     (prisma.tipoSolicitud.findMany as any).mockResolvedValue([]);
     (prisma.motivo.findMany as any).mockResolvedValue([]);
     (prisma.cita.findMany as any).mockResolvedValue([]);
+    (prisma.cita.groupBy as any).mockResolvedValue([]);
+    (prisma.profesional.findMany as any).mockResolvedValue([]);
+    (prisma.prestacion.findMany as any).mockResolvedValue([]);
     (prisma.llamada.findMany as any).mockResolvedValue([]);
 });
 
@@ -175,34 +180,29 @@ describe("getSomePanel", () => {
     });
 
     it("demanda clinica ignora filtro de funcionario y agrupa por profesional con prestaciones", async () => {
-        const hoy = new Date();
-        const atrasada = new Date(hoy);
-        atrasada.setDate(hoy.getDate() - 20);
-        const futura = new Date(hoy);
-        futura.setDate(hoy.getDate() + 40);
-
-        (prisma.cita.findMany as any)
+        (prisma.cita.groupBy as any)
+            .mockResolvedValueOnce([{ profesional_id: 1, prestacion_id: 10, estado_cita: "Sin llamadas", _count: { _all: 1 } }])
             .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([
-                {
-                    id_cita: "CITA-1",
-                    estado_cita: "Sin llamadas",
-                    fecha_estimada_atencion: atrasada,
-                    profesional: { nombre: "Medico" },
-                    prestacion: { nombre_prestacion: "Control" }
-                },
-                {
-                    id_cita: "CITA-2",
-                    estado_cita: "No contesta (2)",
-                    fecha_estimada_atencion: futura,
-                    profesional: { nombre: "Medico" },
-                    prestacion: { nombre_prestacion: "Morbilidad" }
-                }
-            ]);
+            .mockResolvedValueOnce([{ profesional_id: 1, prestacion_id: 20, estado_cita: "No contesta (2)", _count: { _all: 1 } }]);
+        (prisma.profesional.findMany as any).mockResolvedValue([{ id_profesional: 1, nombre: "Medico" }]);
+        (prisma.prestacion.findMany as any).mockResolvedValue([
+            { id_prestacion: 10, nombre_prestacion: "Control" },
+            { id_prestacion: 20, nombre_prestacion: "Morbilidad" }
+        ]);
 
         const result = await getSomePanel({ funcionarioRut: "22.222.222-2" });
         const [row] = result.demandaClinica;
 
+        expect(prisma.cita.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.cita.groupBy).toHaveBeenCalledTimes(3);
+        expect(prisma.cita.groupBy).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                by: ["profesional_id", "prestacion_id", "estado_cita"],
+                where: expect.objectContaining({ centro_id: "501", estado_cita: { in: ["Sin llamadas", "No contesta (1)", "No contesta (2)", "Solo llamada de aviso"] } }),
+                _count: { _all: true }
+            })
+        );
         expect(row.total).toBe(2);
         expect(row.temporalidades["Agendamientos atrasados"]).toBe(1);
         expect(row.temporalidades["Agendamientos futuros"]).toBe(1);
@@ -215,38 +215,47 @@ describe("getSomePanel", () => {
     });
 
     it("filtra demanda clinica por temporalidad", async () => {
-        const hoy = new Date();
-        const atrasada = new Date(hoy);
-        atrasada.setDate(hoy.getDate() - 20);
-        const futura = new Date(hoy);
-        futura.setDate(hoy.getDate() + 40);
-
-        (prisma.cita.findMany as any)
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([
-                {
-                    id_cita: "CITA-1",
-                    estado_cita: "Sin llamadas",
-                    fecha_estimada_atencion: atrasada,
-                    profesional: { nombre: "Medico" },
-                    prestacion: { nombre_prestacion: "Control" }
-                },
-                {
-                    id_cita: "CITA-2",
-                    estado_cita: "No contesta (2)",
-                    fecha_estimada_atencion: futura,
-                    profesional: { nombre: "Medico" },
-                    prestacion: { nombre_prestacion: "Morbilidad" }
-                }
-            ]);
+        (prisma.cita.groupBy as any).mockResolvedValueOnce([{ profesional_id: 1, prestacion_id: 20, estado_cita: "No contesta (2)", _count: { _all: 1 } }]);
+        (prisma.profesional.findMany as any).mockResolvedValue([{ id_profesional: 1, nombre: "Medico" }]);
+        (prisma.prestacion.findMany as any).mockResolvedValue([{ id_prestacion: 20, nombre_prestacion: "Morbilidad" }]);
 
         const result = await getSomePanel({ demandaTemporalidad: "Agendamientos futuros" });
         const [row] = result.demandaClinica;
 
+        expect(prisma.cita.groupBy).toHaveBeenCalledTimes(1);
+        expect(prisma.cita.groupBy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    fecha_estimada_atencion: expect.objectContaining({ gte: expect.any(Date) })
+                })
+            })
+        );
         expect(result.demandaTemporalidad).toBe("Agendamientos futuros");
         expect(row.total).toBe(1);
         expect(row.temporalidades["Agendamientos futuros"]).toBe(1);
         expect(row.prestaciones).toEqual([expect.objectContaining({ prestacion: "Morbilidad", total: 1 })]);
+    });
+
+    it("clasifica citas sin fecha estimada como proximos al agrupar demanda clinica", async () => {
+        (prisma.cita.groupBy as any).mockResolvedValueOnce([{ profesional_id: null, prestacion_id: null, estado_cita: "Sin llamadas", _count: { _all: 4 } }]);
+
+        const result = await getSomePanel({ demandaTemporalidad: "Agendamientos próximos" });
+
+        expect(prisma.cita.groupBy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    OR: expect.arrayContaining([{ fecha_estimada_atencion: null }])
+                })
+            })
+        );
+        expect(result.demandaClinica).toEqual([
+            expect.objectContaining({
+                profesional: "-",
+                total: 4,
+                temporalidades: expect.objectContaining({ "Agendamientos próximos": 4 }),
+                prestaciones: [expect.objectContaining({ prestacion: "-", total: 4 })]
+            })
+        ]);
     });
 
     it("agrupa solicitudes pendientes por tipo y motivo", async () => {

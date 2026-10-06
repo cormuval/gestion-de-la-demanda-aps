@@ -145,17 +145,40 @@ function addSerie(seriePorFecha: Map<string, SomeDiaSerie>, fecha: Date | null |
     if (row) addTotal(row, key, amount);
 }
 
-function temporalidadCita(fecha: Date | null): string {
-    if (!fecha) return TEMPORALIDAD.PROXIMOS;
-    const hoy = new Date();
+interface TemporalidadRangos {
+    hoy: Date;
+    atrasadosHasta: Date;
+    futurosDesde: Date;
+}
+
+type TemporalidadWhere =
+    | { fecha_estimada_atencion: { lt: Date } }
+    | { fecha_estimada_atencion: { gte: Date } }
+    | { OR: [{ fecha_estimada_atencion: null }, { fecha_estimada_atencion: { gte: Date; lt: Date } }] };
+
+function buildTemporalidadRangos(base = new Date()): TemporalidadRangos {
+    const hoy = new Date(base);
     hoy.setHours(0, 0, 0, 0);
     const atrasadosHasta = new Date(hoy);
     atrasadosHasta.setDate(hoy.getDate() - 15);
     const futurosDesde = new Date(hoy);
     futurosDesde.setDate(hoy.getDate() + 31);
-    if (fecha < atrasadosHasta) return TEMPORALIDAD.ATRASADOS;
-    if (fecha >= futurosDesde) return TEMPORALIDAD.FUTUROS;
-    return TEMPORALIDAD.PROXIMOS;
+    return { hoy, atrasadosHasta, futurosDesde };
+}
+
+function buildTemporalidadWhere(temporalidad: string, rangos: TemporalidadRangos): TemporalidadWhere {
+    if (temporalidad === TEMPORALIDAD.ATRASADOS) {
+        return { fecha_estimada_atencion: { lt: rangos.atrasadosHasta } };
+    }
+    if (temporalidad === TEMPORALIDAD.FUTUROS) {
+        return { fecha_estimada_atencion: { gte: rangos.futurosDesde } };
+    }
+    return {
+        OR: [
+            { fecha_estimada_atencion: null },
+            { fecha_estimada_atencion: { gte: rangos.atrasadosHasta, lt: rangos.futurosDesde } }
+        ]
+    };
 }
 
 function parseDemandaTemporalidad(input?: string): string {
@@ -171,10 +194,10 @@ function emptyDemandaConteos(prestacion: string): SomeDemandaConteos {
     };
 }
 
-function sumarDemanda(target: SomeDemandaConteos, temporalidad: string, estado: string) {
-    target.total += 1;
-    target.temporalidades[temporalidad] = (target.temporalidades[temporalidad] ?? 0) + 1;
-    target.estados[estado] = (target.estados[estado] ?? 0) + 1;
+function sumarDemanda(target: SomeDemandaConteos, temporalidad: string, estado: string, amount = 1) {
+    target.total += amount;
+    target.temporalidades[temporalidad] = (target.temporalidades[temporalidad] ?? 0) + amount;
+    target.estados[estado] = (target.estados[estado] ?? 0) + amount;
 }
 
 export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
@@ -183,6 +206,9 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
     const esAdministrador = user.rol.nombre === "Administrador";
     const { rangoDias, desde, hasta } = buildRango(filtros.rangoDias);
     const demandaTemporalidad = parseDemandaTemporalidad(filtros.demandaTemporalidad);
+    const temporalidadRangos = buildTemporalidadRangos();
+    const temporalidadesDemanda =
+        demandaTemporalidad === TEMPORALIDAD.TODAS ? [TEMPORALIDAD.ATRASADOS, TEMPORALIDAD.PROXIMOS, TEMPORALIDAD.FUTUROS] : [demandaTemporalidad];
 
     const centros = esAdministrador
         ? await prisma.centro.findMany({ select: { id_centro: true, nombre_centro: true }, orderBy: { nombre_centro: "asc" } })
@@ -231,16 +257,20 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
             where: { centro_id: centroSeleccionado, rut_comunicador: rutComunicadorFiltro, fecha_llamada: { gte: desde, lt: hasta } },
             select: { rut_comunicador: true, fecha_llamada: true }
         }),
-        prisma.cita.findMany({
-            where: { centro_id: centroSeleccionado, estado_cita: { in: [...ESTADOS_PENDIENTES] } },
-            select: {
-                id_cita: true,
-                estado_cita: true,
-                fecha_estimada_atencion: true,
-                profesional: { select: { nombre: true } },
-                prestacion: { select: { nombre_prestacion: true } }
-            }
-        }),
+        Promise.all(
+            temporalidadesDemanda.map(async (temporalidad) => ({
+                temporalidad,
+                grupos: await prisma.cita.groupBy({
+                    by: ["profesional_id", "prestacion_id", "estado_cita"],
+                    where: {
+                        centro_id: centroSeleccionado,
+                        estado_cita: { in: [...ESTADOS_PENDIENTES] },
+                        ...buildTemporalidadWhere(temporalidad, temporalidadRangos)
+                    },
+                    _count: { _all: true }
+                })
+            }))
+        ),
         prisma.solicitud.groupBy({
             by: ["tipo_solicitud_id", "motivo_id"],
             where: { centro_id: centroSeleccionado, accion: ACCION_ESPERA_VALIDACION },
@@ -266,6 +296,25 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
     ]);
     const tiposSolicitudPorId = new Map(tiposSolicitudPendiente.map((tipo) => [tipo.id_tipo_solicitud, tipo.nombre_tipo_solicitud]));
     const motivosPorId = new Map(motivosSolicitudPendiente.map((motivo) => [motivo.id_motivo, motivo.nombre_motivo]));
+
+    const profesionalIds = Array.from(new Set(demandaRaw.flatMap(({ grupos }) => grupos.map((grupo) => grupo.profesional_id).filter((id): id is number => id !== null))));
+    const prestacionIds = Array.from(new Set(demandaRaw.flatMap(({ grupos }) => grupos.map((grupo) => grupo.prestacion_id).filter((id): id is number => id !== null))));
+    const [profesionalesDemanda, prestacionesDemanda] = await Promise.all([
+        profesionalIds.length
+            ? prisma.profesional.findMany({
+                  where: { id_profesional: { in: profesionalIds } },
+                  select: { id_profesional: true, nombre: true }
+              })
+            : Promise.resolve([]),
+        prestacionIds.length
+            ? prisma.prestacion.findMany({
+                  where: { id_prestacion: { in: prestacionIds } },
+                  select: { id_prestacion: true, nombre_prestacion: true }
+              })
+            : Promise.resolve([])
+    ]);
+    const profesionalesPorId = new Map(profesionalesDemanda.map((profesional) => [profesional.id_profesional, profesional.nombre]));
+    const prestacionesPorId = new Map(prestacionesDemanda.map((prestacion) => [prestacion.id_prestacion, prestacion.nombre_prestacion]));
 
     const totales = emptyTotales();
     const serie = buildSerie(desde, rangoDias);
@@ -307,30 +356,30 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
     }
 
     const demandaPorProfesional = new Map<string, SomeDemandaProfesional>();
-    for (const cita of demandaRaw) {
-        const temporalidad = temporalidadCita(cita.fecha_estimada_atencion);
-        if (demandaTemporalidad !== TEMPORALIDAD.TODAS && temporalidad !== demandaTemporalidad) continue;
+    for (const demandaTemporal of demandaRaw) {
+        for (const grupo of demandaTemporal.grupos) {
+            const totalGrupo = grupo._count._all;
+            const profesional = grupo.profesional_id === null ? "-" : (profesionalesPorId.get(grupo.profesional_id) ?? "-");
+            const prestacion = grupo.prestacion_id === null ? "-" : (prestacionesPorId.get(grupo.prestacion_id) ?? "-");
+            const estado = grupo.estado_cita ?? "-";
 
-        const profesional = cita.profesional?.nombre ?? "-";
-        const prestacion = cita.prestacion?.nombre_prestacion ?? "-";
-        const estado = cita.estado_cita ?? "-";
+            const profesionalRow =
+                demandaPorProfesional.get(profesional) ??
+                {
+                    profesional,
+                    ...emptyDemandaConteos("Todas"),
+                    prestaciones: []
+                };
+            sumarDemanda(profesionalRow, demandaTemporal.temporalidad, estado, totalGrupo);
 
-        const profesionalRow =
-            demandaPorProfesional.get(profesional) ??
-            {
-                profesional,
-                ...emptyDemandaConteos("Todas"),
-                prestaciones: []
-            };
-        sumarDemanda(profesionalRow, temporalidad, estado);
-
-        let prestacionRow = profesionalRow.prestaciones.find((row) => row.prestacion === prestacion);
-        if (!prestacionRow) {
-            prestacionRow = emptyDemandaConteos(prestacion);
-            profesionalRow.prestaciones.push(prestacionRow);
+            let prestacionRow = profesionalRow.prestaciones.find((row) => row.prestacion === prestacion);
+            if (!prestacionRow) {
+                prestacionRow = emptyDemandaConteos(prestacion);
+                profesionalRow.prestaciones.push(prestacionRow);
+            }
+            sumarDemanda(prestacionRow, demandaTemporal.temporalidad, estado, totalGrupo);
+            demandaPorProfesional.set(profesional, profesionalRow);
         }
-        sumarDemanda(prestacionRow, temporalidad, estado);
-        demandaPorProfesional.set(profesional, profesionalRow);
     }
 
     const solicitudesPorTipo = new Map<string, SomeSolicitudPendienteTipo>();
