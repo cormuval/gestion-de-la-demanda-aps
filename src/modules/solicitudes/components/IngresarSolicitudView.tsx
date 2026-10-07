@@ -28,8 +28,9 @@ import type { Catalogos } from "@/modules/catalogos/types/catalogos";
 // utils
 import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada } from "@/modules/solicitudes/utils/duplicados";
 
-type UsuarioConfirmado = NonNullable<Awaited<ReturnType<typeof getUsuarioPorRut>>["usuario"]>;
-type Pendientes = Awaited<ReturnType<typeof getPendientes>>;
+type ResultadoUsuarioEncontrado = Extract<Awaited<ReturnType<typeof getUsuarioPorRut>>, { ok: true }>;
+type UsuarioConfirmado = NonNullable<ResultadoUsuarioEncontrado["data"]["usuario"]>;
+type Pendientes = Extract<Awaited<ReturnType<typeof getPendientes>>, { ok: true }>["data"];
 type CrearSolicitudResult = Awaited<ReturnType<typeof crearSolicitud>>;
 type VoucherSolicitud = Extract<CrearSolicitudResult, { ok: true }>["data"]["voucher"];
 
@@ -206,10 +207,19 @@ export function IngresarSolicitudView() {
         setSolicitudForm(emptySolicitudForm);
         setLoadingPendientes(true);
         try {
-            const [data, usuarioData] = await Promise.all([getPendientes(rutBusqueda), getUsuarioPorRut(rutBusqueda)]);
-            setPendientes(data);
+            const [pendientesResult, usuarioResult] = await Promise.all([getPendientes(rutBusqueda), getUsuarioPorRut(rutBusqueda)]);
+            if (!pendientesResult.ok) {
+                toast.error(pendientesResult.error);
+                return;
+            }
+            if (!usuarioResult.ok) {
+                toast.error(usuarioResult.error);
+                return;
+            }
+
+            setPendientes(pendientesResult.data);
             setRutRevisado(rutBusqueda);
-            const usuario = usuarioData.usuario;
+            const { usuario } = usuarioResult.data;
             if (usuario) {
                 setUsuarioConfirmado(usuario);
                 toast.success("Usuario encontrado. Ya puedes ingresar la solicitud.");
@@ -279,7 +289,7 @@ export function IngresarSolicitudView() {
                 toast.error(result.error);
                 try {
                     const actualizados = await getPendientes(usuarioConfirmado.rut);
-                    setPendientes(actualizados);
+                    if (actualizados.ok) setPendientes(actualizados.data);
                 } catch {
                     // El toast original es el mensaje importante para el usuario.
                 }
