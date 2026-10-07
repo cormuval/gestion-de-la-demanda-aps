@@ -46,11 +46,11 @@ import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/co
 import type { SolicitudFiltros } from "@/modules/solicitudes/schemas/solicitud.schema";
 import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
 
-type SolicitudesResponse = Awaited<ReturnType<typeof getSolicitudes>>;
+type SolicitudesResponse = Extract<Awaited<ReturnType<typeof getSolicitudes>>, { ok: true }>["data"];
 type SolicitudRow = SolicitudesResponse["solicitudes"][number];
-type RevisionCatalogos = Awaited<ReturnType<typeof getRevisionCatalogos>>;
-type OtrasSolicitudesResponse = Awaited<ReturnType<typeof getOtrasSolicitudes>>;
-type GestionResumen = Awaited<ReturnType<typeof gestionarSolicitud>>["resumen"];
+type RevisionCatalogos = Extract<Awaited<ReturnType<typeof getRevisionCatalogos>>, { ok: true }>["data"];
+type OtrasSolicitudesResponse = Extract<Awaited<ReturnType<typeof getOtrasSolicitudes>>, { ok: true }>["data"];
+type GestionResumen = Extract<Awaited<ReturnType<typeof gestionarSolicitud>>, { ok: true }>["data"]["resumen"];
 type CitaContexto = OtrasSolicitudesResponse["citas"][number];
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
 type PrioridadClinica = (typeof PRIORIDADES_CLINICAS)[number];
@@ -168,7 +168,13 @@ export function RevisarSolicitudesView() {
 
     useEffect(() => {
         getRevisionCatalogos()
-            .then(setCatalogos)
+            .then((result) => {
+                if (!result.ok) {
+                    toast.error(result.error);
+                    return;
+                }
+                setCatalogos(result.data);
+            })
             .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cargar catalogos"));
     }, []);
 
@@ -186,8 +192,12 @@ export function RevisarSolicitudesView() {
         setLoading(true);
         try {
             const result = await getSolicitudes(nextFilters);
-            setData(result);
-            setFilters((current) => ({ ...current, page: result.page }));
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            setData(result.data);
+            setFilters((current) => ({ ...current, page: result.data.page }));
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al consultar solicitudes");
         } finally {
@@ -221,7 +231,11 @@ export function RevisarSolicitudesView() {
         setLoadingOtras(true);
         try {
             const result = await getOtrasSolicitudes(solicitud.rut_usuario, solicitud.id_solicitud);
-            setOtrasContexto(result);
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            setOtrasContexto(result.data);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al consultar solicitudes y citas");
         } finally {
@@ -290,9 +304,13 @@ export function RevisarSolicitudesView() {
                 razon_rechazo: razonRechazo as RazonRechazo,
                 observacion_rechazo: observacionRechazo
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Solicitud rechazada");
             setRechazoSolicitud(null);
-            setResumenGestion(result.resumen);
+            setResumenGestion(result.data.resumen);
             await loadSolicitudes(filters);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch (err) {
@@ -323,9 +341,13 @@ export function RevisarSolicitudesView() {
                 accion: ACCION_REALIZAR_SOLICITUD,
                 citas: citasPayload
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Solicitud realizada");
             setRealizarSolicitud(null);
-            setResumenGestion(result.resumen);
+            setResumenGestion(result.data.resumen);
             await loadSolicitudes(filters);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch (err) {

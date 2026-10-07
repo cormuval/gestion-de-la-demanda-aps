@@ -5,11 +5,14 @@ import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 // types
 import { ESTADOS_PENDIENTES } from "@/modules/comunicador/types/comunicador";
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // utils
 import { esCitaEditable } from "../utils/citas";
 import { normalizarRut } from "../utils/rut";
 
-async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string> {
+const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
+
+async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string | null> {
     if (centroSesion) return centroSesion;
 
     const funcionario = await prisma.funcionario.findUnique({
@@ -17,17 +20,17 @@ async function getCentroFuncionario(rutFuncionario: string, centroSesion: string
         select: { centro_id: true }
     });
 
-    if (!funcionario?.centro_id) throw new Error("El funcionario activo no tiene centro asignado");
-    return funcionario.centro_id;
+    return funcionario?.centro_id ?? null;
 }
 
 export async function getOtrasSolicitudes(rutUsuario: string, solicitudActualId: string) {
     const user = await requirePermiso("solicitudes.gestionar");
 
     const rut = normalizarRut(rutUsuario);
-    if (!rut) throw new Error("rutUsuario es requerido");
+    if (!rut) return { ok: false, error: "rutUsuario es requerido" } satisfies ResultadoAccion<never>;
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
+    if (!centroId) return { ok: false, error: ERROR_CENTRO } satisfies ResultadoAccion<never>;
     const [solicitudes, citasRaw] = await Promise.all([
         prisma.solicitud.findMany({
             where: {
@@ -51,5 +54,6 @@ export async function getOtrasSolicitudes(rutUsuario: string, solicitudActualId:
         editable: esCitaEditable({ estado_cita: cita.estado_cita, cantidadLlamadas: _count.llamadas })
     }));
 
-    return { solicitudes, citas };
+    const payload = { solicitudes, citas };
+    return { ok: true, data: payload } satisfies ResultadoAccion<typeof payload>;
 }
