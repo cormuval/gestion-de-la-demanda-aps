@@ -1,6 +1,9 @@
 // lib
 import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
+import type { Prisma } from "@prisma/client";
+// types
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
 import { usuarioSolicitudSchema, type UsuarioSolicitudInput, type UsuarioSolicitudData } from "../schemas/usuario.schema";
 // utils
@@ -29,14 +32,17 @@ export const USUARIO_SELECT = {
     priorizacion_administrativa: true
 } as const;
 
-export async function validarCentro(centroId: string): Promise<void> {
+export type UsuarioGuardado = Prisma.UsuarioGetPayload<{ select: typeof USUARIO_SELECT }>;
+
+export async function validarCentro(centroId: string): Promise<ResultadoAccion<null>> {
     const rows = await prisma.$queryRaw<{ id_centro: string }[]>`
         SELECT id_centro
         FROM centros
         WHERE id_centro = ${centroId}
         LIMIT 1
     `;
-    if (rows.length === 0) throw new Error("Centro no encontrado");
+    if (rows.length === 0) return { ok: false, error: "Centro no encontrado" };
+    return { ok: true, data: null };
 }
 
 export function toUsuarioData(data: UsuarioSolicitudData) {
@@ -61,9 +67,14 @@ export function toUsuarioData(data: UsuarioSolicitudData) {
     };
 }
 
-export async function persistirActualizacionUsuario(actor: ActorAuditoria, input: UsuarioSolicitudInput, origen: string) {
+export async function persistirActualizacionUsuario(
+    actor: ActorAuditoria,
+    input: UsuarioSolicitudInput,
+    origen: string
+): Promise<ResultadoAccion<{ usuario: UsuarioGuardado }>> {
     const data = usuarioSolicitudSchema.parse(input);
-    await validarCentro(data.centro_id);
+    const centro = await validarCentro(data.centro_id);
+    if (!centro.ok) return centro;
 
     const usuario = await prisma.usuario.update({
         where: { rut: data.rut },
@@ -75,5 +86,5 @@ export async function persistirActualizacionUsuario(actor: ActorAuditoria, input
         details: `Usuario actualizado desde ${origen}`
     });
 
-    return { usuario };
+    return { ok: true, data: { usuario } };
 }

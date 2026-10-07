@@ -100,17 +100,21 @@ export function useUsuarioEdit(onActualizado?: () => void) {
                 toast.error("Selecciona genero, gestante y discapacidad");
                 return;
             }
-            await actualizarUsuarioComunicador({
+            const result = await actualizarUsuarioComunicador({
                 ...form,
                 genero: form.genero,
                 gestante: form.genero === "Femenino" ? form.gestante : "No aplica",
                 discapacidad: form.discapacidad
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Paciente actualizado");
             setOpen(false);
             onActualizado?.();
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Error al guardar el paciente");
+        } catch {
+            toast.error("Error al guardar el paciente");
         } finally {
             setSaving(false);
         }

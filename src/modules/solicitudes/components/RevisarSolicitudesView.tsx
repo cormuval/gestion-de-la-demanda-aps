@@ -258,18 +258,22 @@ export function RevisarSolicitudesView() {
         try {
             const genero = usuarioForm.genero;
             const discapacidad = usuarioForm.discapacidad;
-            await actualizarUsuario({
+            const result = await actualizarUsuario({
                 ...usuarioForm,
                 genero,
                 discapacidad,
                 gestante: genero === "Femenino" && usuarioForm.gestante ? usuarioForm.gestante : "No aplica"
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Usuario actualizado");
             setEditingUsuario(null);
             await loadSolicitudes(filters);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al guardar usuario");
+        } catch {
+            toast.error("Error al guardar usuario");
         } finally {
             setSavingUsuario(false);
         }

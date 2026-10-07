@@ -26,8 +26,11 @@ vi.mock("@/shared/components/ui/dropdown-menu", () => ({
 import { getOtrasSolicitudes } from "@/modules/solicitudes/actions/getOtrasSolicitudes.action";
 import { getSolicitudes } from "@/modules/solicitudes/actions/getSolicitudes.action";
 import { gestionarSolicitud } from "@/modules/solicitudes/actions/gestionarSolicitud.action";
+import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 // components
 import { RevisarSolicitudesView } from "./RevisarSolicitudesView";
+// lib
+import { toast } from "sonner";
 
 const solicitudBase = {
     id_solicitud: "SOL-1",
@@ -43,7 +46,7 @@ const solicitudBase = {
         apellido: "Perez",
         genero: "Masculino",
         gestante: "No aplica",
-        discapacidad: "No",
+        discapacidad: "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
         centro_id: "650"
     },
     tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
@@ -255,5 +258,25 @@ describe("RevisarSolicitudesView tabla compacta", () => {
         await openGestionMenu();
         fireEvent.click(screen.getByRole("menuitem", { name: /Editar usuario/i }));
         expect(await screen.findByRole("dialog", { name: /Editar usuario/i })).toBeInTheDocument();
+    });
+});
+
+describe("RevisarSolicitudesView guardado de usuario", () => {
+    it("mantiene abierto el formulario y no recarga cuando actualizar usuario retorna un error de negocio", async () => {
+        vi.mocked(actualizarUsuario).mockResolvedValue({ ok: false, error: "Centro no encontrado" } as Awaited<ReturnType<typeof actualizarUsuario>>);
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Editar usuario/i }));
+
+        const modal = await screen.findByRole("dialog", { name: "Editar usuario" });
+        fireEvent.submit(within(modal).getByRole("button", { name: "Guardar usuario" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro no encontrado"));
+        expect(screen.getByRole("dialog", { name: "Editar usuario" })).toBeInTheDocument();
+        expect(within(modal).getByDisplayValue("Juan")).toBeInTheDocument();
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getSolicitudes).toHaveBeenCalledTimes(1);
     });
 });

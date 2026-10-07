@@ -15,6 +15,7 @@ import { crearSolicitud } from "@/modules/solicitudes/actions/crearSolicitud.act
 import { getCentros } from "@/modules/solicitudes/actions/getCentros.action";
 import { getPendientes } from "@/modules/solicitudes/actions/getPendientes.action";
 import { getUsuarioPorRut } from "@/modules/solicitudes/actions/getUsuarioPorRut.action";
+import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 // components
 import { IngresarSolicitudView } from "./IngresarSolicitudView";
 // lib
@@ -32,7 +33,7 @@ const usuarioConfirmado = {
     telefono: "+56911111111",
     telefono_alternativo: "+56922222222",
     gestante: "No aplica",
-    discapacidad: "No",
+    discapacidad: "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
     centro_id: "650",
     priorizacion_administrativa: null
 };
@@ -182,5 +183,22 @@ describe("IngresarSolicitudView duplicados", () => {
         await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Solicitud creada: SOL-nueva"));
         expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
         expect(screen.getByText("SOL-nueva")).toBeInTheDocument();
+    });
+});
+
+describe("IngresarSolicitudView guardado de usuario", () => {
+    it("mantiene abierto el formulario y sus valores cuando actualizar usuario retorna un error de negocio", async () => {
+        vi.mocked(actualizarUsuario).mockResolvedValue({ ok: false, error: "Centro no encontrado" } as Awaited<ReturnType<typeof actualizarUsuario>>);
+
+        await buscarRutConfirmado();
+        fireEvent.click(screen.getByRole("button", { name: "Editar usuario" }));
+        fireEvent.change(screen.getByDisplayValue("Paciente"), { target: { value: "Paciente actualizado" } });
+        vi.mocked(toast.success).mockClear();
+        fireEvent.submit(screen.getByRole("button", { name: "Guardar usuario" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro no encontrado"));
+        expect(screen.getAllByText("Editar usuario")).toHaveLength(2);
+        expect(screen.getByDisplayValue("Paciente actualizado")).toBeInTheDocument();
+        expect(toast.success).not.toHaveBeenCalled();
     });
 });

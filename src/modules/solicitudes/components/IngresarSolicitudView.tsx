@@ -233,19 +233,24 @@ export function IngresarSolicitudView() {
                 return;
             }
             const action = usuarioModalMode === "crear" ? crearUsuario : actualizarUsuario;
-            const { usuario } = await action({
+            const result = await action({
                 ...usuarioForm,
                 genero: usuarioForm.genero,
                 gestante: usuarioForm.genero === "Femenino" ? usuarioForm.gestante : "No aplica",
                 discapacidad: usuarioForm.discapacidad
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            const { usuario } = result.data;
             setUsuarioConfirmado(usuario);
             setRutRevisado(usuario.rut);
             setRutBusqueda(usuario.rut);
             setUsuarioModalMode(null);
             toast.success(usuarioModalMode === "crear" ? "Usuario creado" : "Usuario actualizado");
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al guardar usuario");
+        } catch {
+            toast.error("Error al guardar usuario");
         } finally {
             setSavingUsuario(false);
         }

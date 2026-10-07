@@ -16,6 +16,7 @@ vi.mock("@/shared/lib/logger", () => ({
 }));
 
 import { prisma } from "@/shared/lib/prisma";
+import { AuditLogger } from "@/shared/lib/logger";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { actualizarUsuario, crearUsuario } from "./guardarUsuario.action";
 
@@ -55,21 +56,34 @@ describe("guardarUsuario actions", () => {
         await expect(crearUsuario({ ...usuarioInput, rut: "12.345.678-9" })).rejects.toThrow("RUT invalido");
     });
 
-    it("rechaza crear usuario duplicado", async () => {
+    it("retorna error de negocio al crear usuario duplicado sin escribir ni auditar", async () => {
         (prisma.usuario.findUnique as any).mockResolvedValue({ rut: "12345678-5" });
-        await expect(crearUsuario(usuarioInput)).rejects.toThrow("El usuario ya existe");
+        expect(await crearUsuario(usuarioInput)).toEqual({ ok: false, error: "El usuario ya existe" });
+        expect(prisma.usuario.create).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
 
-    it("rechaza centro inexistente", async () => {
+    it("retorna error de negocio al crear con centro inexistente sin escribir ni auditar", async () => {
         (prisma.$queryRaw as any).mockResolvedValue([]);
-        await expect(crearUsuario(usuarioInput)).rejects.toThrow("Centro no encontrado");
+        expect(await crearUsuario(usuarioInput)).toEqual({ ok: false, error: "Centro no encontrado" });
+        expect(prisma.usuario.create).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("retorna error de negocio al actualizar con centro inexistente sin escribir ni auditar", async () => {
+        (prisma.$queryRaw as any).mockResolvedValue([]);
+
+        expect(await actualizarUsuario(usuarioInput)).toEqual({ ok: false, error: "Centro no encontrado" });
+        expect(prisma.usuario.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
 
     it("crea usuario con RUT normalizado", async () => {
         (prisma.usuario.findUnique as any).mockResolvedValue(null);
-        (prisma.usuario.create as any).mockResolvedValue({ rut: "12345678-5" });
+        const usuario = { rut: "12345678-5" };
+        (prisma.usuario.create as any).mockResolvedValue(usuario);
 
-        await crearUsuario(usuarioInput);
+        await expect(crearUsuario(usuarioInput)).resolves.toEqual({ ok: true, data: { usuario } });
 
         const arg = (prisma.usuario.create as any).mock.calls[0][0];
         expect(arg.data.rut).toBe("12345678-5");
@@ -81,9 +95,10 @@ describe("guardarUsuario actions", () => {
     });
 
     it("actualiza usuario sin cambiar el RUT", async () => {
-        (prisma.usuario.update as any).mockResolvedValue({ rut: "12345678-5" });
+        const usuario = { rut: "12345678-5" };
+        (prisma.usuario.update as any).mockResolvedValue(usuario);
 
-        await actualizarUsuario(usuarioInput);
+        await expect(actualizarUsuario(usuarioInput)).resolves.toEqual({ ok: true, data: { usuario } });
 
         const arg = (prisma.usuario.update as any).mock.calls[0][0];
         expect(arg.where.rut).toBe("12345678-5");
@@ -103,5 +118,12 @@ describe("guardarUsuario actions", () => {
 
         const arg = (prisma.usuario.create as any).mock.calls[0][0];
         expect(arg.data.gestante).toBe("No aplica");
+    });
+
+    it("propaga fallas de Prisma al crear", async () => {
+        (prisma.usuario.findUnique as any).mockResolvedValue(null);
+        (prisma.usuario.create as any).mockRejectedValue(new Error("Falla de Prisma"));
+
+        await expect(crearUsuario(usuarioInput)).rejects.toThrow("Falla de Prisma");
     });
 });

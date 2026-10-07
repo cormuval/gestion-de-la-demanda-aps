@@ -4,22 +4,25 @@
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+// types
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
 import { usuarioSolicitudSchema, UsuarioSolicitudInput } from "../schemas/usuario.schema";
 // actions (núcleo compartido)
-import { validarCentro, toUsuarioData, persistirActualizacionUsuario, USUARIO_SELECT } from "./usuarioUpdate";
+import { validarCentro, toUsuarioData, persistirActualizacionUsuario, USUARIO_SELECT, type UsuarioGuardado } from "./usuarioUpdate";
 
 async function requireSolicitudesUser() {
     return requirePermiso("solicitudes.crear", "solicitudes.gestionar");
 }
 
-export async function crearUsuario(input: UsuarioSolicitudInput) {
+export async function crearUsuario(input: UsuarioSolicitudInput): Promise<ResultadoAccion<{ usuario: UsuarioGuardado }>> {
     const user = await requireSolicitudesUser();
     const data = usuarioSolicitudSchema.parse(input);
-    await validarCentro(data.centro_id);
+    const centro = await validarCentro(data.centro_id);
+    if (!centro.ok) return centro;
 
     const existing = await prisma.usuario.findUnique({ where: { rut: data.rut }, select: { rut: true } });
-    if (existing) throw new Error("El usuario ya existe");
+    if (existing) return { ok: false, error: "El usuario ya existe" };
 
     const usuario = await prisma.usuario.create({
         data: { rut: data.rut, ...toUsuarioData(data) },
@@ -30,10 +33,10 @@ export async function crearUsuario(input: UsuarioSolicitudInput) {
         details: `Usuario creado desde ingreso de solicitudes`
     });
 
-    return { usuario };
+    return { ok: true, data: { usuario } };
 }
 
-export async function actualizarUsuario(input: UsuarioSolicitudInput) {
+export async function actualizarUsuario(input: UsuarioSolicitudInput): Promise<ResultadoAccion<{ usuario: UsuarioGuardado }>> {
     const user = await requireSolicitudesUser();
     return persistirActualizacionUsuario({ email: user.email, nombre: user.nombre, rut: user.rut }, input, "ingreso de solicitudes");
 }
