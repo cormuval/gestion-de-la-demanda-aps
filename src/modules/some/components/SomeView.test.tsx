@@ -116,6 +116,17 @@ const panelData: SomePanelData = {
     solicitudesPendientes: []
 };
 
+const panelDataConFiltros: SomePanelData = {
+    ...panelData,
+    rangoDias: 60,
+    funcionarioSeleccionado: "44.444.444-4",
+    demandaTemporalidad: "Agendamientos próximos",
+    funcionarios: [
+        { rut: "44.444.444-4", nombre: "Funcionaria aplicada" },
+        { rut: "22.222.222-2", nombre: "Funcionario nuevo" }
+    ]
+};
+
 beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSomePanel).mockResolvedValue({ ok: true, data: someData } as never);
@@ -180,6 +191,55 @@ describe("SomeView", () => {
         expect(screen.getByText("Centro 501")).toBeInTheDocument();
         expect(screen.getByText("Serie diaria")).toBeInTheDocument();
         expect(screen.getAllByRole("combobox")[1]).toHaveValue("501");
+    });
+
+    it("restaura el periodo aplicado si su recarga falla", async () => {
+        vi.mocked(getSomePanel)
+            .mockResolvedValueOnce({ ok: true, data: panelDataConFiltros } as never)
+            .mockResolvedValueOnce({ ok: false, error: "No fue posible actualizar el panel" } as never);
+
+        render(<SomeView />);
+        await screen.findByText("Centro 501");
+
+        fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "30" } });
+        fireEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No fue posible actualizar el panel"));
+        expect(screen.getAllByRole("combobox")[0]).toHaveValue("60");
+        expect(screen.getByText("Area Chart interactivo de los ultimos 60 dias para los filtros aplicados.")).toBeInTheDocument();
+    });
+
+    it("restaura el funcionario aplicado si su recarga falla", async () => {
+        vi.mocked(getSomePanel)
+            .mockResolvedValueOnce({ ok: true, data: panelDataConFiltros } as never)
+            .mockResolvedValueOnce({ ok: false, error: "No fue posible actualizar el panel" } as never);
+
+        render(<SomeView />);
+        await screen.findByText("Centro 501");
+
+        fireEvent.change(screen.getAllByRole("combobox")[2], { target: { value: "22.222.222-2" } });
+        fireEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No fue posible actualizar el panel"));
+        expect(screen.getAllByRole("combobox")[2]).toHaveValue("44.444.444-4");
+        expect(screen.getByText("Funcionaria aplicada")).toBeInTheDocument();
+    });
+
+    it("restaura la temporalidad aplicada si su recarga falla", async () => {
+        vi.mocked(getSomePanel)
+            .mockResolvedValueOnce({ ok: true, data: panelDataConFiltros } as never)
+            .mockResolvedValueOnce({ ok: false, error: "No fue posible actualizar el panel" } as never);
+
+        render(<SomeView />);
+        await screen.findByText("Centro 501");
+        fireEvent.click(screen.getByRole("button", { name: "Demanda Clinica" }));
+
+        fireEvent.change(screen.getAllByRole("combobox")[1], { target: { value: "Agendamientos futuros" } });
+        fireEvent.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No fue posible actualizar el panel"));
+        expect(screen.getAllByRole("combobox")[1]).toHaveValue("Agendamientos próximos");
+        expect(screen.getByText(/Temporalidad: Agendamientos próximos\./)).toBeInTheDocument();
     });
 
     it("muestra un mensaje generico ante un error tecnico", async () => {

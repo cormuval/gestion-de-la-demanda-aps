@@ -64,6 +64,13 @@ export function SomeView() {
     const [data, setData] = useState<SomePanelData | null>(null);
     const [loading, setLoading] = useState(false);
 
+    function sincronizarFiltros(panel: SomePanelData) {
+        setRangoDias(panel.rangoDias);
+        setCentroId(panel.centroSeleccionado);
+        setFuncionarioRut(panel.funcionarioSeleccionado);
+        setDemandaTemporalidad(panel.demandaTemporalidad);
+    }
+
     async function cargar(next?: { rangoDias?: SomeRangoDias; centroId?: string; funcionarioRut?: string; demandaTemporalidad?: string }) {
         setLoading(true);
         try {
@@ -74,14 +81,14 @@ export function SomeView() {
                 demandaTemporalidad: next?.demandaTemporalidad ?? demandaTemporalidad
             });
             if (!result.ok) {
+                if (data) sincronizarFiltros(data);
                 toast.error(result.error);
                 return;
             }
             setData(result.data);
-            setCentroId(result.data.centroSeleccionado);
-            setFuncionarioRut(result.data.funcionarioSeleccionado);
-            setDemandaTemporalidad(result.data.demandaTemporalidad);
+            sincronizarFiltros(result.data);
         } catch {
+            if (data) sincronizarFiltros(data);
             toast.error("No se pudo cargar el panel SOME");
         } finally {
             setLoading(false);
