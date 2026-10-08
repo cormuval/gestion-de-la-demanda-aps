@@ -17,7 +17,7 @@ vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
-import { getSomePanel } from "./getSomePanel.action";
+import { getSomePanel, type SomePanelData } from "./getSomePanel.action";
 
 const funcionarioSome = {
     rut: "44.444.444-4",
@@ -34,6 +34,13 @@ const funcionarioAdmin = {
     nombre: "Admin Demo",
     rol: { id: 1, nombre: "Administrador" }
 };
+
+async function getPanelData(input?: unknown): Promise<SomePanelData> {
+    const result = await getSomePanel(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    return result.data;
+}
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -55,13 +62,41 @@ beforeEach(() => {
 });
 
 describe("getSomePanel", () => {
+    it("devuelve un error de negocio sin consultar datos dependientes cuando no hay centro", async () => {
+        (requirePermiso as any).mockResolvedValue({ ...funcionarioSome, centro_id: null });
+
+        const result = await getSomePanel();
+
+        expect(result).toEqual({ ok: false, error: "No hay centro disponible para consultar productividad SOME" });
+        expect(prisma.funcionario.findMany).not.toHaveBeenCalled();
+        expect(prisma.solicitud.findMany).not.toHaveBeenCalled();
+        expect(prisma.cita.findMany).not.toHaveBeenCalled();
+        expect(prisma.llamada.findMany).not.toHaveBeenCalled();
+    });
+
     it("exige permiso some.ver", async () => {
         await getSomePanel();
         expect(requirePermiso).toHaveBeenCalledWith("some.ver");
     });
 
+    it("propaga el rechazo de permisos", async () => {
+        (requirePermiso as any).mockRejectedValueOnce(new Error("No autorizado"));
+
+        await expect(getSomePanel()).rejects.toThrow("No autorizado");
+    });
+
+    it("rechaza filtros con una forma invalida", async () => {
+        await expect(getSomePanel("filtros-invalidos")).rejects.toThrow();
+    });
+
+    it("propaga errores de Prisma", async () => {
+        (prisma.funcionario.findMany as any).mockRejectedValueOnce(new Error("Base de datos no disponible"));
+
+        await expect(getSomePanel()).rejects.toThrow("Base de datos no disponible");
+    });
+
     it("para rol SOME ignora centro solicitado y usa su centro_id", async () => {
-        const result = await getSomePanel({ centroId: "999", rangoDias: 60 });
+        const result = await getPanelData({ centroId: "999", rangoDias: 60 });
 
         expect(result.centroSeleccionado).toBe("501");
         expect(result.rangoDias).toBe(60);
@@ -76,7 +111,7 @@ describe("getSomePanel", () => {
         ]);
         (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "99.999.999-9", nombre: "Funcionario Centro 650" }]);
 
-        const result = await getSomePanel({ centroId: "650" });
+        const result = await getPanelData({ centroId: "650" });
 
         expect(result.esAdministrador).toBe(true);
         expect(result.centroSeleccionado).toBe("650");
@@ -100,7 +135,7 @@ describe("getSomePanel", () => {
     });
 
     it("normaliza rango no permitido a 30 dias", async () => {
-        const result = await getSomePanel({ rangoDias: 999 });
+        const result = await getPanelData({ rangoDias: 999 });
         expect(result.rangoDias).toBe(30);
         expect(result.serie).toHaveLength(30);
     });
@@ -115,7 +150,7 @@ describe("getSomePanel", () => {
             .mockResolvedValueOnce([]);
         (prisma.llamada.findMany as any).mockResolvedValueOnce([]);
 
-        const result = await getSomePanel({ funcionarioRut: "22.222.222-2" });
+        const result = await getPanelData({ funcionarioRut: "22.222.222-2" });
 
         expect(result.funcionarioSeleccionado).toBe("22.222.222-2");
         expect(prisma.solicitud.findMany).toHaveBeenNthCalledWith(
@@ -166,7 +201,7 @@ describe("getSomePanel", () => {
             .mockResolvedValueOnce([]);
         (prisma.llamada.findMany as any).mockResolvedValueOnce([]);
 
-        const result = await getSomePanel({ centroId: "605" });
+        const result = await getPanelData({ centroId: "605" });
 
         expect(prisma.funcionario.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { centro_id: "605", estado: { in: ["Activo", "1"] } } }));
         expect(result.centroSeleccionado).toBe("605");
@@ -190,7 +225,7 @@ describe("getSomePanel", () => {
             { id_prestacion: 20, nombre_prestacion: "Morbilidad" }
         ]);
 
-        const result = await getSomePanel({ funcionarioRut: "22.222.222-2" });
+        const result = await getPanelData({ funcionarioRut: "22.222.222-2" });
         const [row] = result.demandaClinica;
 
         expect(prisma.cita.findMany).toHaveBeenCalledTimes(1);
@@ -219,7 +254,7 @@ describe("getSomePanel", () => {
         (prisma.profesional.findMany as any).mockResolvedValue([{ id_profesional: 1, nombre: "Medico" }]);
         (prisma.prestacion.findMany as any).mockResolvedValue([{ id_prestacion: 20, nombre_prestacion: "Morbilidad" }]);
 
-        const result = await getSomePanel({ demandaTemporalidad: "Agendamientos futuros" });
+        const result = await getPanelData({ demandaTemporalidad: "Agendamientos futuros" });
         const [row] = result.demandaClinica;
 
         expect(prisma.cita.groupBy).toHaveBeenCalledTimes(1);
@@ -283,7 +318,7 @@ describe("getSomePanel", () => {
             .mockResolvedValueOnce([]);
         (prisma.llamada.findMany as any).mockResolvedValueOnce([]);
 
-        const result = await getSomePanel({ centroId: "605" });
+        const result = await getPanelData({ centroId: "605" });
 
         expect(prisma.solicitud.groupBy).toHaveBeenCalledWith({
             by: ["tipo_solicitud_id", "motivo_id"],
