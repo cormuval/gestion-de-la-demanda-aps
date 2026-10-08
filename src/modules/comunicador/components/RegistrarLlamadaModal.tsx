@@ -46,8 +46,8 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onReg
             }
             const { estadoCita, solicitudRealizada } = resultado.data;
             onRegistrado(solicitudRealizada ? `Cita ${estadoCita}. Solicitud cerrada (Realizado).` : `Cita ${estadoCita}.`);
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al registrar la llamada");
+        } catch {
+            toast.error("Error al registrar la llamada");
         } finally {
             setEnviando(false);
         }

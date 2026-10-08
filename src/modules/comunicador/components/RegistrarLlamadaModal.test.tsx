@@ -52,4 +52,16 @@ describe("RegistrarLlamadaModal", () => {
         await waitFor(() => expect(onRegistrado).toHaveBeenCalledWith("Cita No contesta (1)."));
         expect(toast.error).not.toHaveBeenCalled();
     });
+
+    it("oculta el detalle de un fallo técnico y mantiene el modal abierto", async () => {
+        vi.mocked(registrarLlamada).mockRejectedValue(new Error("detalle sensible"));
+        const onRegistrado = vi.fn();
+
+        render(<RegistrarLlamadaModal cita={cita} telefonos="9 1234 5678" correo="paciente@example.com" onCerrar={vi.fn()} onRegistrado={onRegistrado} />);
+        fireEvent.submit(screen.getByRole("button", { name: "Registrar" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al registrar la llamada"));
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+        expect(onRegistrado).not.toHaveBeenCalled();
+    });
 });
