@@ -24,7 +24,7 @@ import { prisma } from "@/shared/lib/prisma";
 import { AuditLogger } from "@/shared/lib/logger";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
-import type { Funcionario, Role } from "@prisma/client";
+import type { Funcionario, Motivo, Prestacion, Profesional, Role, TipoSolicitud } from "@prisma/client";
 // config
 import { CLAVES_PERMISOS, esPermiso, type Permiso } from "@/config/permisos";
 // utils
@@ -137,7 +137,7 @@ export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) 
     return { tiposSolicitud, motivos, roles, profesionales, prestaciones, funcionarios, centros };
 }
 
-export async function guardarTipoSolicitud(input: TipoSolicitudConfigInput) {
+export async function guardarTipoSolicitud(input: TipoSolicitudConfigInput): Promise<ResultadoAccion<TipoSolicitud>> {
     const user = await requirePermiso("config.catalogos");
     const data = tipoSolicitudConfigSchema.parse(input);
     const duplicated = await prisma.tipoSolicitud.findFirst({
@@ -147,7 +147,7 @@ export async function guardarTipoSolicitud(input: TipoSolicitudConfigInput) {
         },
         select: { id_tipo_solicitud: true }
     });
-    if (duplicated) throw new Error("Ya existe un tipo de solicitud con ese nombre");
+    if (duplicated) return { ok: false, error: "Ya existe un tipo de solicitud con ese nombre" };
 
     const saved = data.id_tipo_solicitud
         ? await prisma.tipoSolicitud.update({
@@ -159,14 +159,14 @@ export async function guardarTipoSolicitud(input: TipoSolicitudConfigInput) {
           });
 
     await AuditLogger.logDataAccess(data.id_tipo_solicitud ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `tipo_solicitud:${saved.id_tipo_solicitud}`);
-    return saved;
+    return { ok: true, data: saved };
 }
 
-export async function guardarMotivo(input: MotivoConfigInput) {
+export async function guardarMotivo(input: MotivoConfigInput): Promise<ResultadoAccion<Motivo>> {
     const user = await requirePermiso("config.catalogos");
     const data = motivoConfigSchema.parse(input);
     const tipo = await prisma.tipoSolicitud.findUnique({ where: { id_tipo_solicitud: data.tipo_solicitud_id }, select: { id_tipo_solicitud: true } });
-    if (!tipo) throw new Error("Tipo de solicitud no existe");
+    if (!tipo) return { ok: false, error: "Tipo de solicitud no existe" };
 
     const duplicated = await prisma.motivo.findFirst({
         where: {
@@ -176,14 +176,14 @@ export async function guardarMotivo(input: MotivoConfigInput) {
         },
         select: { id_motivo: true }
     });
-    if (duplicated) throw new Error("Ya existe un motivo con ese nombre para el tipo seleccionado");
+    if (duplicated) return { ok: false, error: "Ya existe un motivo con ese nombre para el tipo seleccionado" };
 
     const saved = data.id_motivo
         ? await prisma.motivo.update({ where: { id_motivo: data.id_motivo }, data: { tipo_solicitud_id: data.tipo_solicitud_id, nombre_motivo: data.nombre_motivo, estado: data.estado } })
         : await prisma.motivo.create({ data: { tipo_solicitud_id: data.tipo_solicitud_id, nombre_motivo: data.nombre_motivo, estado: data.estado } });
 
     await AuditLogger.logDataAccess(data.id_motivo ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `motivo:${saved.id_motivo}`);
-    return saved;
+    return { ok: true, data: saved };
 }
 
 export async function guardarRol(input: RolConfigInput): Promise<ResultadoAccion<Role>> {
@@ -234,28 +234,28 @@ export async function guardarRol(input: RolConfigInput): Promise<ResultadoAccion
     return { ok: true, data: saved };
 }
 
-export async function guardarProfesional(input: ProfesionalConfigInput) {
+export async function guardarProfesional(input: ProfesionalConfigInput): Promise<ResultadoAccion<Profesional>> {
     const user = await requirePermiso("config.catalogos");
     const data = profesionalConfigSchema.parse(input);
     const duplicated = await prisma.profesional.findFirst({
         where: { nombre: data.nombre, ...(data.id_profesional ? { NOT: { id_profesional: data.id_profesional } } : {}) },
         select: { id_profesional: true }
     });
-    if (duplicated) throw new Error("Ya existe un profesional con ese nombre");
+    if (duplicated) return { ok: false, error: "Ya existe un profesional con ese nombre" };
 
     const saved = data.id_profesional
         ? await prisma.profesional.update({ where: { id_profesional: data.id_profesional }, data: { nombre: data.nombre, estado: data.estado, ...centroData(data.centros) } })
         : await prisma.profesional.create({ data: { nombre: data.nombre, estado: data.estado, ...centroData(data.centros) } });
 
     await AuditLogger.logDataAccess(data.id_profesional ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `profesional:${saved.id_profesional}`);
-    return saved;
+    return { ok: true, data: saved };
 }
 
-export async function guardarPrestacion(input: PrestacionConfigInput) {
+export async function guardarPrestacion(input: PrestacionConfigInput): Promise<ResultadoAccion<Prestacion>> {
     const user = await requirePermiso("config.catalogos");
     const data = prestacionConfigSchema.parse(input);
     const profesional = await prisma.profesional.findUnique({ where: { id_profesional: data.profesional_id }, select: { id_profesional: true } });
-    if (!profesional) throw new Error("Profesional no existe");
+    if (!profesional) return { ok: false, error: "Profesional no existe" };
 
     const duplicated = await prisma.prestacion.findFirst({
         where: {
@@ -265,14 +265,14 @@ export async function guardarPrestacion(input: PrestacionConfigInput) {
         },
         select: { id_prestacion: true }
     });
-    if (duplicated) throw new Error("Ya existe una prestacion con ese nombre para el profesional");
+    if (duplicated) return { ok: false, error: "Ya existe una prestacion con ese nombre para el profesional" };
 
     const saved = data.id_prestacion
         ? await prisma.prestacion.update({ where: { id_prestacion: data.id_prestacion }, data: { profesional_id: data.profesional_id, nombre_prestacion: data.nombre_prestacion, estado: data.estado } })
         : await prisma.prestacion.create({ data: { profesional_id: data.profesional_id, nombre_prestacion: data.nombre_prestacion, estado: data.estado } });
 
     await AuditLogger.logDataAccess(data.id_prestacion ? "UPDATE" : "CREATE", true, { rut: user.rut, name: user.nombre }, `prestacion:${saved.id_prestacion}`);
-    return saved;
+    return { ok: true, data: saved };
 }
 
 export async function guardarFuncionario(input: FuncionarioConfigInput): Promise<ResultadoAccion<Funcionario>> {

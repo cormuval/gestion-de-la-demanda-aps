@@ -202,12 +202,16 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
         event.preventDefault();
         setSaving(true);
         try {
-            await guardarTipoSolicitud(tipoForm);
+            const result = await guardarTipoSolicitud(tipoForm);
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Tipo de solicitud guardado");
             setModal(null);
             await loadData();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al guardar tipo de solicitud");
+        } catch {
+            toast.error("Error al guardar tipo de solicitud");
         } finally {
             setSaving(false);
         }
@@ -217,12 +221,16 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
         event.preventDefault();
         setSaving(true);
         try {
-            await guardarMotivo({ ...motivoForm, tipo_solicitud_id: Number(motivoForm.tipo_solicitud_id) });
+            const result = await guardarMotivo({ ...motivoForm, tipo_solicitud_id: Number(motivoForm.tipo_solicitud_id) });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Motivo guardado");
             setModal(null);
             await loadData();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al guardar motivo");
+        } catch {
+            toast.error("Error al guardar motivo");
         } finally {
             setSaving(false);
         }
@@ -251,12 +259,16 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
         event.preventDefault();
         setSaving(true);
         try {
-            await guardarProfesional(profesionalForm);
+            const result = await guardarProfesional(profesionalForm);
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Profesional guardado");
             setModal(null);
             await loadData();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al guardar profesional");
+        } catch {
+            toast.error("Error al guardar profesional");
         } finally {
             setSaving(false);
         }
@@ -266,14 +278,90 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
         event.preventDefault();
         setSaving(true);
         try {
-            await guardarPrestacion({ ...prestacionForm, profesional_id: Number(prestacionForm.profesional_id) });
+            const result = await guardarPrestacion({ ...prestacionForm, profesional_id: Number(prestacionForm.profesional_id) });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Prestacion guardada");
             setModal(null);
             await loadData();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al guardar prestacion");
+        } catch {
+            toast.error("Error al guardar prestacion");
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function toggleTipoSolicitud(tipo: ConfigData["tiposSolicitud"][number]) {
+        try {
+            const result = await guardarTipoSolicitud({
+                id_tipo_solicitud: tipo.id_tipo_solicitud,
+                nombre_tipo_solicitud: tipo.nombre_tipo_solicitud,
+                estado: tipo.estado === "1" ? "0" : "1",
+                centros: centrosFromRow(tipo)
+            });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            await loadData();
+        } catch {
+            toast.error("Error al cambiar estado");
+        }
+    }
+
+    async function toggleMotivo(motivo: ConfigData["motivos"][number]) {
+        try {
+            const result = await guardarMotivo({
+                id_motivo: motivo.id_motivo,
+                tipo_solicitud_id: motivo.tipo_solicitud_id,
+                nombre_motivo: motivo.nombre_motivo,
+                estado: motivo.estado === "1" ? "0" : "1"
+            });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            await loadData();
+        } catch {
+            toast.error("Error al cambiar estado");
+        }
+    }
+
+    async function toggleProfesional(profesional: ConfigData["profesionales"][number]) {
+        try {
+            const result = await guardarProfesional({
+                id_profesional: profesional.id_profesional,
+                nombre: profesional.nombre,
+                estado: profesional.estado === "Activo" ? "Inactivo" : "Activo",
+                centros: centrosFromRow(profesional)
+            });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            await loadData();
+        } catch {
+            toast.error("Error al cambiar estado");
+        }
+    }
+
+    async function togglePrestacion(prestacion: ConfigData["prestaciones"][number]) {
+        try {
+            const result = await guardarPrestacion({
+                id_prestacion: prestacion.id_prestacion,
+                profesional_id: prestacion.profesional_id,
+                nombre_prestacion: prestacion.nombre_prestacion,
+                estado: prestacion.estado === "Activo" ? "Inactivo" : "Activo"
+            });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            await loadData();
+        } catch {
+            toast.error("Error al cambiar estado");
         }
     }
 
@@ -362,7 +450,7 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                                                 setTipoForm({ id_tipo_solicitud: tipo.id_tipo_solicitud, nombre_tipo_solicitud: tipo.nombre_tipo_solicitud, estado: tipo.estado === "1" ? "1" : "0", centros: centrosFromRow(tipo) });
                                                 setModal("tipos");
                                             }}
-                                            onToggle={() => guardarTipoSolicitud({ id_tipo_solicitud: tipo.id_tipo_solicitud, nombre_tipo_solicitud: tipo.nombre_tipo_solicitud, estado: tipo.estado === "1" ? "0" : "1", centros: centrosFromRow(tipo) }).then(() => loadData()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))}
+                                            onToggle={() => toggleTipoSolicitud(tipo)}
                                         />
                                     </td>
                                 </tr>
@@ -384,7 +472,7 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                                                 setMotivoForm({ id_motivo: motivo.id_motivo, tipo_solicitud_id: String(motivo.tipo_solicitud_id), nombre_motivo: motivo.nombre_motivo, estado: motivo.estado === "1" ? "1" : "0" });
                                                 setModal("motivos");
                                             }}
-                                            onToggle={() => guardarMotivo({ id_motivo: motivo.id_motivo, tipo_solicitud_id: motivo.tipo_solicitud_id, nombre_motivo: motivo.nombre_motivo, estado: motivo.estado === "1" ? "0" : "1" }).then(() => loadData()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))}
+                                            onToggle={() => toggleMotivo(motivo)}
                                         />
                                     </td>
                                 </tr>
@@ -459,7 +547,7 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                                                 setProfesionalForm({ id_profesional: profesional.id_profesional, nombre: profesional.nombre, estado: profesional.estado === "Activo" ? "Activo" : "Inactivo", centros: centrosFromRow(profesional) });
                                                 setModal("profesionales");
                                             }}
-                                            onToggle={() => guardarProfesional({ id_profesional: profesional.id_profesional, nombre: profesional.nombre, estado: profesional.estado === "Activo" ? "Inactivo" : "Activo", centros: centrosFromRow(profesional) }).then(() => loadData()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))}
+                                            onToggle={() => toggleProfesional(profesional)}
                                         />
                                     </td>
                                 </tr>
@@ -481,7 +569,7 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                                                 setPrestacionForm({ id_prestacion: prestacion.id_prestacion, profesional_id: String(prestacion.profesional_id), nombre_prestacion: prestacion.nombre_prestacion, estado: prestacion.estado === "Activo" ? "Activo" : "Inactivo" });
                                                 setModal("prestaciones");
                                             }}
-                                            onToggle={() => guardarPrestacion({ id_prestacion: prestacion.id_prestacion, profesional_id: prestacion.profesional_id, nombre_prestacion: prestacion.nombre_prestacion, estado: prestacion.estado === "Activo" ? "Inactivo" : "Activo" }).then(() => loadData()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cambiar estado"))}
+                                            onToggle={() => togglePrestacion(prestacion)}
                                         />
                                     </td>
                                 </tr>
