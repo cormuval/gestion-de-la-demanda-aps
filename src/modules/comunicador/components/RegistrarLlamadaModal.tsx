@@ -34,13 +34,18 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onReg
         e.preventDefault();
         setEnviando(true);
         try {
-            const r = await registrarLlamada({
+            const resultado = await registrarLlamada({
                 cita_id: cita.id_cita,
                 respuesta,
                 observacion,
                 hora_agendada: requiereHora ? horaAgendada : ""
             });
-            onRegistrado(r.solicitudRealizada ? `Cita ${r.estadoCita}. Solicitud cerrada (Realizado).` : `Cita ${r.estadoCita}.`);
+            if (!resultado.ok) {
+                toast.error(resultado.error);
+                return;
+            }
+            const { estadoCita, solicitudRealizada } = resultado.data;
+            onRegistrado(solicitudRealizada ? `Cita ${estadoCita}. Solicitud cerrada (Realizado).` : `Cita ${estadoCita}.`);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error al registrar la llamada");
         } finally {
