@@ -26,7 +26,7 @@ export function ComunicadorView() {
     const [filtrosUI, setFiltrosUI] = useState<CitasFiltrosUI>(FILTROS_INICIALES);
     const [aplicados, setAplicados] = useState<CitasFiltrosUI>(FILTROS_INICIALES);
     const [pagina, setPagina] = useState(1);
-    const [data, setData] = useState<{ filas: CitaFila[]; total: number; pagina: number; porPagina: number }>({ filas: [], total: 0, pagina: 1, porPagina: 100 });
+    const [data, setData] = useState<{ filas: CitaFila[]; total: number; pagina: number; porPagina: number } | null>(null);
     const [citaSel, setCitaSel] = useState<CitaFila | null>(null);
     const [contacto, setContacto] = useState<{ telefonos: string; correo: string }>({ telefonos: "", correo: "" });
     const [citaHistorial, setCitaHistorial] = useState<CitaFila | null>(null);
@@ -51,7 +51,12 @@ export function ComunicadorView() {
                 sector: aplicados.sector || undefined,
                 pagina
             });
-            setData(r);
+            if (!r.ok) {
+                setData(null);
+                toast.error(r.error);
+                return;
+            }
+            setData(r.data);
         } catch (e) {
             toast.error(e instanceof Error ? e.message : "Error al cargar la cola");
         }
@@ -109,22 +114,24 @@ export function ComunicadorView() {
                     <CardDescription>Ordenadas por estado (No contesta 2 → 1 → aviso → sin llamadas) y prioridad.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <CitasPendientesTabla
-                        filas={data.filas}
-                        total={data.total}
-                        pagina={data.pagina}
-                        porPagina={data.porPagina}
-                        onPagina={setPagina}
-                        onGestionar={abrirGestion}
-                        renderAcciones={(cita) => (
-                            <CitaAccionesMenu
-                                cita={cita}
-                                onVerHistorial={setCitaHistorial}
-                                onVerOtrasCitas={setCitaOtras}
-                                onEditarPaciente={(c) => editarPaciente.abrir(c.rut_usuario)}
-                            />
-                        )}
-                    />
+                    {data && (
+                        <CitasPendientesTabla
+                            filas={data.filas}
+                            total={data.total}
+                            pagina={data.pagina}
+                            porPagina={data.porPagina}
+                            onPagina={setPagina}
+                            onGestionar={abrirGestion}
+                            renderAcciones={(cita) => (
+                                <CitaAccionesMenu
+                                    cita={cita}
+                                    onVerHistorial={setCitaHistorial}
+                                    onVerOtrasCitas={setCitaOtras}
+                                    onEditarPaciente={(c) => editarPaciente.abrir(c.rut_usuario)}
+                                />
+                            )}
+                        />
+                    )}
                 </CardContent>
             </Card>
 

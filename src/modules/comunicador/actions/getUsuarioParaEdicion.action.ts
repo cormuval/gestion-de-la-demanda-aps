@@ -4,6 +4,7 @@
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // utils
 import { esRutChilenoValido, normalizarRut } from "@/modules/solicitudes/utils/rut";
 // actions
@@ -26,12 +27,12 @@ export interface UsuarioEditable {
     priorizacion_administrativa: number | null;
 }
 
-export async function getUsuarioParaEdicion(rutUsuario: string): Promise<{ usuario: UsuarioEditable | null }> {
+export async function getUsuarioParaEdicion(rutUsuario: string): Promise<ResultadoAccion<{ usuario: UsuarioEditable | null }>> {
     const user = await requirePermiso("comunicador.paciente");
 
     const rut = normalizarRut(rutUsuario);
-    if (!rut) throw new Error("RUT usuario es requerido");
-    if (!esRutChilenoValido(rut)) throw new Error("RUT invalido");
+    if (!rut) return { ok: false, error: "RUT usuario es requerido" };
+    if (!esRutChilenoValido(rut)) return { ok: false, error: "RUT invalido" };
 
     const usuario = await prisma.usuario.findUnique({
         where: { rut },
@@ -42,5 +43,5 @@ export async function getUsuarioParaEdicion(rutUsuario: string): Promise<{ usuar
         details: `Consulta de usuario (edición desde comunicador) para RUT ${rut}`
     });
 
-    return { usuario };
+    return { ok: true, data: { usuario } };
 }

@@ -32,10 +32,22 @@ const usuarioEditable = {
 
 beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getUsuarioParaEdicion).mockResolvedValue({ usuario: usuarioEditable } as Awaited<ReturnType<typeof getUsuarioParaEdicion>>);
+    vi.mocked(getUsuarioParaEdicion).mockResolvedValue({ ok: true, data: { usuario: usuarioEditable } } as Awaited<ReturnType<typeof getUsuarioParaEdicion>>);
 });
 
 describe("useUsuarioEdit", () => {
+    it("no abre el formulario cuando la lectura retorna un error de negocio", async () => {
+        vi.mocked(getUsuarioParaEdicion).mockResolvedValue({ ok: false, error: "RUT invalido" } as Awaited<ReturnType<typeof getUsuarioParaEdicion>>);
+        const { result } = renderHook(() => useUsuarioEdit());
+
+        await act(async () => {
+            await result.current.abrir("12.345.678-9");
+        });
+
+        expect(toast.error).toHaveBeenCalledWith("RUT invalido");
+        expect(result.current.open).toBe(false);
+    });
+
     it("mantiene abierto el formulario y no ejecuta callback cuando actualizar retorna un error de negocio", async () => {
         const onActualizado = vi.fn();
         vi.mocked(actualizarUsuarioComunicador).mockResolvedValue({ ok: false, error: "Centro no encontrado" } as Awaited<ReturnType<typeof actualizarUsuarioComunicador>>);

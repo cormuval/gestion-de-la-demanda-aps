@@ -2,6 +2,7 @@
 
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // utils
 import { normalizarRut } from "@/modules/solicitudes/utils/rut";
 import { rangoTemporalidad } from "../utils/temporalidad";
@@ -18,9 +19,11 @@ export interface CitaPacienteFila {
     intentos: number;
 }
 
-export async function getCitasPendientesPaciente(rutUsuario: string, citaActualId: string): Promise<CitaPacienteFila[]> {
+export async function getCitasPendientesPaciente(rutUsuario: string, citaActualId: string): Promise<ResultadoAccion<CitaPacienteFila[]>> {
     const user = await requirePermiso("comunicador.ver");
-    if (!user.centro_id) throw new Error("El funcionario no tiene centro asignado");
+    if (!user.centro_id) {
+        return { ok: false, error: "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion." };
+    }
 
     const rango = rangoTemporalidad(TEMPORALIDAD.PROXIMOS, new Date());
 
@@ -49,5 +52,5 @@ export async function getCitasPendientesPaciente(rutUsuario: string, citaActualI
             intentos
         });
     }
-    return filas;
+    return { ok: true, data: filas };
 }

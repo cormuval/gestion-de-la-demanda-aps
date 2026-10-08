@@ -4,6 +4,7 @@
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+import type { ResultadoAccion } from "@/shared/types/resultado";
 
 export interface HistorialLlamada {
     id_llamada: string;
@@ -13,12 +14,16 @@ export interface HistorialLlamada {
     comunicador: string | null;
 }
 
-export async function getHistorialLlamadas(citaId: string): Promise<HistorialLlamada[]> {
+export async function getHistorialLlamadas(citaId: string): Promise<ResultadoAccion<HistorialLlamada[]>> {
     const user = await requirePermiso("comunicador.ver");
-    if (!user.centro_id) throw new Error("El funcionario no tiene centro asignado");
+    if (!user.centro_id) {
+        return { ok: false, error: "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion." };
+    }
 
     const cita = await prisma.cita.findUnique({ where: { id_cita: citaId }, select: { centro_id: true } });
-    if (!cita || cita.centro_id !== user.centro_id) throw new Error("La cita no pertenece a tu centro");
+    if (!cita || cita.centro_id !== user.centro_id) {
+        return { ok: false, error: "La cita no pertenece a tu centro" };
+    }
 
     const llamadas = await prisma.llamada.findMany({
         where: { cita_id: citaId },
@@ -36,11 +41,11 @@ export async function getHistorialLlamadas(citaId: string): Promise<HistorialLla
         details: `Historial de llamadas de la cita ${citaId}`
     });
 
-    return llamadas.map((l) => ({
+    return { ok: true, data: llamadas.map((l) => ({
         id_llamada: l.id_llamada,
         fecha_llamada: l.fecha_llamada,
         respuesta_usuario: l.respuesta_usuario,
         observacion: l.observacion,
         comunicador: l.rut_comunicador ? nombrePorRut.get(l.rut_comunicador) ?? l.rut_comunicador : null
-    }));
+    })) };
 }

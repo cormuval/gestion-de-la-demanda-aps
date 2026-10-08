@@ -68,12 +68,16 @@ export function useUsuarioEdit(onActualizado?: () => void) {
 
     async function abrir(rut: string) {
         try {
-            const { usuario } = await getUsuarioParaEdicion(rut);
-            if (!usuario) {
+            const resultado = await getUsuarioParaEdicion(rut);
+            if (!resultado.ok) {
+                toast.error(resultado.error);
+                return;
+            }
+            if (!resultado.data.usuario) {
                 toast.error("No se encontró el paciente");
                 return;
             }
-            setForm(toForm(usuario));
+            setForm(toForm(resultado.data.usuario));
             setOpen(true);
         } catch (e) {
             toast.error(e instanceof Error ? e.message : "Error al cargar el paciente");
