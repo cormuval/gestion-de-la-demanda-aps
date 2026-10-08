@@ -13,6 +13,31 @@ beforeEach(() => {
 });
 
 describe("OtrasCitasPacienteModal", () => {
+    it("no conserva citas del paciente anterior cuando la nueva consulta falla", async () => {
+        vi.mocked(getCitasPendientesPaciente)
+            .mockResolvedValueOnce({
+                ok: true,
+                data: [{
+                    id_cita: "CITA-ANTERIOR",
+                    estado_cita: "Sin llamadas",
+                    priorizacion: 1,
+                    profesion: "Kinesiología",
+                    prestacion: "Consulta",
+                    fecha_estimada_atencion: null,
+                    intentos: 0
+                }]
+            } as never)
+            .mockResolvedValueOnce({ ok: false, error: "Centro no configurado" } as never);
+
+        const { rerender } = render(<OtrasCitasPacienteModal rutUsuario="12.345.678-5" citaActualId="CITA-1" onCerrar={vi.fn()} />);
+        await screen.findByText("Kinesiología · Consulta");
+
+        rerender(<OtrasCitasPacienteModal rutUsuario="9.876.543-3" citaActualId="CITA-2" onCerrar={vi.fn()} />);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro no configurado"));
+        expect(screen.queryByText("Kinesiología · Consulta")).not.toBeInTheDocument();
+    });
+
     it("muestra el error de negocio sin presentar una lista vacia como resultado", async () => {
         vi.mocked(getCitasPendientesPaciente).mockResolvedValue({ ok: false, error: "Centro no configurado" } as never);
 

@@ -37,6 +37,12 @@ describe("getHistorialLlamadas", () => {
         expect(prisma.cita.findUnique).not.toHaveBeenCalled();
     });
 
+    it("propaga el rechazo de Prisma al consultar la cita", async () => {
+        (prisma.cita.findUnique as any).mockRejectedValue(new Error("Base de datos no disponible"));
+
+        await expect(getHistorialLlamadas("CITA-1")).rejects.toThrow("Base de datos no disponible");
+    });
+
     it("mapea las llamadas y resuelve el nombre del comunicador", async () => {
         (prisma.llamada.findMany as any).mockResolvedValue([
             { id_llamada: "LLAM-2", fecha_llamada: new Date("2026-07-19T10:00:00"), respuesta_usuario: "No contesta", observacion: "no atiende", rut_comunicador: "5-5" }

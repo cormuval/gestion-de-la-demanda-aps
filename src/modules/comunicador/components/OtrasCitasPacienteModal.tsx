@@ -26,6 +26,8 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
 
     useEffect(() => {
         let activo = true;
+        setCargando(true);
+        setCitas(null);
 
         async function cargarCitas() {
             try {

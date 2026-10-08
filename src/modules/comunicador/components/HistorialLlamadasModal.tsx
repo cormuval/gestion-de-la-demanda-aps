@@ -22,6 +22,8 @@ export function HistorialLlamadasModal({ citaId, onCerrar }: { citaId: string; o
 
     useEffect(() => {
         let activo = true;
+        setCargando(true);
+        setLlamadas(null);
 
         async function cargarHistorial() {
             try {
