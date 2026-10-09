@@ -149,7 +149,7 @@ export function IngresarSolicitudView() {
                 setCatalogos(catalogosData);
                 setCentros(centrosData);
             })
-            .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cargar datos iniciales"));
+            .catch(() => toast.error("Error al cargar datos iniciales"));
     }, []);
 
     const motivosFiltrados = useMemo(() => {
@@ -226,8 +226,8 @@ export function IngresarSolicitudView() {
             } else {
                 toast.warning("No se encontro el RUT en usuarios. Crea el usuario antes de ingresar la solicitud.");
             }
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al buscar pendientes");
+        } catch {
+            toast.error("Error al buscar pendientes");
         } finally {
             setLoadingPendientes(false);
         }
@@ -300,8 +300,8 @@ export function IngresarSolicitudView() {
             toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
             limpiarIngresoSolicitud();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al crear solicitud");
+        } catch {
+            toast.error("Error al crear solicitud");
         } finally {
             setSubmittingSolicitud(false);
         }

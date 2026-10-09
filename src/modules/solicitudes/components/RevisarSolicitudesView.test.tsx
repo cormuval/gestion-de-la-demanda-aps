@@ -289,25 +289,76 @@ describe("RevisarSolicitudesView guardado de usuario", () => {
 });
 
 describe("RevisarSolicitudesView errores de acciones", () => {
-    it("muestra el error de catalogos sin reemplazar el estado inicial", async () => {
+    it("muestra el estado vacio solo cuando el listado responde con exito", async () => {
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 }
+        });
+
+        render(<RevisarSolicitudesView />);
+
+        expect(await screen.findByText("No hay solicitudes en espera de validacion para los filtros actuales.")).toBeInTheDocument();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("muestra el estado vacio del modal solo cuando el contexto responde con exito", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({ ok: true, data: { solicitudes: [], citas: [] } });
+
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modal = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        expect(within(modal).getByText("No hay otras solicitudes ni citas en curso para este RUT en tu centro.")).toBeInTheDocument();
+        expect(within(modal).queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("oculta el detalle tecnico cuando falla el listado", async () => {
+        vi.mocked(getSolicitudes).mockRejectedValueOnce(new Error("detalle sensible"));
+
+        render(<RevisarSolicitudesView />);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al consultar solicitudes"));
+        expect(toast.error).not.toHaveBeenCalledWith("detalle sensible");
+        expect(screen.getByRole("alert")).toHaveTextContent("Error al consultar solicitudes");
+        expect(screen.queryByText("No hay solicitudes en espera de validacion para los filtros actuales.")).not.toBeInTheDocument();
+    });
+
+    it("muestra un error persistente de catalogos y permite reintentar", async () => {
         vi.mocked(getRevisionCatalogos).mockResolvedValueOnce({ ok: false, error: "Centro sin catalogos" });
 
         render(<RevisarSolicitudesView />);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro sin catalogos"));
+        expect(screen.getByRole("alert")).toHaveTextContent("No fue posible cargar los catalogos");
+        expect(screen.getByRole("alert")).toHaveTextContent("Centro sin catalogos");
         expect(await screen.findByText("SOL-1")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Reintentar catalogos" }));
+
+        await waitFor(() => expect(getRevisionCatalogos).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.queryByText("No fue posible cargar los catalogos")).not.toBeInTheDocument());
     });
 
-    it("muestra el error del listado sin actualizar los datos", async () => {
+    it("muestra un error persistente del listado, nunca el vacio, y permite reintentar", async () => {
         vi.mocked(getSolicitudes).mockResolvedValueOnce({ ok: false, error: "No se pudo listar" });
 
         render(<RevisarSolicitudesView />);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No se pudo listar"));
-        expect(screen.getByText("No hay solicitudes en espera de validacion para los filtros actuales.")).toBeInTheDocument();
+        expect(screen.getByRole("alert")).toHaveTextContent("No fue posible cargar las solicitudes");
+        expect(screen.getByRole("alert")).toHaveTextContent("No se pudo listar");
+        expect(screen.queryByText("No hay solicitudes en espera de validacion para los filtros actuales.")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Reintentar solicitudes" }));
+
+        expect(await screen.findByText("SOL-1")).toBeInTheDocument();
+        expect(getSolicitudes).toHaveBeenCalledTimes(2);
     });
 
-    it("mantiene abierto el modal de relacionadas cuando la consulta retorna error", async () => {
+    it("muestra el error de relacionadas en el modal, nunca el vacio, y permite reintentar", async () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({ ok: false, error: "No se pudo cargar el contexto" });
 
         render(<RevisarSolicitudesView />);
@@ -316,8 +367,15 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No se pudo cargar el contexto"));
-        expect(screen.getByRole("dialog", { name: "Solicitudes y citas en curso" })).toBeInTheDocument();
+        const modal = screen.getByRole("dialog", { name: "Solicitudes y citas en curso" });
+        expect(within(modal).getByRole("alert")).toHaveTextContent("No se pudo cargar el contexto");
+        expect(within(modal).queryByText("No hay otras solicitudes ni citas en curso para este RUT en tu centro.")).not.toBeInTheDocument();
         expect(getSolicitudes).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(within(modal).getByRole("button", { name: "Reintentar contexto" }));
+
+        expect(await within(modal).findByText("CITA-1")).toBeInTheDocument();
+        expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2);
     });
 
     it("mantiene el formulario de rechazo y no recarga cuando la gestion retorna error", async () => {

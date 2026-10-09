@@ -34,8 +34,8 @@ export function HistorialLlamadasModal({ citaId, onCerrar }: { citaId: string; o
                     return;
                 }
                 setLlamadas(resultado.data);
-            } catch (e) {
-                if (activo) toast.error(e instanceof Error ? e.message : "Error al cargar el historial");
+            } catch {
+                if (activo) toast.error("Error al cargar el historial");
             } finally {
                 if (activo) setCargando(false);
             }

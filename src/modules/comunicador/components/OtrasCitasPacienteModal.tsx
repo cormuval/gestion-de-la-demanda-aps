@@ -38,8 +38,8 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
                     return;
                 }
                 setCitas(resultado.data);
-            } catch (e) {
-                if (activo) toast.error(e instanceof Error ? e.message : "Error al cargar otras citas");
+            } catch {
+                if (activo) toast.error("Error al cargar otras citas");
             } finally {
                 if (activo) setCargando(false);
             }

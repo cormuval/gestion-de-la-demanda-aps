@@ -13,6 +13,15 @@ beforeEach(() => {
 });
 
 describe("HistorialLlamadasModal", () => {
+    it("oculta el detalle tecnico cuando falla la carga", async () => {
+        vi.mocked(getHistorialLlamadas).mockRejectedValue(new Error("detalle sensible"));
+
+        render(<HistorialLlamadasModal citaId="CITA-1" onCerrar={vi.fn()} />);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al cargar el historial"));
+        expect(toast.error).not.toHaveBeenCalledWith("detalle sensible");
+    });
+
     it("no conserva llamadas de la cita anterior cuando la nueva consulta falla", async () => {
         vi.mocked(getHistorialLlamadas)
             .mockResolvedValueOnce({

@@ -206,6 +206,17 @@ describe("IngresarSolicitudView duplicados", () => {
 });
 
 describe("IngresarSolicitudView errores esperados de consulta", () => {
+    it("oculta el detalle tecnico cuando falla la busqueda de pendientes", async () => {
+        vi.mocked(getPendientes).mockRejectedValue(new Error("detalle sensible"));
+
+        render(<IngresarSolicitudView />);
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al buscar pendientes"));
+        expect(toast.error).not.toHaveBeenCalledWith("detalle sensible");
+    });
+
     it("muestra un solo error de pendientes sin confirmar al usuario ni dejar estado parcial", async () => {
         vi.mocked(getPendientes).mockResolvedValue({ ok: false, error: "rutUsuario es requerido" } as Awaited<ReturnType<typeof getPendientes>>);
 

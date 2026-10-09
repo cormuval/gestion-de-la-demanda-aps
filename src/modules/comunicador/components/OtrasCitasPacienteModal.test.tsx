@@ -13,6 +13,15 @@ beforeEach(() => {
 });
 
 describe("OtrasCitasPacienteModal", () => {
+    it("oculta el detalle tecnico cuando falla la carga", async () => {
+        vi.mocked(getCitasPendientesPaciente).mockRejectedValue(new Error("detalle sensible"));
+
+        render(<OtrasCitasPacienteModal rutUsuario="12.345.678-5" citaActualId="CITA-1" onCerrar={vi.fn()} />);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al cargar otras citas"));
+        expect(toast.error).not.toHaveBeenCalledWith("detalle sensible");
+    });
+
     it("no conserva citas del paciente anterior cuando la nueva consulta falla", async () => {
         vi.mocked(getCitasPendientesPaciente)
             .mockResolvedValueOnce({

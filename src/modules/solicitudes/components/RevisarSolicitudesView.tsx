@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, Check, Copy, Edit, Eye, Filter, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CalendarPlus, Check, CircleAlert, Copy, Edit, Eye, Filter, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getRevisionCatalogos } from "@/modules/solicitudes/actions/getRevisionCatalogos.action";
@@ -22,6 +22,7 @@ import {
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
 import { Badge } from "@/shared/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
@@ -66,7 +67,6 @@ type CitaForm = {
 
 const emptyResponse: SolicitudesResponse = { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 };
 const emptyCatalogos: RevisionCatalogos = { tiposSolicitud: [], motivos: [], profesionales: [], prestaciones: [], centros: [] };
-const emptyOtrasContexto: OtrasSolicitudesResponse = { solicitudes: [], citas: [] };
 const emptyUsuarioForm: UsuarioEditFormState = {
     rut: "",
     nombre: "",
@@ -126,6 +126,33 @@ function DescripcionSolicitudCell({ descripcion }: { descripcion: string | null 
     );
 }
 
+function ErrorCarga({
+    titulo,
+    mensaje,
+    etiquetaReintento,
+    reintentando,
+    onRetry
+}: {
+    titulo: string;
+    mensaje: string;
+    etiquetaReintento: string;
+    reintentando: boolean;
+    onRetry: () => void;
+}) {
+    return (
+        <Alert variant="destructive">
+            <CircleAlert />
+            <AlertTitle>{titulo}</AlertTitle>
+            <AlertDescription className="flex flex-col items-start gap-3">
+                <p>{mensaje}</p>
+                <Button type="button" variant="outline" size="sm" disabled={reintentando} onClick={onRetry}>
+                    {reintentando ? "Reintentando..." : etiquetaReintento}
+                </Button>
+            </AlertDescription>
+        </Alert>
+    );
+}
+
 function toUsuarioForm(usuario: SolicitudRow["usuario"]): UsuarioEditFormState {
     const genero = asUsuarioOption(GENEROS_USUARIO, usuario?.genero);
     return {
@@ -149,7 +176,10 @@ export function RevisarSolicitudesView() {
     const [filters, setFilters] = useState<SolicitudFiltros>({ rut: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", page: 1 });
     const [data, setData] = useState<SolicitudesResponse>(emptyResponse);
     const [catalogos, setCatalogos] = useState<RevisionCatalogos>(emptyCatalogos);
-    const [loading, setLoading] = useState(false);
+    const [catalogosError, setCatalogosError] = useState<string | null>(null);
+    const [solicitudesError, setSolicitudesError] = useState<string | null>(null);
+    const [loadingCatalogos, setLoadingCatalogos] = useState(true);
+    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [rechazoSolicitud, setRechazoSolicitud] = useState<SolicitudRow | null>(null);
     const [realizarSolicitud, setRealizarSolicitud] = useState<SolicitudRow | null>(null);
@@ -157,7 +187,8 @@ export function RevisarSolicitudesView() {
     const [observacionRechazo, setObservacionRechazo] = useState("");
     const [citas, setCitas] = useState<CitaForm[]>([emptyCita()]);
     const [otrasSolicitudBase, setOtrasSolicitudBase] = useState<SolicitudRow | null>(null);
-    const [otrasContexto, setOtrasContexto] = useState<OtrasSolicitudesResponse>(emptyOtrasContexto);
+    const [otrasContexto, setOtrasContexto] = useState<OtrasSolicitudesResponse | null>(null);
+    const [otrasError, setOtrasError] = useState<string | null>(null);
     const [citaEditando, setCitaEditando] = useState<CitaCascadaConEdicion | null>(null);
     const [loadingOtras, setLoadingOtras] = useState(false);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioEditFormState>(emptyUsuarioForm);
@@ -167,15 +198,7 @@ export function RevisarSolicitudesView() {
     const accionOrigenRef = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
-        getRevisionCatalogos()
-            .then((result) => {
-                if (!result.ok) {
-                    toast.error(result.error);
-                    return;
-                }
-                setCatalogos(result.data);
-            })
-            .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cargar catalogos"));
+        loadCatalogos();
     }, []);
 
     useEffect(() => {
@@ -188,18 +211,42 @@ export function RevisarSolicitudesView() {
         return catalogos.motivos.filter((m) => String(m.tipo_solicitud_id) === String(filters.tipoSolicitudId));
     }, [catalogos.motivos, filters.tipoSolicitudId]);
 
+    async function loadCatalogos() {
+        setLoadingCatalogos(true);
+        setCatalogosError(null);
+        try {
+            const result = await getRevisionCatalogos();
+            if (!result.ok) {
+                setCatalogosError(result.error);
+                toast.error(result.error);
+                return;
+            }
+            setCatalogos(result.data);
+        } catch {
+            const mensaje = "Error al cargar catalogos";
+            setCatalogosError(mensaje);
+            toast.error(mensaje);
+        } finally {
+            setLoadingCatalogos(false);
+        }
+    }
+
     async function loadSolicitudes(nextFilters: SolicitudFiltros = filters) {
         setLoading(true);
+        setSolicitudesError(null);
         try {
             const result = await getSolicitudes(nextFilters);
             if (!result.ok) {
+                setSolicitudesError(result.error);
                 toast.error(result.error);
                 return;
             }
             setData(result.data);
             setFilters((current) => ({ ...current, page: result.data.page }));
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al consultar solicitudes");
+        } catch {
+            const mensaje = "Error al consultar solicitudes";
+            setSolicitudesError(mensaje);
+            toast.error(mensaje);
         } finally {
             setLoading(false);
         }
@@ -229,15 +276,20 @@ export function RevisarSolicitudesView() {
 
     async function cargarContexto(solicitud: SolicitudRow) {
         setLoadingOtras(true);
+        setOtrasContexto(null);
+        setOtrasError(null);
         try {
             const result = await getOtrasSolicitudes(solicitud.rut_usuario, solicitud.id_solicitud);
             if (!result.ok) {
+                setOtrasError(result.error);
                 toast.error(result.error);
                 return;
             }
             setOtrasContexto(result.data);
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al consultar solicitudes y citas");
+        } catch {
+            const mensaje = "Error al consultar solicitudes y citas";
+            setOtrasError(mensaje);
+            toast.error(mensaje);
         } finally {
             setLoadingOtras(false);
         }
@@ -245,6 +297,8 @@ export function RevisarSolicitudesView() {
 
     async function openOtrasSolicitudes(solicitud: SolicitudRow) {
         setOtrasSolicitudBase(solicitud);
+        setOtrasContexto(null);
+        setOtrasError(null);
         await cargarContexto(solicitud);
     }
 
@@ -313,8 +367,8 @@ export function RevisarSolicitudesView() {
             setResumenGestion(result.data.resumen);
             await loadSolicitudes(filters);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al rechazar solicitud");
+        } catch {
+            toast.error("Error al rechazar solicitud");
         } finally {
             setSaving(false);
         }
@@ -325,15 +379,18 @@ export function RevisarSolicitudesView() {
         if (!realizarSolicitud) return;
         setSaving(true);
         try {
+            if (citas.some((cita) => !cita.priorizacion_clinica)) {
+                toast.error("Selecciona priorizacion clinica en todas las citas");
+                return;
+            }
             const citasPayload = citas.map((cita) => {
-                if (!cita.priorizacion_clinica) throw new Error("Selecciona priorizacion clinica en todas las citas");
                 return {
                     tipo_prestacion: cita.tipo_prestacion,
                     profesional_id: cita.tipo_prestacion === TIPO_PRESTACION_PROFESIONAL ? cita.profesional_id : null,
                     prestacion_id: cita.tipo_prestacion === TIPO_PRESTACION_PROFESIONAL ? cita.prestacion_id : null,
                     fecha_estimada_atencion: cita.fecha_estimada_atencion,
                     observacion: cita.observacion,
-                    priorizacion_clinica: cita.priorizacion_clinica
+                    priorizacion_clinica: cita.priorizacion_clinica as PrioridadClinica
                 };
             });
             const result = await gestionarSolicitud({
@@ -350,8 +407,8 @@ export function RevisarSolicitudesView() {
             setResumenGestion(result.data.resumen);
             await loadSolicitudes(filters);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al realizar solicitud");
+        } catch {
+            toast.error("Error al realizar solicitud");
         } finally {
             setSaving(false);
         }
@@ -398,7 +455,18 @@ export function RevisarSolicitudesView() {
                     <CardDescription>Consulta por RUT, tipo, motivo y fecha de ingreso.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form className="grid gap-4 md:grid-cols-4 xl:grid-cols-8" onSubmit={handleSubmit}>
+                    {catalogosError ? (
+                        <ErrorCarga
+                            titulo="No fue posible cargar los catalogos"
+                            mensaje={catalogosError}
+                            etiquetaReintento="Reintentar catalogos"
+                            reintentando={loadingCatalogos}
+                            onRetry={loadCatalogos}
+                        />
+                    ) : loadingCatalogos ? (
+                        <p className="text-sm text-muted-foreground">Cargando catalogos...</p>
+                    ) : (
+                        <form className="grid gap-4 md:grid-cols-4 xl:grid-cols-8" onSubmit={handleSubmit}>
                         <Field label="RUT">
                             <Input value={filters.rut ?? ""} onChange={(e) => updateFilter("rut", e.target.value)} />
                         </Field>
@@ -443,7 +511,8 @@ export function RevisarSolicitudesView() {
                                 {loading ? "Consultando..." : "Aplicar filtros"}
                             </Button>
                         </div>
-                    </form>
+                        </form>
+                    )}
                 </CardContent>
             </Card>
 
@@ -455,9 +524,21 @@ export function RevisarSolicitudesView() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <TooltipProvider>
-                        <div className="rounded-md border">
-                            <Table>
+                    {loading ? (
+                        <p className="text-sm text-muted-foreground">Consultando solicitudes...</p>
+                    ) : solicitudesError ? (
+                        <ErrorCarga
+                            titulo="No fue posible cargar las solicitudes"
+                            mensaje={solicitudesError}
+                            etiquetaReintento="Reintentar solicitudes"
+                            reintentando={loading}
+                            onRetry={() => loadSolicitudes(filters)}
+                        />
+                    ) : (
+                        <>
+                            <TooltipProvider>
+                                <div className="rounded-md border">
+                                    <Table>
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Solicitud</TableHead>
@@ -538,20 +619,22 @@ export function RevisarSolicitudesView() {
                                         ))
                                     )}
                                 </TableBody>
-                            </Table>
-                        </div>
-                    </TooltipProvider>
-                    <div className="flex items-center justify-between">
-                        <Button type="button" variant="outline" disabled={loading || data.page <= 1} onClick={() => cambiarPagina(data.page - 1)}>
-                            Anterior
-                        </Button>
-                        <span className="text-sm text-muted-foreground">
-                            {data.page} / {data.totalPages}
-                        </span>
-                        <Button type="button" variant="outline" disabled={loading || data.page >= data.totalPages} onClick={() => cambiarPagina(data.page + 1)}>
-                            Siguiente
-                        </Button>
-                    </div>
+                                    </Table>
+                                </div>
+                            </TooltipProvider>
+                            <div className="flex items-center justify-between">
+                                <Button type="button" variant="outline" disabled={data.page <= 1} onClick={() => cambiarPagina(data.page - 1)}>
+                                    Anterior
+                                </Button>
+                                <span className="text-sm text-muted-foreground">
+                                    {data.page} / {data.totalPages}
+                                </span>
+                                <Button type="button" variant="outline" disabled={data.page >= data.totalPages} onClick={() => cambiarPagina(data.page + 1)}>
+                                    Siguiente
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
 
@@ -594,11 +677,14 @@ export function RevisarSolicitudesView() {
                 <OtrasSolicitudesModal
                     solicitudBase={otrasSolicitudBase}
                     contexto={otrasContexto}
+                    error={otrasError}
                     loading={loadingOtras}
                     onClose={() => {
                         setOtrasSolicitudBase(null);
-                        setOtrasContexto(emptyOtrasContexto);
+                        setOtrasContexto(null);
+                        setOtrasError(null);
                     }}
+                    onRetry={() => cargarContexto(otrasSolicitudBase)}
                     onRealizar={openRealizar}
                     onRechazar={openRechazo}
                     onEditarUsuario={openEditarUsuario}
@@ -854,23 +940,27 @@ function RechazoModal({
 function OtrasSolicitudesModal({
     solicitudBase,
     contexto,
+    error,
     loading,
     onClose,
+    onRetry,
     onRealizar,
     onRechazar,
     onEditarUsuario,
     onEditarCita
 }: {
     solicitudBase: SolicitudRow;
-    contexto: OtrasSolicitudesResponse;
+    contexto: OtrasSolicitudesResponse | null;
+    error: string | null;
     loading: boolean;
     onClose: () => void;
+    onRetry: () => void;
     onRealizar: (solicitud: SolicitudRow) => void;
     onRechazar: (solicitud: SolicitudRow) => void;
     onEditarUsuario: (solicitud: SolicitudRow) => void;
     onEditarCita: (cita: CitaContexto) => void;
 }) {
-    const estaVacio = contexto.solicitudes.length === 0 && contexto.citas.length === 0;
+    const estaVacio = contexto !== null && contexto.solicitudes.length === 0 && contexto.citas.length === 0;
 
     return (
         <Dialog
@@ -887,9 +977,17 @@ function OtrasSolicitudesModal({
 
                 {loading ? (
                     <p className="text-sm text-muted-foreground">Consultando solicitudes y citas...</p>
+                ) : error ? (
+                    <ErrorCarga
+                        titulo="No fue posible cargar las solicitudes y citas"
+                        mensaje={error}
+                        etiquetaReintento="Reintentar contexto"
+                        reintentando={loading}
+                        onRetry={onRetry}
+                    />
                 ) : estaVacio ? (
                     <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">No hay otras solicitudes ni citas en curso para este RUT en tu centro.</div>
-                ) : (
+                ) : contexto ? (
                     <ListaPendientes
                         solicitudes={contexto.solicitudes}
                         citas={contexto.citas}
@@ -927,7 +1025,7 @@ function OtrasSolicitudesModal({
                             ) : null
                         }
                     />
-                )}
+                ) : null}
             </DialogContent>
         </Dialog>
     );

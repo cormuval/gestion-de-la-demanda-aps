@@ -33,7 +33,7 @@ export function ComunicadorView() {
     const [citaOtras, setCitaOtras] = useState<CitaFila | null>(null);
 
     useEffect(() => {
-        getFiltrosComunicador().then(setOpciones).catch((e) => toast.error(e instanceof Error ? e.message : "Error al cargar filtros"));
+        getFiltrosComunicador().then(setOpciones).catch(() => toast.error("Error al cargar filtros"));
     }, []);
 
     const cargar = useCallback(async () => {
@@ -57,8 +57,8 @@ export function ComunicadorView() {
                 return;
             }
             setData(r.data);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Error al cargar la cola");
+        } catch {
+            toast.error("Error al cargar la cola");
         }
     }, [aplicados, pagina]);
 
@@ -70,7 +70,7 @@ export function ComunicadorView() {
     const editarPaciente = useUsuarioEdit(cargar);
 
     useEffect(() => {
-        getCentros().then(setCentros).catch((e) => toast.error(e instanceof Error ? e.message : "Error al cargar centros"));
+        getCentros().then(setCentros).catch(() => toast.error("Error al cargar centros"));
     }, []);
 
     async function abrirGestion(cita: CitaFila) {

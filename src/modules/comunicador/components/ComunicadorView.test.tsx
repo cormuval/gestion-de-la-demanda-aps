@@ -29,6 +29,15 @@ beforeEach(() => {
 });
 
 describe("ComunicadorView", () => {
+    it("oculta el detalle tecnico cuando falla la carga de la cola", async () => {
+        vi.mocked(getCitasPendientes).mockRejectedValue(new Error("detalle sensible"));
+
+        render(<ComunicadorView />);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al cargar la cola"));
+        expect(toast.error).not.toHaveBeenCalledWith("detalle sensible");
+    });
+
     it("informa el error de negocio y no presenta una tabla vacia como carga exitosa", async () => {
         render(<ComunicadorView />);
 

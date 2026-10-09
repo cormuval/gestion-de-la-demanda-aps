@@ -36,6 +36,19 @@ beforeEach(() => {
 });
 
 describe("useUsuarioEdit", () => {
+    it("oculta el detalle tecnico cuando falla la carga del paciente", async () => {
+        vi.mocked(getUsuarioParaEdicion).mockRejectedValue(new Error("detalle sensible"));
+        const { result } = renderHook(() => useUsuarioEdit());
+
+        await act(async () => {
+            await result.current.abrir("12.345.678-5");
+        });
+
+        expect(toast.error).toHaveBeenCalledWith("Error al cargar el paciente");
+        expect(toast.error).not.toHaveBeenCalledWith("detalle sensible");
+        expect(result.current.open).toBe(false);
+    });
+
     it("no abre el formulario cuando la lectura retorna un error de negocio", async () => {
         vi.mocked(getUsuarioParaEdicion).mockResolvedValue({ ok: false, error: "RUT invalido" } as Awaited<ReturnType<typeof getUsuarioParaEdicion>>);
         const { result } = renderHook(() => useUsuarioEdit());

@@ -79,8 +79,8 @@ export function useUsuarioEdit(onActualizado?: () => void) {
             }
             setForm(toForm(resultado.data.usuario));
             setOpen(true);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Error al cargar el paciente");
+        } catch {
+            toast.error("Error al cargar el paciente");
         }
     }
 
