@@ -88,7 +88,7 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput): Promis
     const centroColumna = getColumnaTipoSolicitudPorCentro(nombreCentro);
     const fechaValidacion = new Date();
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result: GestionSolicitudResultado | { ok: false; error: string } = await prisma.$transaction(async (tx) => {
         const solicitud = await tx.solicitud.findFirst({
             where: {
                 id_solicitud: data.id_solicitud,
