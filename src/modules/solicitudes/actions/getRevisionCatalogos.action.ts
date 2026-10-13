@@ -43,13 +43,13 @@ export async function getRevisionCatalogos() {
     const centroColumna = getColumnaTipoSolicitudPorCentro(nombreCentro);
 
     const [tiposSolicitud, motivos, profesionales, prestaciones, centros] = await Promise.all([
+        // Tipos y motivos solo alimentan los filtros de la bandeja: van todos, tambien los inactivos
+        // (Atencion Sapu, Contrarreferencia), porque hay solicitudes de esos tipos que no se ingresan a mano.
         prisma.tipoSolicitud.findMany({
-            where: { estado: "1" },
             select: { id_tipo_solicitud: true, nombre_tipo_solicitud: true },
             orderBy: { nombre_tipo_solicitud: "asc" }
         }),
         prisma.motivo.findMany({
-            where: { estado: "1" },
             select: { id_motivo: true, tipo_solicitud_id: true, nombre_motivo: true },
             orderBy: { nombre_motivo: "asc" }
         }),

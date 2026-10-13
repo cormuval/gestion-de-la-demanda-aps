@@ -18,6 +18,7 @@ const cita = {
     prestacion: null,
     fecha_estimada_atencion: null,
     estado_cita: "Sin llamadas",
+    observacion: null,
     intentos: 0,
     tiene_llamada_hoy: false
 };
@@ -27,6 +28,24 @@ beforeEach(() => {
 });
 
 describe("RegistrarLlamadaModal", () => {
+    it("muestra el contexto de la cita: RUT, estado, estamento, prestacion y observacion clinica", () => {
+        render(
+            <RegistrarLlamadaModal
+                cita={{ ...cita, profesion: "Médico", prestacion: "Control Cronico", estado_cita: "No contesta (1)", observacion: "Control PSM con Dr. Veas en junio" }}
+                telefonos="9 1234 5678"
+                correo="paciente@example.com"
+                onCerrar={vi.fn()}
+                onRegistrado={vi.fn()}
+            />
+        );
+
+        expect(screen.getByText("11.111.111-1")).toBeInTheDocument();
+        expect(screen.getByText("No contesta (1)")).toBeInTheDocument();
+        expect(screen.getByText("Médico")).toBeInTheDocument();
+        expect(screen.getByText("Control Cronico")).toBeInTheDocument();
+        expect(screen.getByText("Control PSM con Dr. Veas en junio")).toBeInTheDocument();
+    });
+
     it("muestra el error de negocio y mantiene el modal sin notificar exito", async () => {
         vi.mocked(registrarLlamada).mockResolvedValue({ ok: false, error: "La cita ya está cerrada" } as never);
         const onRegistrado = vi.fn();

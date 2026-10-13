@@ -34,6 +34,13 @@ describe("getRevisionCatalogos", () => {
         });
     });
 
+    it("incluye tipos y motivos inactivos para filtrar solicitudes como Atencion Sapu o Contrarreferencia", async () => {
+        await getRevisionCatalogos();
+
+        expect(vi.mocked(prisma.tipoSolicitud.findMany).mock.calls[0][0]?.where).toBeUndefined();
+        expect(vi.mocked(prisma.motivo.findMany).mock.calls[0][0]?.where).toBeUndefined();
+    });
+
     it("devuelve error de configuracion cuando el funcionario no tiene centro", async () => {
         vi.mocked(requirePermiso).mockResolvedValueOnce({ rut: "22.222.222-2", centro_id: null } as never);
         vi.mocked(prisma.funcionario.findUnique).mockResolvedValueOnce(null);
