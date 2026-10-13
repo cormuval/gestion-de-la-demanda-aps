@@ -7,6 +7,7 @@ import {
     esNombreReservado,
     esSubconjunto,
     permisosFaltantes,
+    puedeCambiarCentroPropio,
     quedaAdministrador,
     validarAsignacionRol,
     validarEdicionFuncionario,
@@ -126,6 +127,14 @@ describe("privilegios: P1-P4 permisos de rol", () => {
 
     it("permite conjuntos iguales: administrador edita administrador sin escalada", () => {
         expect(validarPermisosRol({ actorRolId: 99, actorPermisos: rolSuperior.permisos, rolActual: rolSuperior, permisosResultantes: [...rolSuperior.permisos], quedaAdmin: true })).toBeNull();
+    });
+});
+
+describe("puedeCambiarCentroPropio", () => {
+    it("permite solo a roles con config.roles", () => {
+        expect(puedeCambiarCentroPropio(new Set<Permiso>(["config.roles", "config.ver"]))).toBe(true);
+        expect(puedeCambiarCentroPropio(new Set<Permiso>(["config.funcionarios", "config.ver"]))).toBe(false);
+        expect(puedeCambiarCentroPropio(new Set<Permiso>())).toBe(false);
     });
 });
 

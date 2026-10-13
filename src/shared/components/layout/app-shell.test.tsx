@@ -7,13 +7,21 @@ import type { Permiso } from "@/config/permisos";
 import type { SessionUser } from "@/shared/types/session";
 
 vi.mock("next/navigation", () => ({
-    usePathname: () => "/comunicador"
+    usePathname: () => "/comunicador",
+    useRouter: () => ({ refresh: vi.fn() })
 }));
 vi.mock("next-auth/react", () => ({
     signOut: vi.fn()
 }));
+vi.mock("sonner", () => ({
+    toast: { success: vi.fn(), error: vi.fn() }
+}));
+vi.mock("@/modules/configuracion/actions/cambiarCentroActivo.action", () => ({
+    cambiarCentroActivo: vi.fn()
+}));
 
 import { AppShell } from "./app-shell";
+import type { CentroOpcion } from "./selector-centro-activo";
 
 const usuario: SessionUser = {
     rut: "1-9",
@@ -24,9 +32,14 @@ const usuario: SessionUser = {
     rol: { id: 2, nombre: "Orientador" }
 };
 
-function renderShell(permisos: Permiso[], defaultOpen = true) {
+const centros: CentroOpcion[] = [
+    { id_centro: "501", nombre_centro: "CESFAM Placeres" },
+    { id_centro: "655", nombre_centro: "CESFAM Reina Isabel II" }
+];
+
+function renderShell(permisos: Permiso[], defaultOpen = true, opciones?: { centros?: CentroOpcion[] }) {
     return render(
-        <AppShell user={usuario} permisos={permisos} defaultOpen={defaultOpen}>
+        <AppShell user={usuario} permisos={permisos} defaultOpen={defaultOpen} centros={opciones?.centros}>
             <div>Contenido de prueba</div>
         </AppShell>
     );
@@ -100,5 +113,19 @@ describe("AppShell", () => {
 
         const link = screen.getByRole("link", { name: /Llamadas/i });
         expect(link.closest("[data-active]")).toHaveAttribute("data-active", "true");
+    });
+
+    it("con centros muestra el selector de centro activo", () => {
+        renderShell(["dashboard.ver"], true, { centros });
+
+        expect(screen.getByRole("combobox", { name: "Centro activo" })).toBeInTheDocument();
+        expect(screen.queryByText("CESFAM Placeres", { selector: "p" })).not.toBeInTheDocument();
+    });
+
+    it("sin centros mantiene el texto del centro", () => {
+        renderShell(["dashboard.ver"]);
+
+        expect(screen.getByText("CESFAM Placeres")).toBeInTheDocument();
+        expect(screen.queryByRole("combobox", { name: "Centro activo" })).not.toBeInTheDocument();
     });
 });

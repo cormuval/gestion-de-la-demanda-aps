@@ -1,9 +1,13 @@
+import { Fragment } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 // lib
 import { getSessionPermisos } from "@/shared/lib/permisos";
+import { prisma } from "@/shared/lib/prisma";
 // components
 import { AppShell } from "@/shared/components/layout/app-shell";
+// utils
+import { puedeCambiarCentroPropio } from "@/modules/configuracion/utils/privilegios";
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
     const contexto = await getSessionPermisos();
@@ -12,9 +16,19 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     const cookieStore = await cookies();
     const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
+    const centros = puedeCambiarCentroPropio(contexto.permisos)
+        ? await prisma.centro.findMany({
+              select: { id_centro: true, nombre_centro: true },
+              orderBy: { nombre_centro: "asc" }
+          })
+        : undefined;
+
     return (
-        <AppShell user={contexto.user} permisos={[...contexto.permisos]} defaultOpen={defaultOpen}>
-            {children}
+        <AppShell user={contexto.user} permisos={[...contexto.permisos]} defaultOpen={defaultOpen} centros={centros}>
+            {/* Las vistas de pagina son componentes cliente que cargan sus datos solo al montarse.
+                Al cambiar de centro activo necesitamos que vuelvan a montarse (no solo re-renderizarse)
+                para que pidan los datos del nuevo centro; la key fuerza ese remount. */}
+            <Fragment key={contexto.user.centro_id ?? "sin-centro"}>{children}</Fragment>
         </AppShell>
     );
 }
