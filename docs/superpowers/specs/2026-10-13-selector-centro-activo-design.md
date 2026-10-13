@@ -53,7 +53,7 @@ nunca califica. La usan la action y el layout.
 Archivo: `src/modules/configuracion/actions/cambiarCentroActivo.action.ts`. Devuelve
 `ResultadoAccion<{ centro_id: string; centro_nombre: string | null }>`.
 
-1. `getSessionPermisos()`. Sin sesión lanza "No autenticado", igual que `requirePermiso`.
+1. `getSessionPermisos()`. Sin sesión devuelve `{ ok: false, error: "No autenticado" }` (las actions no lanzan).
 2. Si `!puedeCambiarCentroPropio(permisos)` → `{ ok: false, error: "Solo un administrador puede cambiar su centro" }`.
    El bloqueo se audita con `AuditLogger` (`success: false`), con el mismo formato que `logBloqueo`
    de `mantenedores.action.ts`. Si la action queda en otro archivo, `logBloqueo` se mueve a un
@@ -98,7 +98,7 @@ módulo `configuracion` porque modifica un funcionario.
 | No es administrador (p. ej. el rol perdió `config.roles` con la sesión abierta) | `ok: false`, toast, el selector vuelve atrás, bloqueo en el log |
 | Centro inexistente | `ok: false`, toast, el selector vuelve atrás |
 | Falla de BD o de red | Excepción → toast genérico "No fue posible cambiar el centro", el selector vuelve atrás |
-| Sin sesión | Excepción "No autenticado" (patrón de `requirePermiso`) |
+| Sin sesión | `{ ok: false, error: "No autenticado" }` (las actions no lanzan) |
 
 ## Tests (Vitest)
 

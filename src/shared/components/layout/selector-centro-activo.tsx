@@ -45,7 +45,7 @@ export function SelectorCentroActivo({ centroId, centros }: SelectorCentroActivo
                 toast.error(resultado.error);
                 return;
             }
-            toast.success(`Centro cambiado a ${resultado.data.centro_nombre}`);
+            toast.success(`Centro cambiado a ${resultado.data.centro_nombre || resultado.data.centro_id}`);
             router.refresh();
         } catch {
             setValor(anterior);
@@ -56,11 +56,11 @@ export function SelectorCentroActivo({ centroId, centros }: SelectorCentroActivo
     }
 
     return (
-        <Select aria-label="Centro activo" value={valor} disabled={pendiente} onChange={onChange}>
+        <Select aria-label="Centro activo" className="h-8 text-xs" value={valor} disabled={pendiente} onChange={onChange}>
             {centroId === null && <option value="">Sin centro</option>}
             {centros.map((centro) => (
                 <option key={centro.id_centro} value={centro.id_centro}>
-                    {centro.nombre_centro}
+                    {centro.nombre_centro || centro.id_centro}
                 </option>
             ))}
         </Select>

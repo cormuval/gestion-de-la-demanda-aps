@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 // lib
@@ -24,7 +25,10 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
 
     return (
         <AppShell user={contexto.user} permisos={[...contexto.permisos]} defaultOpen={defaultOpen} centros={centros}>
-            {children}
+            {/* Las vistas de pagina son componentes cliente que cargan sus datos solo al montarse.
+                Al cambiar de centro activo necesitamos que vuelvan a montarse (no solo re-renderizarse)
+                para que pidan los datos del nuevo centro; la key fuerza ese remount. */}
+            <Fragment key={contexto.user.centro_id ?? "sin-centro"}>{children}</Fragment>
         </AppShell>
     );
 }

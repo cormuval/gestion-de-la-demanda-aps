@@ -93,6 +93,23 @@ describe("SelectorCentroActivo", () => {
         expect(screen.getByText("Sin centro")).toBeInTheDocument();
     });
 
+    it("usa el id del centro como respaldo cuando nombre_centro es null", async () => {
+        const centrosSinNombre: CentroOpcion[] = [
+            { id_centro: "501", nombre_centro: null },
+            { id_centro: "655", nombre_centro: "CESFAM Reina Isabel II" }
+        ];
+        cambiarCentroActivo.mockResolvedValue({ ok: true, data: { centro_id: "501", centro_nombre: null } });
+
+        render(<SelectorCentroActivo centroId="655" centros={centrosSinNombre} />);
+        const select = screen.getByRole("combobox", { name: "Centro activo" });
+
+        expect(screen.getByText("501")).toBeInTheDocument();
+
+        fireEvent.change(select, { target: { value: "501" } });
+
+        await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Centro cambiado a 501"));
+    });
+
     it("se sincroniza cuando el centro de la sesion cambia por fuera del componente", () => {
         const { rerender } = renderSelector("501");
         const select = screen.getByRole("combobox", { name: "Centro activo" }) as HTMLSelectElement;

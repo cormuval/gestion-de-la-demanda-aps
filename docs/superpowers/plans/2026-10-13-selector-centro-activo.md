@@ -15,7 +15,7 @@
 - Administrador = funcionario cuyo rol **activo** incluye `config.roles` (`getPermisosRol` ya devuelve un conjunto vacío para roles inactivos).
 - La action toma el RUT **solo de la sesión**; nunca lo recibe del cliente.
 - Configuración → Funcionarios no cambia: `validarEdicionFuncionario` y `UsuariosRolesView` mantienen el bloqueo de auto-edición.
-- La action devuelve `ResultadoAccion<T>` (`src/shared/types/resultado.ts`). Solo lanza si no hay sesión ("No autenticado").
+- La action devuelve `ResultadoAccion<T>` (`src/shared/types/resultado.ts`). Si no hay sesión devuelve `{ ok: false, error: "No autenticado" }` (no lanza).
 - Textos exactos:
   - Error de no administrador: `"Solo un administrador puede cambiar su centro"`
   - Error de centro inexistente: `"El centro seleccionado no existe"`
@@ -98,7 +98,7 @@ Mockear `@/shared/lib/prisma` (`centro.findUnique`, `funcionario.update`), `@/sh
 - `"rechaza un centro inexistente o vacio"`: con `centro.findUnique → null` y `"999"`, devuelve `{ ok: false, error: "El centro seleccionado no existe" }`. Con `""` devuelve el mismo error. En ambos casos `update` no se llama.
 - `"no escribe si el centro es el actual"`: con `"501"` devuelve `{ ok: true, data: { centro_id: "501", centro_nombre: <nombre> } }` y `update` no se llama.
 - `"actualiza solo al funcionario en sesion y audita el cambio"`: con `"655"` (`findUnique → { id_centro: "655", nombre_centro: "CESFAM Reina Isabel II" }`), `update` se llama con `{ where: { rut: "11-1" }, data: { centro_id: "655" } }`. `logDataAccess` recibe `"UPDATE"`, `true`, `"funcionario:11-1"` y un `details` que contiene `"501 -> 655"`. El resultado es `{ ok: true, data: { centro_id: "655", centro_nombre: "CESFAM Reina Isabel II" } }`.
-- `"lanza sin sesion"`: con `getSessionPermisos → null`, rechaza con `"No autenticado"`.
+- `"sin sesion devuelve error"`: con `getSessionPermisos → null`, resuelve `{ ok: false, error: "No autenticado" }` (no lanza).
 
 - [ ] **Step 2: Correr los tests y verificar que fallan**
 
