@@ -43,6 +43,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shar
 import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
 import { ListaPendientes } from "@/modules/solicitudes/components/PendientesCascada";
 import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
+// lib
+import { cn } from "@/shared/lib/utils";
 // types
 import type { SolicitudFiltros } from "@/modules/solicitudes/schemas/solicitud.schema";
 import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
@@ -181,6 +183,8 @@ export function RevisarSolicitudesView() {
     const [loadingCatalogos, setLoadingCatalogos] = useState(true);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    // Hasta la primera respuesta exitosa no hay tabla que conservar durante las recargas.
+    const sinDatosAun = data === emptyResponse;
     const [rechazoSolicitud, setRechazoSolicitud] = useState<SolicitudRow | null>(null);
     const [realizarSolicitud, setRealizarSolicitud] = useState<SolicitudRow | null>(null);
     const [razonRechazo, setRazonRechazo] = useState<RazonRechazo | "">("");
@@ -455,23 +459,23 @@ export function RevisarSolicitudesView() {
                     <CardDescription>Consulta por RUT, tipo, motivo y fecha de ingreso.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {catalogosError ? (
-                        <ErrorCarga
-                            titulo="No fue posible cargar los catalogos"
-                            mensaje={catalogosError}
-                            etiquetaReintento="Reintentar catalogos"
-                            reintentando={loadingCatalogos}
-                            onRetry={loadCatalogos}
-                        />
-                    ) : loadingCatalogos ? (
-                        <p className="text-sm text-muted-foreground">Cargando catalogos...</p>
-                    ) : (
-                        <form className="grid gap-4 md:grid-cols-4 xl:grid-cols-8" onSubmit={handleSubmit}>
+                    {catalogosError && (
+                        <div className="mb-4">
+                            <ErrorCarga
+                                titulo="No fue posible cargar los catalogos"
+                                mensaje={`${catalogosError}. Puedes seguir filtrando por RUT, sector, edad y fecha.`}
+                                etiquetaReintento="Reintentar catalogos"
+                                reintentando={loadingCatalogos}
+                                onRetry={loadCatalogos}
+                            />
+                        </div>
+                    )}
+                    <form className="grid gap-4 md:grid-cols-4 xl:grid-cols-8" onSubmit={handleSubmit}>
                         <Field label="RUT">
                             <Input value={filters.rut ?? ""} onChange={(e) => updateFilter("rut", e.target.value)} />
                         </Field>
                         <Field label="Tipo solicitud">
-                            <Select value={filters.tipoSolicitudId ?? ""} onChange={(e) => updateFilter("tipoSolicitudId", e.target.value)}>
+                            <Select value={filters.tipoSolicitudId ?? ""} disabled={loadingCatalogos} onChange={(e) => updateFilter("tipoSolicitudId", e.target.value)}>
                                 <option value="">Todos</option>
                                 {catalogos.tiposSolicitud.map((tipo) => (
                                     <option key={tipo.id_tipo_solicitud} value={tipo.id_tipo_solicitud}>
@@ -481,7 +485,7 @@ export function RevisarSolicitudesView() {
                             </Select>
                         </Field>
                         <Field label="Motivo">
-                            <Select value={filters.motivoId ?? ""} onChange={(e) => updateFilter("motivoId", e.target.value)}>
+                            <Select value={filters.motivoId ?? ""} disabled={loadingCatalogos} onChange={(e) => updateFilter("motivoId", e.target.value)}>
                                 <option value="">Todos</option>
                                 {motivosFiltrados.map((motivo) => (
                                     <option key={motivo.id_motivo} value={motivo.id_motivo}>
@@ -511,8 +515,7 @@ export function RevisarSolicitudesView() {
                                 {loading ? "Consultando..." : "Aplicar filtros"}
                             </Button>
                         </div>
-                        </form>
-                    )}
+                    </form>
                 </CardContent>
             </Card>
 
@@ -524,9 +527,7 @@ export function RevisarSolicitudesView() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {loading ? (
-                        <p className="text-sm text-muted-foreground">Consultando solicitudes...</p>
-                    ) : solicitudesError ? (
+                    {solicitudesError && (
                         <ErrorCarga
                             titulo="No fue posible cargar las solicitudes"
                             mensaje={solicitudesError}
@@ -534,10 +535,13 @@ export function RevisarSolicitudesView() {
                             reintentando={loading}
                             onRetry={() => loadSolicitudes(filters)}
                         />
-                    ) : (
+                    )}
+                    {sinDatosAun && loading ? (
+                        <p className="text-sm text-muted-foreground">Consultando solicitudes...</p>
+                    ) : sinDatosAun && solicitudesError ? null : (
                         <>
                             <TooltipProvider>
-                                <div className="rounded-md border">
+                                <div className={cn("rounded-md border transition-opacity", loading && "opacity-60")} aria-busy={loading}>
                                     <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -623,13 +627,13 @@ export function RevisarSolicitudesView() {
                                 </div>
                             </TooltipProvider>
                             <div className="flex items-center justify-between">
-                                <Button type="button" variant="outline" disabled={data.page <= 1} onClick={() => cambiarPagina(data.page - 1)}>
+                                <Button type="button" variant="outline" disabled={loading || data.page <= 1} onClick={() => cambiarPagina(data.page - 1)}>
                                     Anterior
                                 </Button>
                                 <span className="text-sm text-muted-foreground">
                                     {data.page} / {data.totalPages}
                                 </span>
-                                <Button type="button" variant="outline" disabled={data.page >= data.totalPages} onClick={() => cambiarPagina(data.page + 1)}>
+                                <Button type="button" variant="outline" disabled={loading || data.page >= data.totalPages} onClick={() => cambiarPagina(data.page + 1)}>
                                     Siguiente
                                 </Button>
                             </div>

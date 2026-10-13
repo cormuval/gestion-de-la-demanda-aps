@@ -342,6 +342,43 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         await waitFor(() => expect(screen.queryByText("No fue posible cargar los catalogos")).not.toBeInTheDocument());
     });
 
+    it("mantiene el formulario de filtros usable cuando fallan los catalogos", async () => {
+        vi.mocked(getRevisionCatalogos).mockResolvedValueOnce({ ok: false, error: "Centro sin catalogos" });
+
+        render(<RevisarSolicitudesView />);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro sin catalogos"));
+        expect(screen.getByRole("button", { name: /Aplicar filtros/i })).toBeInTheDocument();
+        expect(screen.getByText("RUT")).toBeInTheDocument();
+    });
+
+    it("mantiene la tabla visible mientras se recarga el listado", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+
+        let responder: (valor: Awaited<ReturnType<typeof getSolicitudes>>) => void = () => undefined;
+        vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responder = resolve)));
+        fireEvent.click(screen.getByRole("button", { name: /Aplicar filtros/i }));
+
+        await screen.findByRole("button", { name: /Consultando/i });
+        expect(screen.getByText("SOL-1")).toBeInTheDocument();
+        expect(screen.queryByText("Consultando solicitudes...")).not.toBeInTheDocument();
+
+        responder({ ok: true, data: { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 } });
+        expect(await screen.findByText("No hay solicitudes en espera de validacion para los filtros actuales.")).toBeInTheDocument();
+    });
+
+    it("conserva la tabla y muestra el error cuando una recarga falla", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({ ok: false, error: "No se pudo listar" });
+        fireEvent.click(screen.getByRole("button", { name: /Aplicar filtros/i }));
+
+        await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No se pudo listar"));
+        expect(screen.getByText("SOL-1")).toBeInTheDocument();
+    });
+
     it("muestra un error persistente del listado, nunca el vacio, y permite reintentar", async () => {
         vi.mocked(getSolicitudes).mockResolvedValueOnce({ ok: false, error: "No se pudo listar" });
 
