@@ -7,6 +7,7 @@ import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import type { CitaFila } from "../actions/getCitasPendientes.action";
 
 export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina, onGestionar, renderAcciones }: {
@@ -21,57 +22,62 @@ export function CitasPendientesTabla({ filas, total, pagina, porPagina, onPagina
     const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
     return (
         <div className="space-y-3">
-            <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[900px] text-left text-sm">
-                    <thead className="bg-muted text-muted-foreground">
-                        <tr>
-                            <th className="px-3 py-2 font-medium">Código</th>
-                            <th className="px-3 py-2 font-medium">Priorización</th>
-                            <th className="px-3 py-2 font-medium">Disponibilidad</th>
-                            <th className="px-3 py-2 font-medium">RUT</th>
-                            <th className="px-3 py-2 font-medium">Profesión</th>
-                            <th className="px-3 py-2 font-medium">Prestación</th>
-                            <th className="px-3 py-2 font-medium">Fecha estimada</th>
-                            <th className="px-3 py-2 font-medium">Estado</th>
-                            <th className="px-3 py-2 font-medium"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            <div className="rounded-md border">
+                <Table>
+                    <TableHeader className="bg-muted text-muted-foreground">
+                        <TableRow>
+                            <TableHead>Cita</TableHead>
+                            <TableHead>Paciente</TableHead>
+                            <TableHead>Prestación</TableHead>
+                            <TableHead>Priorización / Disponibilidad</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
                         {filas.length === 0 ? (
-                            <tr>
-                                <td className="px-3 py-6 text-center text-muted-foreground" colSpan={9}>
+                            <TableRow>
+                                <TableCell className="py-6 text-center text-muted-foreground" colSpan={6}>
                                     No hay citas pendientes para los filtros actuales.
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         ) : (
                             filas.map((c) => (
-                                <tr key={c.id_cita} className={cn("border-t", c.tiene_llamada_hoy && "bg-primary/15")}>
-                                    <td className="px-3 py-3 font-medium"><CodigoId id={c.id_cita} /></td>
-                                    <td className="px-3 py-3">{c.priorizacion ?? "—"}</td>
-                                    <td className="px-3 py-3">{c.disponibilidad || "—"}</td>
-                                    <td className="px-3 py-3">{c.rut_usuario}</td>
-                                    <td className="px-3 py-3">{c.profesion || "—"}</td>
-                                    <td className="px-3 py-3">{c.prestacion || "—"}</td>
-                                    <td className="px-3 py-3">{c.fecha_estimada_atencion ? new Date(c.fecha_estimada_atencion).toLocaleDateString("es-CL") : "—"}</td>
-                                    <td className="px-3 py-3">
+                                <TableRow key={c.id_cita} className={cn(c.tiene_llamada_hoy && "bg-primary/15")}>
+                                    <TableCell>
+                                        <div className="font-medium"><CodigoId id={c.id_cita} /></div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {c.fecha_estimada_atencion ? new Date(c.fecha_estimada_atencion).toLocaleDateString("es-CL") : "—"}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{c.rut_usuario}</TableCell>
+                                    <TableCell>
+                                        <div>{c.prestacion || "—"}</div>
+                                        <div className="text-xs text-muted-foreground">{c.profesion || "—"}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div>{c.priorizacion ?? "—"}</div>
+                                        <div className="text-xs text-muted-foreground">{c.disponibilidad || "—"}</div>
+                                    </TableCell>
+                                    <TableCell>
                                         <Badge variant="warning">
                                             <AlertTriangle size={12} />
                                             {c.estado_cita}
                                         </Badge>
-                                    </td>
-                                    <td className="px-3 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <Button size="sm" onClick={() => onGestionar(c)}>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Button type="button" size="sm" onClick={() => onGestionar(c)}>
                                                 Llamar
                                             </Button>
                                             {renderAcciones?.(c)}
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))
                         )}
-                    </tbody>
-                </table>
+                    </TableBody>
+                </Table>
             </div>
             <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>{total} citas · página {pagina} de {totalPaginas}</span>

@@ -142,7 +142,14 @@ describe("RevisarSolicitudesView contexto de citas", () => {
                 accion: "Rechazar solicitud",
                 razon_rechazo: "Otro",
                 observacion_rechazo: "Sin cupos",
-                citas: []
+                citas: [
+                    {
+                        id_cita: "CITA-RESUMEN-1",
+                        profesional: "Medico resumen",
+                        prestacion: "Consulta resumen",
+                        fecha_estimada_atencion: new Date("2026-10-15T00:00:00")
+                    }
+                ]
             }
         } as unknown as Awaited<ReturnType<typeof gestionarSolicitud>>);
 
@@ -165,6 +172,10 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         const modalResumen = await screen.findByRole("dialog", { name: "Resumen de gestion" });
         expect(modalContexto).toBeInTheDocument();
         expect(modalResumen).toHaveClass("z-[70]");
+        expect(modalResumen.querySelector('table[class*="min-w-["]')).toBeNull();
+        expect(within(modalResumen).getByText("Medico resumen")).toBeInTheDocument();
+        expect(within(modalResumen).getByText("Consulta resumen")).toBeInTheDocument();
+        expect(within(modalResumen).getByText("15-10-2026")).toBeInTheDocument();
 
         fireEvent.click(within(modalResumen).getAllByRole("button", { name: "Cerrar" })[0]);
         await waitFor(() => expect(screen.queryByRole("dialog", { name: "Resumen de gestion" })).not.toBeInTheDocument());

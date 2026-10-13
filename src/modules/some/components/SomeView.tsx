@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/shared/components/ui/chart";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 // types
 import { ESTADOS_PENDIENTES, TEMPORALIDAD } from "@/modules/comunicador/types/comunicador";
 
@@ -238,37 +239,37 @@ function ProductividadPanel({
                     <CardDescription>Metricas de los ultimos {data.rangoDias} dias para funcionarios activos del centro seleccionado.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto rounded-md border">
-                        <table className="w-full min-w-[900px] table-fixed text-left text-sm">
-                            <thead className="bg-muted text-muted-foreground">
-                                <tr>
-                                    <th className="px-3 py-2 font-medium">Funcionario</th>
-                                    <th className="w-[120px] px-3 py-2 font-medium">Solicitudes</th>
-                                    <th className="w-[110px] px-3 py-2 font-medium">Gestiones</th>
-                                    <th className="w-[110px] px-3 py-2 font-medium">Realizadas</th>
-                                    <th className="w-[110px] px-3 py-2 font-medium">Rechazadas</th>
-                                    <th className="w-[90px] px-3 py-2 font-medium">Citas</th>
-                                    <th className="w-[100px] px-3 py-2 font-medium">Llamadas</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                    <div className="rounded-md border">
+                        <Table>
+                            <TableHeader className="bg-muted text-muted-foreground">
+                                <TableRow>
+                                    <TableHead>Funcionario</TableHead>
+                                    <TableHead>Solicitudes</TableHead>
+                                    <TableHead>Gestiones</TableHead>
+                                    <TableHead>Realizadas</TableHead>
+                                    <TableHead>Rechazadas</TableHead>
+                                    <TableHead>Citas</TableHead>
+                                    <TableHead>Llamadas</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {data.productividad.map((row) => (
-                                    <tr key={row.rut} className="border-t">
-                                        <td className="px-3 py-3">
+                                    <TableRow key={row.rut}>
+                                        <TableCell>
                                             <p className="font-medium">{row.nombre}</p>
                                             <p className="text-xs text-muted-foreground">{row.rut}</p>
-                                        </td>
+                                        </TableCell>
                                         <NumberCell value={row.solicitudesIngresadas} />
                                         <NumberCell value={row.gestiones} />
                                         <NumberCell value={row.solicitudesRealizadas} />
                                         <NumberCell value={row.solicitudesRechazadas} />
                                         <NumberCell value={row.citasCreadas} />
                                         <NumberCell value={row.llamadasRealizadas} />
-                                    </tr>
+                                    </TableRow>
                                 ))}
                                 {data.productividad.length === 0 && <EmptyRow colSpan={7} />}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 </CardContent>
             </Card>
@@ -379,61 +380,67 @@ function DemandaClinicaPanel({ data }: { data: SomePanelData }) {
                 <CardDescription>Citas pendientes agrupadas por profesional con prestaciones desplegables. Temporalidad: {data.demandaTemporalidad}.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[980px] table-fixed text-left text-sm">
-                        <thead className="bg-muted text-muted-foreground">
-                            <tr>
-                                <th className="px-3 py-2 font-medium">Profesional / Prestacion</th>
-                                <th className="w-[80px] px-3 py-2 font-medium">Total</th>
-                                <th className="w-[120px] px-3 py-2 font-medium">Atrasados</th>
-                                <th className="w-[120px] px-3 py-2 font-medium">Proximos</th>
-                                <th className="w-[120px] px-3 py-2 font-medium">Futuros</th>
-                                {ESTADOS_PENDIENTES.map((estado) => (
-                                    <th key={estado} className="w-[130px] px-3 py-2 font-medium">
-                                        {estado}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader className="bg-muted text-muted-foreground">
+                            <TableRow>
+                                <TableHead>Profesional / Prestacion</TableHead>
+                                <TableHead>Total</TableHead>
+                                <TableHead>Temporalidad</TableHead>
+                                <TableHead>Estados</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {data.demandaClinica.map((row) => {
                                 const abierto = abiertos.has(row.profesional);
                                 return (
                                     <Fragment key={row.profesional}>
-                                        <tr className="border-t bg-muted/20">
-                                            <td className="px-3 py-3">
+                                        <TableRow className="bg-muted/20">
+                                            <TableCell>
                                                 <button type="button" className="flex items-center gap-2 font-medium" onClick={() => toggle(row.profesional)}>
                                                     {abierto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                                     {row.profesional}
                                                 </button>
-                                            </td>
+                                            </TableCell>
                                             <NumberCell value={row.total} />
-                                            <NumberCell value={row.temporalidades[TEMPORALIDAD.ATRASADOS] ?? 0} />
-                                            <NumberCell value={row.temporalidades[TEMPORALIDAD.PROXIMOS] ?? 0} />
-                                            <NumberCell value={row.temporalidades[TEMPORALIDAD.FUTUROS] ?? 0} />
-                                            {ESTADOS_PENDIENTES.map((estado) => (
-                                                <NumberCell key={estado} value={row.estados[estado] ?? 0} />
-                                            ))}
-                                        </tr>
+                                            <TableCell>
+                                                <ConteosList
+                                                    items={[
+                                                        [TEMPORALIDAD.ATRASADOS, row.temporalidades[TEMPORALIDAD.ATRASADOS] ?? 0],
+                                                        [TEMPORALIDAD.PROXIMOS, row.temporalidades[TEMPORALIDAD.PROXIMOS] ?? 0],
+                                                        [TEMPORALIDAD.FUTUROS, row.temporalidades[TEMPORALIDAD.FUTUROS] ?? 0]
+                                                    ]}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <ConteosList items={ESTADOS_PENDIENTES.map((estado) => [estado, row.estados[estado] ?? 0])} />
+                                            </TableCell>
+                                        </TableRow>
                                         {abierto &&
                                             row.prestaciones.map((prestacion) => (
-                                                <tr key={`${row.profesional}-${prestacion.prestacion}`} className="border-t">
-                                                    <td className="px-3 py-3 pl-10 text-muted-foreground">{prestacion.prestacion}</td>
+                                                <TableRow key={`${row.profesional}-${prestacion.prestacion}`}>
+                                                    <TableCell className="pl-10 text-muted-foreground">{prestacion.prestacion}</TableCell>
                                                     <NumberCell value={prestacion.total} />
-                                                    <NumberCell value={prestacion.temporalidades[TEMPORALIDAD.ATRASADOS] ?? 0} />
-                                                    <NumberCell value={prestacion.temporalidades[TEMPORALIDAD.PROXIMOS] ?? 0} />
-                                                    <NumberCell value={prestacion.temporalidades[TEMPORALIDAD.FUTUROS] ?? 0} />
-                                                    {ESTADOS_PENDIENTES.map((estado) => (
-                                                        <NumberCell key={estado} value={prestacion.estados[estado] ?? 0} />
-                                                    ))}
-                                                </tr>
+                                                    <TableCell>
+                                                        <ConteosList
+                                                            items={[
+                                                                [TEMPORALIDAD.ATRASADOS, prestacion.temporalidades[TEMPORALIDAD.ATRASADOS] ?? 0],
+                                                                [TEMPORALIDAD.PROXIMOS, prestacion.temporalidades[TEMPORALIDAD.PROXIMOS] ?? 0],
+                                                                [TEMPORALIDAD.FUTUROS, prestacion.temporalidades[TEMPORALIDAD.FUTUROS] ?? 0]
+                                                            ]}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <ConteosList items={ESTADOS_PENDIENTES.map((estado) => [estado, prestacion.estados[estado] ?? 0])} />
+                                                    </TableCell>
+                                                </TableRow>
                                             ))}
                                     </Fragment>
                                 );
                             })}
-                            {data.demandaClinica.length === 0 && <EmptyRow colSpan={9} />}
-                        </tbody>
-                    </table>
+                            {data.demandaClinica.length === 0 && <EmptyRow colSpan={4} />}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
         </Card>
@@ -462,41 +469,41 @@ function SolicitudesPendientesPanel({ data }: { data: SomePanelData }) {
                 <CardDescription>Solicitudes en espera de validacion agrupadas por tipo y motivo.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[620px] table-fixed text-left text-sm">
-                        <thead className="bg-muted text-muted-foreground">
-                            <tr>
-                                <th className="px-3 py-2 font-medium">Tipo solicitud / Motivo</th>
-                                <th className="w-[120px] px-3 py-2 font-medium">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader className="bg-muted text-muted-foreground">
+                            <TableRow>
+                                <TableHead>Tipo solicitud / Motivo</TableHead>
+                                <TableHead>Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {data.solicitudesPendientes.map((row) => {
                                 const abierto = abiertos.has(row.tipoSolicitud);
                                 return (
                                     <Fragment key={row.tipoSolicitud}>
-                                        <tr className="border-t bg-muted/20">
-                                            <td className="px-3 py-3">
+                                        <TableRow className="bg-muted/20">
+                                            <TableCell>
                                                 <button type="button" className="flex items-center gap-2 font-medium" onClick={() => toggle(row.tipoSolicitud)}>
                                                     {abierto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                                     {row.tipoSolicitud}
                                                 </button>
-                                            </td>
+                                            </TableCell>
                                             <NumberCell value={row.total} />
-                                        </tr>
+                                        </TableRow>
                                         {abierto &&
                                             row.motivos.map((motivo) => (
-                                                <tr key={`${row.tipoSolicitud}-${motivo.motivo}`} className="border-t">
-                                                    <td className="px-3 py-3 pl-10 text-muted-foreground">{motivo.motivo}</td>
+                                                <TableRow key={`${row.tipoSolicitud}-${motivo.motivo}`}>
+                                                    <TableCell className="pl-10 text-muted-foreground">{motivo.motivo}</TableCell>
                                                     <NumberCell value={motivo.total} />
-                                                </tr>
+                                                </TableRow>
                                             ))}
                                     </Fragment>
                                 );
                             })}
                             {data.solicitudesPendientes.length === 0 && <EmptyRow colSpan={2} />}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
         </Card>
@@ -513,15 +520,28 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function NumberCell({ value }: { value: number }) {
-    return <td className="px-3 py-3 tabular-nums">{value}</td>;
+    return <TableCell className="tabular-nums">{value}</TableCell>;
 }
 
 function EmptyRow({ colSpan }: { colSpan: number }) {
     return (
-        <tr>
-            <td colSpan={colSpan} className="px-3 py-6 text-center text-sm text-muted-foreground">
+        <TableRow>
+            <TableCell colSpan={colSpan} className="py-6 text-center text-sm text-muted-foreground">
                 Sin registros para los filtros seleccionados.
-            </td>
-        </tr>
+            </TableCell>
+        </TableRow>
+    );
+}
+
+function ConteosList({ items }: { items: Array<[string, number]> }) {
+    return (
+        <dl className="flex flex-col gap-1 text-xs">
+            {items.map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-3">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="font-medium tabular-nums">{value}</dd>
+                </div>
+            ))}
+        </dl>
     );
 }

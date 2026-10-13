@@ -725,25 +725,26 @@ function ResumenGestionModal({
                     )}
 
                     {resumen.citas.length > 0 ? (
-                        <div className="overflow-x-auto rounded-md border">
-                            <table className="w-full min-w-[640px] text-left text-sm">
-                                <thead className="bg-muted text-muted-foreground">
-                                    <tr>
-                                        <th className="w-[220px] px-3 py-2 font-medium">Profesional</th>
-                                        <th className="px-3 py-2 font-medium">Prestacion</th>
-                                        <th className="w-[150px] px-3 py-2 font-medium">Fecha estimada</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        <div className="rounded-md border">
+                            <Table>
+                                <TableHeader className="bg-muted text-muted-foreground">
+                                    <TableRow>
+                                        <TableHead>Cita</TableHead>
+                                        <TableHead>Prestacion</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
                                     {resumen.citas.map((cita) => (
-                                        <tr key={cita.id_cita} className="border-t">
-                                            <td className="px-3 py-3">{cita.profesional || "-"}</td>
-                                            <td className="px-3 py-3">{cita.prestacion || "-"}</td>
-                                            <td className="px-3 py-3">{formatFechaResumen(cita.fecha_estimada_atencion)}</td>
-                                        </tr>
+                                        <TableRow key={cita.id_cita}>
+                                            <TableCell>
+                                                <div>{cita.profesional || "-"}</div>
+                                                <div className="text-xs text-muted-foreground">{formatFechaResumen(cita.fecha_estimada_atencion)}</div>
+                                            </TableCell>
+                                            <TableCell>{cita.prestacion || "-"}</TableCell>
+                                        </TableRow>
                                     ))}
-                                </tbody>
-                            </table>
+                                </TableBody>
+                            </Table>
                         </div>
                     ) : (
                         <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">Gestion guardada sin citas asociadas.</div>
