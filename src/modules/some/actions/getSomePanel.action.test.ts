@@ -274,7 +274,7 @@ describe("getSomePanel", () => {
     it("clasifica citas sin fecha estimada como proximos al agrupar demanda clinica", async () => {
         (prisma.cita.groupBy as any).mockResolvedValueOnce([{ profesional_id: null, prestacion_id: null, estado_cita: "Sin llamadas", _count: { _all: 4 } }]);
 
-        const result = await getSomePanel({ demandaTemporalidad: "Agendamientos próximos" });
+        const result = await getPanelData({ demandaTemporalidad: "Agendamientos próximos" });
 
         expect(prisma.cita.groupBy).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -349,7 +349,7 @@ describe("getSomePanel", () => {
             { tipo_solicitud_id: 99, motivo_id: null, _count: { _all: 2 } }
         ]);
 
-        const result = await getSomePanel();
+        const result = await getPanelData();
 
         expect(result.solicitudesPendientes).toEqual([
             {
