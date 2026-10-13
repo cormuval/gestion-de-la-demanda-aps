@@ -38,6 +38,7 @@ import {
     type AdminEvaluado,
     type RolEvaluado
 } from "../utils/privilegios";
+import { logBloqueo } from "../utils/auditoria";
 
 function centroData(centros: Partial<Record<(typeof CENTRO_COLUMNAS)[number], "1" | "0">>) {
     return CENTRO_COLUMNAS.reduce(
@@ -80,10 +81,6 @@ async function adminsActivos(): Promise<AdminEvaluado[]> {
         select: { rut: true, rol_id: true }
     });
     return funcionarios;
-}
-
-async function logBloqueo(accion: "CREATE" | "UPDATE", user: { rut: string; nombre: string }, resourceId: string, regla: string, error: string) {
-    await AuditLogger.logSecurity(accion, false, { rut: user.rut, name: user.nombre }, { resourceId, details: regla, error });
 }
 
 export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) {

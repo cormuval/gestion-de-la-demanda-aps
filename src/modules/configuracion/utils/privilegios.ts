@@ -82,6 +82,10 @@ export function quedaAdministrador(admins: AdminEvaluado[], cambio: CambioAdmin)
     });
 }
 
+export function puedeCambiarCentroPropio(permisos: ReadonlySet<Permiso>): boolean {
+    return permisos.has("config.roles");
+}
+
 export function validarAsignacionRol(actor: ReadonlySet<Permiso>, rolDestino: RolEvaluado): string | null {
     if (!esSubconjunto(rolDestino.permisos, actor)) {
         return `No puedes asignar el rol «${rolDestino.nombre_rol}»: incluye permisos que tu rol no tiene`;
