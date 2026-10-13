@@ -125,7 +125,7 @@ y checklist para crear, quitar o renombrar un permiso).
   Configuracion -> Roles -> Permisos. Agregar un permiso es cambio de codigo + deploy.
 - Paginas con `requirePermisoPagina`; Server Actions con `requirePermiso`. El middleware solo valida autenticacion.
 - Anti-escalada: nadie puede otorgar permisos que su rol no tiene, editar roles/funcionarios
-  superiores, cambiar su propio rol/estado/centro, ni dejar el sistema sin administradores activos.
+  superiores, cambiar su propio rol/estado/centro (salvo el centro de un administrador, desde el selector 'Centro activo'), ni dejar el sistema sin administradores activos.
 - El seed siembra permisos solo para roles sin ninguno; luego el mantenedor es la fuente de verdad.
 
 ## Documentacion del proyecto

@@ -190,6 +190,10 @@ y se usan tanto en las Server Actions como en la UI preventiva.
 **Auto-edicion.** Un funcionario puede actualizar datos no sensibles de su propio registro, pero no
 puede cambiar su rol, estado ni centro. Tampoco puede renombrar ni desactivar su propio rol.
 
+Excepcion: un funcionario cuyo rol activo incluye `config.roles` puede cambiar su propio centro
+desde el selector "Centro activo" del menu lateral (`cambiarCentroActivo`, auditado). Sigue sin
+poder cambiar su rol ni su estado, y en Configuracion -> Funcionarios la regla no cambia.
+
 **Ultimo administrador.** Las actions impiden desactivar o degradar al ultimo funcionario activo
 cuyo rol activo incluye `config.roles`. La regla cubre cambios de funcionario, estado de rol y
 matriz de permisos del rol.
