@@ -753,6 +753,9 @@ function SolicitudMeta({ solicitud }: { solicitud: SolicitudRow }) {
             <span>RUT: {solicitud.rut_usuario}</span>
             <span>Tipo: {solicitud.tipoSolicitud?.nombre_tipo_solicitud || "-"}</span>
             <span>Motivo: {solicitud.motivo?.nombre_motivo || "-"}</span>
+            {solicitud.descripcion && (
+                <p className="whitespace-pre-wrap break-words sm:col-span-3">Descripción: {solicitud.descripcion}</p>
+            )}
         </div>
     );
 }

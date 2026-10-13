@@ -266,6 +266,23 @@ describe("RevisarSolicitudesView tabla compacta", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Editar usuario/i }));
         expect(await screen.findByRole("dialog", { name: /Editar usuario/i })).toBeInTheDocument();
     });
+
+    it("muestra la descripcion de la solicitud al realizarla o rechazarla", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+        const realizar = await screen.findByRole("dialog", { name: "Realizar solicitud" });
+        expect(within(realizar).getByText("Descripción: Base")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+        const rechazar = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        expect(within(rechazar).getByText("Descripción: Base")).toBeInTheDocument();
+    });
 });
 
 describe("RevisarSolicitudesView guardado de usuario", () => {

@@ -17,6 +17,7 @@ const cita: CitaFila = {
     fecha_estimada_atencion: new Date("2026-10-10T00:00:00"),
     estado_cita: ESTADO_CITA.SIN_LLAMADAS,
     intentos: 0,
+    observacion: null,
     tiene_llamada_hoy: true
 };
 

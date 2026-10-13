@@ -26,6 +26,7 @@ export interface CitaFila {
     prestacion: string | null;
     fecha_estimada_atencion: Date | null;
     estado_cita: string | null;
+    observacion: string | null;
     intentos: number;
     tiene_llamada_hoy: boolean;
 }
@@ -93,6 +94,7 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
             pr.nombre_prestacion AS prestacion,
             c.fecha_estimada_atencion AS fecha_estimada_atencion,
             c.estado_cita AS estado_cita,
+            c.observacion AS observacion,
             (SELECT COUNT(*) FROM llamadas ll WHERE ll.cita_id = c.id_cita AND ll.respuesta_usuario = ${RESPUESTA_LLAMADA.NO_CONTESTA}) AS intentos,
             EXISTS(SELECT 1 FROM llamadas lh WHERE lh.cita_id = c.id_cita AND DATE(lh.fecha_llamada) = CURDATE()) AS tiene_llamada_hoy
         FROM citas c
