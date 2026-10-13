@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/shared/lib/prisma", () => ({
-    prisma: { cita: { findMany: vi.fn() }, llamada: { count: vi.fn() } }
+    prisma: { cita: { findMany: vi.fn() } }
 }));
 vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
 vi.mock("@/modules/solicitudes/utils/rut", () => ({ normalizarRut: (r: string) => r }));
@@ -14,7 +14,6 @@ beforeEach(() => {
     vi.clearAllMocks();
     (requirePermiso as any).mockResolvedValue({ rut: "1-9", email: "c@x.cl", nombre: "Com", centro_id: "501", rol: { id: 3, nombre: "Comunicador" } });
     (prisma.cita.findMany as any).mockResolvedValue([]);
-    (prisma.llamada.count as any).mockResolvedValue(0);
 });
 
 describe("getCitasPendientesPaciente", () => {
@@ -40,14 +39,30 @@ describe("getCitasPendientesPaciente", () => {
         await expect(getCitasPendientesPaciente("1-9", "CITA-ACTUAL")).rejects.toThrow("Base de datos no disponible");
     });
 
-    it("filtra por el rango de 'Agendamientos próximos' (hoy-15..hoy+30)", async () => {
+    it("no filtra por temporalidad: incluye citas atrasadas y futuras", async () => {
         await getCitasPendientesPaciente("1-9", "CITA-ACTUAL");
         const where = (prisma.cita.findMany as any).mock.calls[0][0].where;
-        expect(where.fecha_estimada_atencion).toBeDefined();
-        expect(where.fecha_estimada_atencion.gte).toBeInstanceOf(Date);
-        expect(where.fecha_estimada_atencion.lte).toBeInstanceOf(Date);
-        const dias = (where.fecha_estimada_atencion.lte.getTime() - where.fecha_estimada_atencion.gte.getTime()) / (1000 * 60 * 60 * 24);
-        expect(Math.round(dias)).toBe(45);
+        expect(where.fecha_estimada_atencion).toBeUndefined();
+    });
+
+    it("marca atrasadas las citas con fecha estimada anterior a hoy-15 y cuenta los 'No contesta'", async () => {
+        const hace20 = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+        const en10 = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+        const base = { estado_cita: "Sin llamadas", priorizacion: 40, profesional: null, prestacion: null };
+        (prisma.cita.findMany as any).mockResolvedValue([
+            { ...base, id_cita: "VIEJA", fecha_estimada_atencion: hace20, _count: { llamadas: 1 } },
+            { ...base, id_cita: "PROXIMA", fecha_estimada_atencion: en10, _count: { llamadas: 0 } },
+            { ...base, id_cita: "SIN-FECHA", fecha_estimada_atencion: null, _count: { llamadas: 0 } }
+        ]);
+
+        const r = await getCitasPendientesPaciente("1-9", "CITA-ACTUAL");
+
+        if (!r.ok) throw new Error(r.error);
+        expect(r.data.map((c) => [c.id_cita, c.atrasada, c.intentos])).toEqual([
+            ["VIEJA", true, 1],
+            ["PROXIMA", false, 0],
+            ["SIN-FECHA", false, 0]
+        ]);
     });
 
     it("excluye la cita actual", async () => {

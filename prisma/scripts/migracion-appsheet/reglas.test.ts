@@ -203,6 +203,13 @@ describe("solicitudes", () => {
         const sinFecha = transformarSolicitud({ ...solicitud, fecha_inicio: null }, catalogos, referencias);
         expect(!sinFecha.ok && sinFecha.rechazo.regla).toBe("R6 campo obligatorio vacio");
     });
+
+    it("migra como Rechazado toda solicitud con accion de rechazo, este En curso o Realizado", () => {
+        for (const estado_solicitud of ["En curso", "Realizado"]) {
+            const r = transformarSolicitud({ ...solicitud, accion: "Rechazar solicitud", estado_solicitud }, catalogos, referencias);
+            expect(r.ok && r.data.estado_solicitud).toBe("Rechazado");
+        }
+    });
 });
 
 describe("citas", () => {
@@ -216,6 +223,20 @@ describe("citas", () => {
     it("rechaza citas cuya solicitud no se migro", () => {
         const r = transformarCita({ ...cita, solicitud_id: "SOL-X" }, catalogos, referencias);
         expect(!r.ok && r.rechazo.regla).toBe("R5 relacion inexistente");
+    });
+
+    it("cierra el aviso de rechazo pendiente con advertencia", () => {
+        const r = transformarCita({ ...cita, tipo_prestacion: "Rechazar cita", prestacion_id: null, estado_cita: "No contesta (1)" }, catalogos, referencias);
+        if (!r.ok) throw new Error(r.rechazo.detalle);
+        expect(r.data.estado_cita).toBe("Cita Rechazada (Gestor)");
+        expect(r.advertencias).toEqual([expect.objectContaining({ clave: "CITA-1", regla: "advertencia: aviso de rechazo cerrado" })]);
+    });
+
+    it("no toca avisos de rechazo ya cerrados ni citas pendientes con profesional", () => {
+        const cerrado = transformarCita({ ...cita, tipo_prestacion: "Rechazar cita", estado_cita: "Cita Rechazada (No Necesaria)" }, catalogos, referencias);
+        expect(cerrado.ok && cerrado.data.estado_cita).toBe("Cita Rechazada (No Necesaria)");
+        const pendiente = transformarCita(cita, catalogos, referencias);
+        expect(pendiente.ok && pendiente.data.estado_cita).toBe("Sin llamadas");
     });
 });
 

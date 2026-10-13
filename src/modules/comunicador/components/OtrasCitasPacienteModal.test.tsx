@@ -33,6 +33,7 @@ describe("OtrasCitasPacienteModal", () => {
                     profesion: "Kinesiología",
                     prestacion: "Consulta",
                     fecha_estimada_atencion: null,
+                    atrasada: false,
                     intentos: 0
                 }]
             } as never)
@@ -47,12 +48,33 @@ describe("OtrasCitasPacienteModal", () => {
         expect(screen.queryByText("Kinesiología · Consulta")).not.toBeInTheDocument();
     });
 
+    it("marca las citas atrasadas", async () => {
+        vi.mocked(getCitasPendientesPaciente).mockResolvedValue({
+            ok: true,
+            data: [{
+                id_cita: "CITA-VIEJA",
+                estado_cita: "Sin llamadas",
+                priorizacion: 40,
+                profesion: "Médico",
+                prestacion: "Control Cronico",
+                fecha_estimada_atencion: new Date("2024-05-14T12:00:00Z"),
+                atrasada: true,
+                intentos: 0
+            }]
+        });
+
+        render(<OtrasCitasPacienteModal rutUsuario="6800332-6" citaActualId="CITA-1" onCerrar={vi.fn()} />);
+
+        await screen.findByText("Médico · Control Cronico");
+        expect(screen.getByText("Atrasada")).toBeInTheDocument();
+    });
+
     it("muestra el error de negocio sin presentar una lista vacia como resultado", async () => {
         vi.mocked(getCitasPendientesPaciente).mockResolvedValue({ ok: false, error: "Centro no configurado" } as never);
 
         render(<OtrasCitasPacienteModal rutUsuario="12.345.678-5" citaActualId="CITA-1" onCerrar={vi.fn()} />);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro no configurado"));
-        expect(screen.queryByText("Sin otras citas próximas.")).not.toBeInTheDocument();
+        expect(screen.queryByText("Sin otras citas pendientes.")).not.toBeInTheDocument();
     });
 });

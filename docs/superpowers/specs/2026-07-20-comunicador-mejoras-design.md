@@ -94,6 +94,11 @@ paciente", "Editar paciente".
 - **UI:** modal que lista las citas próximas del paciente (código, prestación, fecha
   estimada, estado). Reutiliza/monta el componente `MultiCitaPanel.tsx` (hoy huérfano) o
   su lógica dentro de un modal. Estado vacío: "Sin otras citas próximas".
+- **Actualización 13/10/2026:** se quita el filtro de temporalidad. Ocultaba las citas
+  atrasadas del paciente (el modal decía "Sin otras citas" aunque la cola las mostraba) y
+  contradecía la premisa de mostrar todo lo pendiente al llamar. Ahora lista todas las citas
+  pendientes, marca las atrasadas (fecha estimada < hoy−15) y el estado vacío dice "Sin otras
+  citas pendientes".
 
 ### #4 — Resaltar filas con llamada registrada hoy
 
