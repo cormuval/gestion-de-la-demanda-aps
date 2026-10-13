@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 // components
 import { Badge } from "@/shared/components/ui/badge";
+import { SelectorCentroActivo, type CentroOpcion } from "@/shared/components/layout/selector-centro-activo";
 import {
     Sidebar,
     SidebarContent,
@@ -33,14 +34,16 @@ interface AppShellProps {
     permisos: Permiso[];
     children: React.ReactNode;
     defaultOpen?: boolean;
+    centros?: CentroOpcion[];
 }
 
 interface AppSidebarProps {
     user: SessionUser;
     permisos: Permiso[];
+    centros?: CentroOpcion[];
 }
 
-export function AppShell({ user, permisos, children, defaultOpen = true }: AppShellProps) {
+export function AppShell({ user, permisos, children, defaultOpen = true, centros }: AppShellProps) {
     return (
         <SidebarProvider
             defaultOpen={defaultOpen}
@@ -51,7 +54,7 @@ export function AppShell({ user, permisos, children, defaultOpen = true }: AppSh
                 } as React.CSSProperties
             }
         >
-            <AppSidebar user={user} permisos={permisos} />
+            <AppSidebar user={user} permisos={permisos} centros={centros} />
             <SidebarInset>
                 <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card/95 px-4 backdrop-blur md:px-6">
                     <SidebarTrigger aria-label="Alternar menu lateral" />
@@ -66,7 +69,7 @@ export function AppShell({ user, permisos, children, defaultOpen = true }: AppSh
     );
 }
 
-function AppSidebar({ user, permisos }: AppSidebarProps) {
+function AppSidebar({ user, permisos, centros }: AppSidebarProps) {
     const pathname = usePathname();
     const { state, setOpenMobile } = useSidebar();
     const navLinks = navVisible(permisos);
@@ -122,7 +125,11 @@ function AppSidebar({ user, permisos }: AppSidebarProps) {
                     <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
                         <div className="flex flex-col gap-2 rounded-md px-2 py-1.5">
                             <p className="truncate text-sm font-medium">{user.nombre}</p>
-                            <p className="truncate text-xs text-muted-foreground">{user.centro_nombre || "Sin centro"}</p>
+                            {centros ? (
+                                <SelectorCentroActivo centroId={user.centro_id} centros={centros} />
+                            ) : (
+                                <p className="truncate text-xs text-muted-foreground">{user.centro_nombre || "Sin centro"}</p>
+                            )}
                             <div className="flex">
                                 <Badge variant="muted">{user.rol.nombre}</Badge>
                             </div>
