@@ -22,6 +22,15 @@ export function SelectorCentroActivo({ centroId, centros }: SelectorCentroActivo
     const router = useRouter();
     const [valor, setValor] = useState(centroId ?? "");
     const [pendiente, setPendiente] = useState(false);
+    const [centroIdPrevio, setCentroIdPrevio] = useState(centroId);
+
+    // El centro_id de la sesion puede cambiar por fuera de este componente (otra pestana,
+    // otro administrador, el propio router.refresh()). Mientras no haya un cambio en curso,
+    // sincronizamos el valor local con la verdad del servidor.
+    if (!pendiente && centroId !== centroIdPrevio) {
+        setCentroIdPrevio(centroId);
+        setValor(centroId ?? "");
+    }
 
     async function onChange(event: ChangeEvent<HTMLSelectElement>) {
         const anterior = valor;

@@ -92,4 +92,14 @@ describe("SelectorCentroActivo", () => {
         expect(select.value).toBe("");
         expect(screen.getByText("Sin centro")).toBeInTheDocument();
     });
+
+    it("se sincroniza cuando el centro de la sesion cambia por fuera del componente", () => {
+        const { rerender } = renderSelector("501");
+        const select = screen.getByRole("combobox", { name: "Centro activo" }) as HTMLSelectElement;
+        expect(select.value).toBe("501");
+
+        rerender(<SelectorCentroActivo centroId="655" centros={centros} />);
+
+        expect(select.value).toBe("655");
+    });
 });
