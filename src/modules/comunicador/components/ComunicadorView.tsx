@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CircleAlert } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getCitasPendientes, CitaFila } from "@/modules/comunicador/actions/getCitasPendientes.action";
@@ -8,6 +9,8 @@ import { getFiltrosComunicador } from "@/modules/comunicador/actions/getFiltrosC
 import { getContactoPaciente } from "@/modules/comunicador/actions/getContactoPaciente.action";
 import { getCentros, type CentroOption } from "@/modules/solicitudes/actions/getCentros.action";
 // components
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
+import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { CitasFiltros, CitasFiltrosUI, FILTROS_INICIALES } from "@/modules/comunicador/components/CitasFiltros";
 import { CitasPendientesTabla } from "@/modules/comunicador/components/CitasPendientesTabla";
@@ -27,6 +30,9 @@ export function ComunicadorView() {
     const [aplicados, setAplicados] = useState<CitasFiltrosUI>(FILTROS_INICIALES);
     const [pagina, setPagina] = useState(1);
     const [data, setData] = useState<{ filas: CitaFila[]; total: number; pagina: number; porPagina: number } | null>(null);
+    // Ante una falla se conserva la ultima cola cargada y se ofrece reintentar.
+    const [errorCola, setErrorCola] = useState<string | null>(null);
+    const [cargando, setCargando] = useState(true);
     const [citaSel, setCitaSel] = useState<CitaFila | null>(null);
     const [contacto, setContacto] = useState<{ telefonos: string; correo: string }>({ telefonos: "", correo: "" });
     const [citaHistorial, setCitaHistorial] = useState<CitaFila | null>(null);
@@ -37,6 +43,8 @@ export function ComunicadorView() {
     }, []);
 
     const cargar = useCallback(async () => {
+        setCargando(true);
+        setErrorCola(null);
         try {
             const r = await getCitasPendientes({
                 temporalidad: aplicados.temporalidad,
@@ -52,13 +60,17 @@ export function ComunicadorView() {
                 pagina
             });
             if (!r.ok) {
-                setData(null);
+                setErrorCola(r.error);
                 toast.error(r.error);
                 return;
             }
             setData(r.data);
         } catch {
-            toast.error("Error al cargar la cola");
+            const mensaje = "Error al cargar la cola";
+            setErrorCola(mensaje);
+            toast.error(mensaje);
+        } finally {
+            setCargando(false);
         }
     }, [aplicados, pagina]);
 
@@ -113,7 +125,20 @@ export function ComunicadorView() {
                     <CardTitle>Citaciones pendientes</CardTitle>
                     <CardDescription>Ordenadas por estado (No contesta 2 → 1 → aviso → sin llamadas) y prioridad.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                    {errorCola && (
+                        <Alert variant="destructive">
+                            <CircleAlert />
+                            <AlertTitle>No fue posible cargar las citaciones</AlertTitle>
+                            <AlertDescription className="flex flex-col items-start gap-3">
+                                <p>{data ? `${errorCola}. Se muestra la última cola cargada.` : errorCola}</p>
+                                <Button type="button" variant="outline" size="sm" disabled={cargando} onClick={cargar}>
+                                    {cargando ? "Reintentando..." : "Reintentar"}
+                                </Button>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    {!data && cargando && <p className="text-sm text-muted-foreground">Cargando citaciones...</p>}
                     {data && (
                         <CitasPendientesTabla
                             filas={data.filas}
