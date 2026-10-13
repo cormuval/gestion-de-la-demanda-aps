@@ -14,7 +14,7 @@ const centroIdSchema = z.string().trim().min(1);
 
 export async function cambiarCentroActivo(centroId: string): Promise<ResultadoAccion<{ centro_id: string; centro_nombre: string | null }>> {
     const contexto = await getSessionPermisos();
-    if (!contexto) throw new Error("No autenticado");
+    if (!contexto) return { ok: false, error: "No autenticado" };
     const { user, permisos } = contexto;
 
     if (!puedeCambiarCentroPropio(permisos)) {

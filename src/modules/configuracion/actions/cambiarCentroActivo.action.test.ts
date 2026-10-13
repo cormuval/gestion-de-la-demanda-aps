@@ -91,9 +91,14 @@ describe("cambiarCentroActivo", () => {
         expect(resultado).toEqual({ ok: true, data: { centro_id: "655", centro_nombre: "CESFAM Reina Isabel II" } });
     });
 
-    it("lanza sin sesion", async () => {
+    it("devuelve error sin sesion", async () => {
         (getSessionPermisos as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-        await expect(cambiarCentroActivo("655")).rejects.toThrow("No autenticado");
+        const resultado = await cambiarCentroActivo("655");
+
+        expect(resultado).toEqual({ ok: false, error: "No autenticado" });
+        expect(prisma.funcionario.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+        expect(AuditLogger.logSecurity).not.toHaveBeenCalled();
     });
 });
