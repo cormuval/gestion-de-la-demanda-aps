@@ -68,15 +68,19 @@ export function useUsuarioEdit(onActualizado?: () => void) {
 
     async function abrir(rut: string) {
         try {
-            const { usuario } = await getUsuarioParaEdicion(rut);
-            if (!usuario) {
+            const resultado = await getUsuarioParaEdicion(rut);
+            if (!resultado.ok) {
+                toast.error(resultado.error);
+                return;
+            }
+            if (!resultado.data.usuario) {
                 toast.error("No se encontró el paciente");
                 return;
             }
-            setForm(toForm(usuario));
+            setForm(toForm(resultado.data.usuario));
             setOpen(true);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Error al cargar el paciente");
+        } catch {
+            toast.error("Error al cargar el paciente");
         }
     }
 
@@ -100,17 +104,21 @@ export function useUsuarioEdit(onActualizado?: () => void) {
                 toast.error("Selecciona genero, gestante y discapacidad");
                 return;
             }
-            await actualizarUsuarioComunicador({
+            const result = await actualizarUsuarioComunicador({
                 ...form,
                 genero: form.genero,
                 gestante: form.genero === "Femenino" ? form.gestante : "No aplica",
                 discapacidad: form.discapacidad
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
             toast.success("Paciente actualizado");
             setOpen(false);
             onActualizado?.();
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Error al guardar el paciente");
+        } catch {
+            toast.error("Error al guardar el paciente");
         } finally {
             setSaving(false);
         }

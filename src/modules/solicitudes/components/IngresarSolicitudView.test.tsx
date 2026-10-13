@@ -15,6 +15,7 @@ import { crearSolicitud } from "@/modules/solicitudes/actions/crearSolicitud.act
 import { getCentros } from "@/modules/solicitudes/actions/getCentros.action";
 import { getPendientes } from "@/modules/solicitudes/actions/getPendientes.action";
 import { getUsuarioPorRut } from "@/modules/solicitudes/actions/getUsuarioPorRut.action";
+import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 // components
 import { IngresarSolicitudView } from "./IngresarSolicitudView";
 // lib
@@ -32,7 +33,7 @@ const usuarioConfirmado = {
     telefono: "+56911111111",
     telefono_alternativo: "+56922222222",
     gestante: "No aplica",
-    discapacidad: "No",
+    discapacidad: "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
     centro_id: "650",
     priorizacion_administrativa: null
 };
@@ -54,6 +55,9 @@ const pendientesConDuplicado = {
     citasPendientes: []
 };
 
+const pendientesExitosos = { ok: true as const, data: pendientesConDuplicado };
+const usuarioEncontrado = { ok: true as const, data: { usuario: usuarioConfirmado } };
+
 beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getCatalogos).mockResolvedValue({
@@ -64,8 +68,8 @@ beforeEach(() => {
         ]
     });
     vi.mocked(getCentros).mockResolvedValue([{ id_centro: "650", nombre_centro: "CESFAM" }]);
-    vi.mocked(getPendientes).mockResolvedValue(pendientesConDuplicado as unknown as Awaited<ReturnType<typeof getPendientes>>);
-    vi.mocked(getUsuarioPorRut).mockResolvedValue({ usuario: usuarioConfirmado } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+    vi.mocked(getPendientes).mockResolvedValue(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>);
+    vi.mocked(getUsuarioPorRut).mockResolvedValue(usuarioEncontrado as Awaited<ReturnType<typeof getUsuarioPorRut>>);
 });
 
 async function buscarRutConfirmado() {
@@ -110,8 +114,8 @@ describe("IngresarSolicitudView duplicados", () => {
 
     it("muestra error de negocio, refresca pendientes y conserva el formulario", async () => {
         vi.mocked(getPendientes)
-            .mockResolvedValueOnce({ solicitudesPendientes: [], citasPendientes: [] } as Awaited<ReturnType<typeof getPendientes>>)
-            .mockResolvedValueOnce(pendientesConDuplicado as unknown as Awaited<ReturnType<typeof getPendientes>>);
+            .mockResolvedValueOnce({ ok: true, data: { solicitudesPendientes: [], citasPendientes: [] } } as Awaited<ReturnType<typeof getPendientes>>)
+            .mockResolvedValueOnce(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>);
         vi.mocked(crearSolicitud).mockResolvedValue({ ok: false, error: "Ya existe una solicitud en curso" } as Awaited<ReturnType<typeof crearSolicitud>>);
 
         await buscarRutConfirmado();
@@ -127,8 +131,24 @@ describe("IngresarSolicitudView duplicados", () => {
         expect(disponibilidad).toHaveValue("Solo AM");
     });
 
+    it("conserva el mensaje original si el refresco de pendientes devuelve un error esperado", async () => {
+        vi.mocked(getPendientes)
+            .mockResolvedValueOnce({ ok: true, data: { solicitudesPendientes: [], citasPendientes: [] } } as Awaited<ReturnType<typeof getPendientes>>)
+            .mockResolvedValueOnce({ ok: false, error: "RUT usuario es requerido" } as Awaited<ReturnType<typeof getPendientes>>);
+        vi.mocked(crearSolicitud).mockResolvedValue({ ok: false, error: "Ya existe una solicitud en curso" } as Awaited<ReturnType<typeof crearSolicitud>>);
+
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud();
+
+        fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ya existe una solicitud en curso"));
+        expect(toast.error).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).toBeInTheDocument();
+    });
+
     it("muestra exito y voucher cuando la solicitud se crea", async () => {
-        vi.mocked(getPendientes).mockResolvedValue({ solicitudesPendientes: [], citasPendientes: [] } as Awaited<ReturnType<typeof getPendientes>>);
+        vi.mocked(getPendientes).mockResolvedValue({ ok: true, data: { solicitudesPendientes: [], citasPendientes: [] } } as Awaited<ReturnType<typeof getPendientes>>);
         vi.mocked(crearSolicitud).mockResolvedValue({
             ok: true,
             data: {
@@ -182,5 +202,61 @@ describe("IngresarSolicitudView duplicados", () => {
         await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Solicitud creada: SOL-nueva"));
         expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
         expect(screen.getByText("SOL-nueva")).toBeInTheDocument();
+    });
+});
+
+describe("IngresarSolicitudView errores esperados de consulta", () => {
+    it("oculta el detalle tecnico cuando falla la busqueda de pendientes", async () => {
+        vi.mocked(getPendientes).mockRejectedValue(new Error("detalle sensible"));
+
+        render(<IngresarSolicitudView />);
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al buscar pendientes"));
+        expect(toast.error).not.toHaveBeenCalledWith("detalle sensible");
+    });
+
+    it("muestra un solo error de pendientes sin confirmar al usuario ni dejar estado parcial", async () => {
+        vi.mocked(getPendientes).mockResolvedValue({ ok: false, error: "rutUsuario es requerido" } as Awaited<ReturnType<typeof getPendientes>>);
+
+        render(<IngresarSolicitudView />);
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("rutUsuario es requerido"));
+        expect(toast.error).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText("Paciente Demo")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Crear usuario" })).not.toBeInTheDocument();
+    });
+
+    it("muestra un solo error de usuario sin confirmar al usuario ni dejar estado parcial", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValue({ ok: false, error: "RUT invalido" } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        render(<IngresarSolicitudView />);
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("RUT invalido"));
+        expect(toast.error).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText("Paciente Demo")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Crear usuario" })).not.toBeInTheDocument();
+    });
+});
+
+describe("IngresarSolicitudView guardado de usuario", () => {
+    it("mantiene abierto el formulario y sus valores cuando actualizar usuario retorna un error de negocio", async () => {
+        vi.mocked(actualizarUsuario).mockResolvedValue({ ok: false, error: "Centro no encontrado" } as Awaited<ReturnType<typeof actualizarUsuario>>);
+
+        await buscarRutConfirmado();
+        fireEvent.click(screen.getByRole("button", { name: "Editar usuario" }));
+        fireEvent.change(screen.getByDisplayValue("Paciente"), { target: { value: "Paciente actualizado" } });
+        vi.mocked(toast.success).mockClear();
+        fireEvent.submit(screen.getByRole("button", { name: "Guardar usuario" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro no encontrado"));
+        expect(screen.getAllByText("Editar usuario")).toHaveLength(2);
+        expect(screen.getByDisplayValue("Paciente actualizado")).toBeInTheDocument();
+        expect(toast.success).not.toHaveBeenCalled();
     });
 });

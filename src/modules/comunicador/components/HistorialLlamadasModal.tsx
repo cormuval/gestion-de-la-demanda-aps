@@ -17,14 +17,34 @@ function formatFechaHora(value: Date | null): string {
 }
 
 export function HistorialLlamadasModal({ citaId, onCerrar }: { citaId: string; onCerrar: () => void }) {
-    const [llamadas, setLlamadas] = useState<HistorialLlamada[]>([]);
+    const [llamadas, setLlamadas] = useState<HistorialLlamada[] | null>(null);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {
-        getHistorialLlamadas(citaId)
-            .then(setLlamadas)
-            .catch((e) => toast.error(e instanceof Error ? e.message : "Error al cargar el historial"))
-            .finally(() => setCargando(false));
+        let activo = true;
+        setCargando(true);
+        setLlamadas(null);
+
+        async function cargarHistorial() {
+            try {
+                const resultado = await getHistorialLlamadas(citaId);
+                if (!activo) return;
+                if (!resultado.ok) {
+                    toast.error(resultado.error);
+                    return;
+                }
+                setLlamadas(resultado.data);
+            } catch {
+                if (activo) toast.error("Error al cargar el historial");
+            } finally {
+                if (activo) setCargando(false);
+            }
+        }
+
+        cargarHistorial();
+        return () => {
+            activo = false;
+        };
     }, [citaId]);
 
     return (
@@ -42,9 +62,9 @@ export function HistorialLlamadasModal({ citaId, onCerrar }: { citaId: string; o
                 <div className="mt-4 space-y-3">
                     {cargando ? (
                         <p className="text-sm text-muted-foreground">Cargando historial...</p>
-                    ) : llamadas.length === 0 ? (
+                    ) : llamadas?.length === 0 ? (
                         <p className="text-sm text-muted-foreground">Sin llamadas registradas.</p>
-                    ) : (
+                    ) : llamadas ? (
                         llamadas.map((l) => (
                             <div key={l.id_llamada} className="rounded-md border p-3 text-sm">
                                 <div className="flex items-center justify-between gap-2">
@@ -55,7 +75,7 @@ export function HistorialLlamadasModal({ citaId, onCerrar }: { citaId: string; o
                                 {l.observacion && <p className="mt-1 text-muted-foreground">Obs: {l.observacion}</p>}
                             </div>
                         ))
-                    )}
+                    ) : null}
                 </div>
             </div>
         </div>

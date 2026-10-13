@@ -28,8 +28,9 @@ import type { Catalogos } from "@/modules/catalogos/types/catalogos";
 // utils
 import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada } from "@/modules/solicitudes/utils/duplicados";
 
-type UsuarioConfirmado = NonNullable<Awaited<ReturnType<typeof getUsuarioPorRut>>["usuario"]>;
-type Pendientes = Awaited<ReturnType<typeof getPendientes>>;
+type ResultadoUsuarioEncontrado = Extract<Awaited<ReturnType<typeof getUsuarioPorRut>>, { ok: true }>;
+type UsuarioConfirmado = NonNullable<ResultadoUsuarioEncontrado["data"]["usuario"]>;
+type Pendientes = Extract<Awaited<ReturnType<typeof getPendientes>>, { ok: true }>["data"];
 type CrearSolicitudResult = Awaited<ReturnType<typeof crearSolicitud>>;
 type VoucherSolicitud = Extract<CrearSolicitudResult, { ok: true }>["data"]["voucher"];
 
@@ -148,7 +149,7 @@ export function IngresarSolicitudView() {
                 setCatalogos(catalogosData);
                 setCentros(centrosData);
             })
-            .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Error al cargar datos iniciales"));
+            .catch(() => toast.error("Error al cargar datos iniciales"));
     }, []);
 
     const motivosFiltrados = useMemo(() => {
@@ -206,18 +207,27 @@ export function IngresarSolicitudView() {
         setSolicitudForm(emptySolicitudForm);
         setLoadingPendientes(true);
         try {
-            const [data, usuarioData] = await Promise.all([getPendientes(rutBusqueda), getUsuarioPorRut(rutBusqueda)]);
-            setPendientes(data);
+            const [pendientesResult, usuarioResult] = await Promise.all([getPendientes(rutBusqueda), getUsuarioPorRut(rutBusqueda)]);
+            if (!pendientesResult.ok) {
+                toast.error(pendientesResult.error);
+                return;
+            }
+            if (!usuarioResult.ok) {
+                toast.error(usuarioResult.error);
+                return;
+            }
+
+            setPendientes(pendientesResult.data);
             setRutRevisado(rutBusqueda);
-            const usuario = usuarioData.usuario;
+            const { usuario } = usuarioResult.data;
             if (usuario) {
                 setUsuarioConfirmado(usuario);
                 toast.success("Usuario encontrado. Ya puedes ingresar la solicitud.");
             } else {
                 toast.warning("No se encontro el RUT en usuarios. Crea el usuario antes de ingresar la solicitud.");
             }
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al buscar pendientes");
+        } catch {
+            toast.error("Error al buscar pendientes");
         } finally {
             setLoadingPendientes(false);
         }
@@ -233,19 +243,24 @@ export function IngresarSolicitudView() {
                 return;
             }
             const action = usuarioModalMode === "crear" ? crearUsuario : actualizarUsuario;
-            const { usuario } = await action({
+            const result = await action({
                 ...usuarioForm,
                 genero: usuarioForm.genero,
                 gestante: usuarioForm.genero === "Femenino" ? usuarioForm.gestante : "No aplica",
                 discapacidad: usuarioForm.discapacidad
             });
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+            const { usuario } = result.data;
             setUsuarioConfirmado(usuario);
             setRutRevisado(usuario.rut);
             setRutBusqueda(usuario.rut);
             setUsuarioModalMode(null);
             toast.success(usuarioModalMode === "crear" ? "Usuario creado" : "Usuario actualizado");
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al guardar usuario");
+        } catch {
+            toast.error("Error al guardar usuario");
         } finally {
             setSavingUsuario(false);
         }
@@ -274,7 +289,7 @@ export function IngresarSolicitudView() {
                 toast.error(result.error);
                 try {
                     const actualizados = await getPendientes(usuarioConfirmado.rut);
-                    setPendientes(actualizados);
+                    if (actualizados.ok) setPendientes(actualizados.data);
                 } catch {
                     // El toast original es el mensaje importante para el usuario.
                 }
@@ -285,8 +300,8 @@ export function IngresarSolicitudView() {
             toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
             limpiarIngresoSolicitud();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al crear solicitud");
+        } catch {
+            toast.error("Error al crear solicitud");
         } finally {
             setSubmittingSolicitud(false);
         }

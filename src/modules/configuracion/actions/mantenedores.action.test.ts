@@ -43,6 +43,8 @@ const user = {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    (AuditLogger.logDataAccess as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (AuditLogger.logSecurity as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
     (requirePermiso as ReturnType<typeof vi.fn>).mockResolvedValue(user);
     (getPermisosRol as ReturnType<typeof vi.fn>).mockResolvedValue(new Set(["config.ver", "config.funcionarios", "config.roles", "config.catalogos"]));
     (prisma.tipoSolicitud.findFirst as any).mockResolvedValue(null);
@@ -62,34 +64,70 @@ beforeEach(() => {
 
 describe("mantenedores configuracion", () => {
     it("guarda tipo de solicitud con estado binario y centros", async () => {
-        (prisma.tipoSolicitud.create as any).mockResolvedValue({ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control", estado: "1" });
+        const tipoGuardado = { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control", estado: "1" };
+        (prisma.tipoSolicitud.create as any).mockResolvedValue(tipoGuardado);
 
-        await guardarTipoSolicitud({
+        const resultado = await guardarTipoSolicitud({
             nombre_tipo_solicitud: "Control",
             estado: "1",
             centros: { esperanza: "1", placeres: "0" } as any
         });
 
+        expect(resultado).toEqual({ ok: true, data: tipoGuardado });
         expect(prisma.tipoSolicitud.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({ nombre_tipo_solicitud: "Control", estado: "1", esperanza: "1", placeres: "0" })
             })
         );
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { rut: user.rut, name: user.nombre }, "tipo_solicitud:1");
     });
 
     it("rechaza tipo de solicitud duplicado", async () => {
         (prisma.tipoSolicitud.findFirst as any).mockResolvedValue({ id_tipo_solicitud: 1 });
 
-        await expect(guardarTipoSolicitud({ nombre_tipo_solicitud: "Control", estado: "1", centros: {} as any })).rejects.toThrow("Ya existe");
+        await expect(guardarTipoSolicitud({ nombre_tipo_solicitud: "Control", estado: "1", centros: {} as any })).resolves.toEqual({
+            ok: false,
+            error: "Ya existe un tipo de solicitud con ese nombre"
+        });
+        expect(prisma.tipoSolicitud.create).not.toHaveBeenCalled();
+        expect(prisma.tipoSolicitud.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
 
     it("guarda motivo asociado a tipo existente", async () => {
         (prisma.tipoSolicitud.findUnique as any).mockResolvedValue({ id_tipo_solicitud: 3 });
-        (prisma.motivo.create as any).mockResolvedValue({ id_motivo: 5, nombre_motivo: "Examen", estado: "1" });
+        const motivoGuardado = { id_motivo: 5, tipo_solicitud_id: 3, nombre_motivo: "Examen", estado: "1" };
+        (prisma.motivo.create as any).mockResolvedValue(motivoGuardado);
 
-        await guardarMotivo({ tipo_solicitud_id: 3, nombre_motivo: "Examen", estado: "1" });
+        const resultado = await guardarMotivo({ tipo_solicitud_id: 3, nombre_motivo: "Examen", estado: "1" });
 
+        expect(resultado).toEqual({ ok: true, data: motivoGuardado });
         expect(prisma.motivo.create).toHaveBeenCalledWith({ data: { tipo_solicitud_id: 3, nombre_motivo: "Examen", estado: "1" } });
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { rut: user.rut, name: user.nombre }, "motivo:5");
+    });
+
+    it("rechaza motivo si el tipo de solicitud no existe", async () => {
+        (prisma.tipoSolicitud.findUnique as any).mockResolvedValue(null);
+
+        await expect(guardarMotivo({ tipo_solicitud_id: 99, nombre_motivo: "Examen", estado: "1" })).resolves.toEqual({
+            ok: false,
+            error: "Tipo de solicitud no existe"
+        });
+        expect(prisma.motivo.create).not.toHaveBeenCalled();
+        expect(prisma.motivo.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("rechaza motivo duplicado dentro del tipo de solicitud", async () => {
+        (prisma.motivo.findFirst as any).mockResolvedValue({ id_motivo: 5 });
+
+        await expect(guardarMotivo({ tipo_solicitud_id: 3, nombre_motivo: "Examen", estado: "1" })).resolves.toEqual({
+            ok: false,
+            error: "Ya existe un motivo con ese nombre para el tipo seleccionado"
+        });
+        expect(prisma.motivo.create).not.toHaveBeenCalled();
+        expect(prisma.motivo.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
 
     it("guarda rol basico", async () => {
@@ -102,25 +140,80 @@ describe("mantenedores configuracion", () => {
     });
 
     it("guarda profesional con centros", async () => {
-        (prisma.profesional.create as any).mockResolvedValue({ id_profesional: 2, nombre: "Profesional", estado: "Activo" });
+        const profesionalGuardado = { id_profesional: 2, nombre: "Profesional", estado: "Activo" };
+        (prisma.profesional.create as any).mockResolvedValue(profesionalGuardado);
 
-        await guardarProfesional({ nombre: "Profesional", estado: "Activo", centros: { baron: "1" } as any });
+        const resultado = await guardarProfesional({ nombre: "Profesional", estado: "Activo", centros: { baron: "1" } as any });
 
+        expect(resultado).toEqual({ ok: true, data: profesionalGuardado });
         expect(prisma.profesional.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ nombre: "Profesional", estado: "Activo", baron: "1" }) }));
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { rut: user.rut, name: user.nombre }, "profesional:2");
+    });
+
+    it("rechaza profesional duplicado", async () => {
+        (prisma.profesional.findFirst as any).mockResolvedValue({ id_profesional: 2 });
+
+        await expect(guardarProfesional({ nombre: "Profesional", estado: "Activo", centros: {} as any })).resolves.toEqual({
+            ok: false,
+            error: "Ya existe un profesional con ese nombre"
+        });
+        expect(prisma.profesional.create).not.toHaveBeenCalled();
+        expect(prisma.profesional.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
 
     it("guarda prestacion asociada a profesional existente", async () => {
-        (prisma.prestacion.create as any).mockResolvedValue({ id_prestacion: 4, nombre_prestacion: "Morbilidad", estado: "Activo" });
+        const prestacionGuardada = { id_prestacion: 4, profesional_id: 1, nombre_prestacion: "Morbilidad", estado: "Activo" };
+        (prisma.prestacion.create as any).mockResolvedValue(prestacionGuardada);
 
-        await guardarPrestacion({ profesional_id: 1, nombre_prestacion: "Morbilidad", estado: "Activo" });
+        const resultado = await guardarPrestacion({ profesional_id: 1, nombre_prestacion: "Morbilidad", estado: "Activo" });
 
+        expect(resultado).toEqual({ ok: true, data: prestacionGuardada });
         expect(prisma.prestacion.create).toHaveBeenCalledWith({ data: { profesional_id: 1, nombre_prestacion: "Morbilidad", estado: "Activo" } });
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { rut: user.rut, name: user.nombre }, "prestacion:4");
     });
 
     it("rechaza prestacion si el profesional no existe", async () => {
         (prisma.profesional.findUnique as any).mockResolvedValue(null);
 
-        await expect(guardarPrestacion({ profesional_id: 99, nombre_prestacion: "Morbilidad", estado: "Activo" })).rejects.toThrow("Profesional no existe");
+        await expect(guardarPrestacion({ profesional_id: 99, nombre_prestacion: "Morbilidad", estado: "Activo" })).resolves.toEqual({
+            ok: false,
+            error: "Profesional no existe"
+        });
+        expect(prisma.prestacion.create).not.toHaveBeenCalled();
+        expect(prisma.prestacion.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("rechaza prestacion duplicada dentro del profesional", async () => {
+        (prisma.prestacion.findFirst as any).mockResolvedValue({ id_prestacion: 4 });
+
+        await expect(guardarPrestacion({ profesional_id: 1, nombre_prestacion: "Morbilidad", estado: "Activo" })).resolves.toEqual({
+            ok: false,
+            error: "Ya existe una prestacion con ese nombre para el profesional"
+        });
+        expect(prisma.prestacion.create).not.toHaveBeenCalled();
+        expect(prisma.prestacion.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("mantiene los rechazos de Zod en catalogos", async () => {
+        await expect(guardarTipoSolicitud({ nombre_tipo_solicitud: "", estado: "1", centros: {} as any })).rejects.toThrow();
+        expect(prisma.tipoSolicitud.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("propaga los fallos inesperados de Prisma en catalogos", async () => {
+        (prisma.profesional.findFirst as any).mockRejectedValue(new Error("fallo de conexion"));
+
+        await expect(guardarProfesional({ nombre: "Profesional", estado: "Activo", centros: {} as any })).rejects.toThrow("fallo de conexion");
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("propaga los fallos de auditoria en catalogos", async () => {
+        (prisma.tipoSolicitud.create as any).mockResolvedValue({ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control", estado: "1" });
+        (AuditLogger.logDataAccess as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("auditoria no disponible"));
+
+        await expect(guardarTipoSolicitud({ nombre_tipo_solicitud: "Control", estado: "1", centros: {} as any })).rejects.toThrow("auditoria no disponible");
     });
 
     it("crea funcionario con rut normalizado, rol, centro y programa", async () => {

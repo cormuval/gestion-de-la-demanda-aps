@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
 import { registrarLlamadaSchema, RegistrarLlamadaInput } from "../schemas/llamada.schema";
 // utils
@@ -12,7 +13,7 @@ import { computeEstadoCita } from "../utils/estadoCita";
 // types
 import { ESTADO_CITA, ESTADOS_PENDIENTES, RESPUESTA_LLAMADA, RespuestaLlamada, esEstadoTerminal } from "../types/comunicador";
 
-export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<{ estadoCita: string; solicitudRealizada: boolean }> {
+export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<ResultadoAccion<{ estadoCita: string; solicitudRealizada: boolean }>> {
     const user = await requirePermiso("comunicador.llamar");
 
     const data = registrarLlamadaSchema.parse(input);
@@ -23,11 +24,11 @@ export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<{ 
             where: { id_cita: data.cita_id },
             select: { id_cita: true, solicitud_id: true, rut_usuario: true, estado_cita: true, centro_id: true }
         });
-        if (!cita) throw new Error("La cita no existe");
-        if (cita.centro_id !== user.centro_id) throw new Error("La cita no pertenece a tu centro");
+        if (!cita) return { ok: false, error: "La cita no existe" } satisfies ResultadoAccion<never>;
+        if (cita.centro_id !== user.centro_id) return { ok: false, error: "La cita no pertenece a tu centro" } satisfies ResultadoAccion<never>;
 
         const estadoActual = cita.estado_cita ?? ESTADO_CITA.SIN_LLAMADAS;
-        if (esEstadoTerminal(estadoActual)) throw new Error("La cita ya está cerrada");
+        if (esEstadoTerminal(estadoActual)) return { ok: false, error: "La cita ya está cerrada" } satisfies ResultadoAccion<never>;
 
         const intentosNoContestaPrevios = await tx.llamada.count({
             where: { cita_id: cita.id_cita, respuesta_usuario: RESPUESTA_LLAMADA.NO_CONTESTA }
@@ -62,11 +63,13 @@ export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<{ 
             }
         }
 
-        return { estadoCita: nuevoEstado, solicitudRealizada };
+        return { ok: true, data: { estadoCita: nuevoEstado, solicitudRealizada } } satisfies ResultadoAccion<{ estadoCita: string; solicitudRealizada: boolean }>;
     });
 
+    if (!resultado.ok) return resultado;
+
     await AuditLogger.logDataAccess("UPDATE", true, { id: user.email, name: user.nombre, rut: user.rut }, data.cita_id, {
-        details: `Llamada registrada (${data.respuesta}) -> estado ${resultado.estadoCita}${resultado.solicitudRealizada ? "; solicitud Realizada" : ""}`
+        details: `Llamada registrada (${data.respuesta}) -> estado ${resultado.data.estadoCita}${resultado.data.solicitudRealizada ? "; solicitud Realizada" : ""}`
     });
 
     return resultado;

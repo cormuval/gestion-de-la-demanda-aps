@@ -11,6 +11,7 @@ vi.mock("@/shared/lib/logger", () => ({ AuditLogger: { logDataAccess: vi.fn() } 
 
 import { actualizarUsuarioComunicador } from "./actualizarUsuarioComunicador.action";
 import { prisma } from "@/shared/lib/prisma";
+import { AuditLogger } from "@/shared/lib/logger";
 import { requirePermiso } from "@/shared/lib/permisos";
 
 const inputValido = {
@@ -41,8 +42,24 @@ describe("actualizarUsuarioComunicador", () => {
     });
 
     it("actualiza el usuario para un rol de comunicador", async () => {
-        const r = await actualizarUsuarioComunicador(inputValido as any);
-        expect(r.usuario.rut).toBe("1-9");
+        const usuario = { rut: "1-9", nombre: "Juan" };
+        (prisma.usuario.update as any).mockResolvedValue(usuario);
+
+        await expect(actualizarUsuarioComunicador(inputValido as any)).resolves.toEqual({ ok: true, data: { usuario } });
         expect(prisma.usuario.update).toHaveBeenCalledTimes(1);
+    });
+
+    it("retorna error de negocio con centro inexistente sin escribir ni auditar", async () => {
+        (prisma.$queryRaw as any).mockResolvedValue([]);
+
+        expect(await actualizarUsuarioComunicador(inputValido as any)).toEqual({ ok: false, error: "Centro no encontrado" });
+        expect(prisma.usuario.update).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("propaga fallas de Prisma", async () => {
+        (prisma.usuario.update as any).mockRejectedValue(new Error("Falla de Prisma"));
+
+        await expect(actualizarUsuarioComunicador(inputValido as any)).rejects.toThrow("Falla de Prisma");
     });
 });

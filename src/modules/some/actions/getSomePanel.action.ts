@@ -6,6 +6,7 @@ import { requirePermiso } from "@/shared/lib/permisos";
 import { prisma } from "@/shared/lib/prisma";
 // types
 import { ESTADOS_PENDIENTES, TEMPORALIDAD, TEMPORALIDADES } from "@/modules/comunicador/types/comunicador";
+import type { ResultadoAccion } from "@/shared/types/resultado";
 
 const RANGOS_DIAS = [30, 60, 90] as const;
 const ACCION_REALIZAR_SOLICITUD = "Realizar solicitud";
@@ -200,7 +201,7 @@ function sumarDemanda(target: SomeDemandaConteos, temporalidad: string, estado: 
     target.estados[estado] = (target.estados[estado] ?? 0) + amount;
 }
 
-export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
+export async function getSomePanel(input?: unknown): Promise<ResultadoAccion<SomePanelData>> {
     const user = await requirePermiso("some.ver");
     const filtros = filtrosSomeSchema.parse(input ?? {});
     const esAdministrador = user.rol.nombre === "Administrador";
@@ -222,7 +223,7 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
             : centros[0]?.id_centro ?? ""
         : user.centro_id ?? "";
 
-    if (!centroSeleccionado) throw new Error("No hay centro disponible para consultar productividad SOME");
+    if (!centroSeleccionado) return { ok: false, error: "No hay centro disponible para consultar productividad SOME" };
 
     const funcionarios = await prisma.funcionario.findMany({
         where: { centro_id: centroSeleccionado, estado: { in: ["Activo", "1"] } },
@@ -399,29 +400,32 @@ export async function getSomePanel(input?: unknown): Promise<SomePanelData> {
     }
 
     return {
-        esAdministrador,
-        rangoDias,
-        desde,
-        hasta,
-        centroSeleccionado,
-        funcionarioSeleccionado,
-        demandaTemporalidad,
-        centros,
-        funcionarios,
-        totales,
-        serie,
-        productividad: Array.from(productividad.values()),
-        demandaClinica: Array.from(demandaPorProfesional.values())
-            .map((row) => ({
-                ...row,
-                prestaciones: row.prestaciones.sort((a, b) => b.total - a.total || a.prestacion.localeCompare(b.prestacion, "es"))
-            }))
-            .sort((a, b) => b.total - a.total || a.profesional.localeCompare(b.profesional, "es")),
-        solicitudesPendientes: Array.from(solicitudesPorTipo.values())
-            .map((row) => ({
-                ...row,
-                motivos: row.motivos.sort((a, b) => b.total - a.total || a.motivo.localeCompare(b.motivo, "es"))
-            }))
-            .sort((a, b) => b.total - a.total || a.tipoSolicitud.localeCompare(b.tipoSolicitud, "es"))
+        ok: true,
+        data: {
+            esAdministrador,
+            rangoDias,
+            desde,
+            hasta,
+            centroSeleccionado,
+            funcionarioSeleccionado,
+            demandaTemporalidad,
+            centros,
+            funcionarios,
+            totales,
+            serie,
+            productividad: Array.from(productividad.values()),
+            demandaClinica: Array.from(demandaPorProfesional.values())
+                .map((row) => ({
+                    ...row,
+                    prestaciones: row.prestaciones.sort((a, b) => b.total - a.total || a.prestacion.localeCompare(b.prestacion, "es"))
+                }))
+                .sort((a, b) => b.total - a.total || a.profesional.localeCompare(b.profesional, "es")),
+            solicitudesPendientes: Array.from(solicitudesPorTipo.values())
+                .map((row) => ({
+                    ...row,
+                    motivos: row.motivos.sort((a, b) => b.total - a.total || a.motivo.localeCompare(b.motivo, "es"))
+                }))
+                .sort((a, b) => b.total - a.total || a.tipoSolicitud.localeCompare(b.tipoSolicitud, "es"))
+        }
     };
 }

@@ -6,6 +6,8 @@ import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 import { CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "@/modules/catalogos/utils/centroTipoSolicitud";
+// types
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
 import {
     ACCION_ESPERA_VALIDACION,
@@ -21,6 +23,7 @@ import {
 import { calcularPriorizacionCita, evaluarFechaEstimada } from "../utils/citas";
 
 const PROFESIONAL_EXAMENES_ID = 17;
+const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
 
 export interface GestionCitaResumen {
     id_cita: string;
@@ -38,7 +41,19 @@ export interface GestionSolicitudResumen {
     citas: GestionCitaResumen[];
 }
 
-async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string> {
+export interface GestionSolicitudResultado {
+    solicitud: {
+        id_solicitud: string;
+        rut_usuario: string;
+        accion: string | null;
+        razon_rechazo: string | null;
+        observacion_rechazo: string | null;
+    };
+    citasCreadas: number;
+    resumen: GestionSolicitudResumen;
+}
+
+async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string | null> {
     if (centroSesion) return centroSesion;
 
     const funcionario = await prisma.funcionario.findUnique({
@@ -46,8 +61,7 @@ async function getCentroFuncionario(rutFuncionario: string, centroSesion: string
         select: { centro_id: true }
     });
 
-    if (!funcionario?.centro_id) throw new Error("El funcionario activo no tiene centro asignado");
-    return funcionario.centro_id;
+    return funcionario?.centro_id ?? null;
 }
 
 async function getNombreCentro(centroId: string): Promise<string | null> {
@@ -64,22 +78,17 @@ function buildCentroWhere(centroColumna: CentroTipoSolicitudColumna | null) {
     return centroColumna ? { [centroColumna]: "1" } : {};
 }
 
-function validarFechaEstimada(value: string): Date {
-    const resultado = evaluarFechaEstimada(value);
-    if (!resultado.ok) throw new Error(resultado.error);
-    return resultado.fecha;
-}
-
-export async function gestionarSolicitud(input: GestionarSolicitudInput) {
+export async function gestionarSolicitud(input: GestionarSolicitudInput): Promise<ResultadoAccion<GestionSolicitudResultado>> {
     const user = await requirePermiso("solicitudes.gestionar");
 
     const data = gestionarSolicitudSchema.parse(input);
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
+    if (!centroId) return { ok: false, error: ERROR_CENTRO } satisfies ResultadoAccion<never>;
     const nombreCentro = await getNombreCentro(centroId);
     const centroColumna = getColumnaTipoSolicitudPorCentro(nombreCentro);
     const fechaValidacion = new Date();
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result: GestionSolicitudResultado | { ok: false; error: string } = await prisma.$transaction(async (tx) => {
         const solicitud = await tx.solicitud.findFirst({
             where: {
                 id_solicitud: data.id_solicitud,
@@ -95,7 +104,12 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
                 usuario: { select: { priorizacion_administrativa: true } }
             }
         });
-        if (!solicitud) throw new Error("La solicitud no esta pendiente de validacion o no pertenece a tu centro");
+        if (!solicitud) {
+            return {
+                ok: false,
+                error: "La solicitud no esta pendiente de validacion o no pertenece a tu centro"
+            } satisfies ResultadoAccion<never>;
+        }
 
         if (data.accion === ACCION_RECHAZAR_SOLICITUD) {
             const solicitudActualizada = await tx.solicitud.update({
@@ -128,7 +142,9 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
         const citas = [];
 
         for (const cita of data.citas) {
-            const fechaEstimada = validarFechaEstimada(cita.fecha_estimada_atencion);
+            const fechaResult = evaluarFechaEstimada(cita.fecha_estimada_atencion);
+            if (!fechaResult.ok) return fechaResult;
+            const fechaEstimada = fechaResult.fecha;
             let profesionalId: number | null = null;
             let prestacionId: number | null = null;
             let profesionalNombre: string | null = null;
@@ -144,7 +160,12 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
                     },
                     select: { id_prestacion: true, profesional_id: true, nombre_prestacion: true, profesional: { select: { nombre: true } } }
                 });
-                if (!prestacion) throw new Error("La prestacion no pertenece a un profesional activo del centro");
+                if (!prestacion) {
+                    return {
+                        ok: false,
+                        error: "La prestacion no pertenece a un profesional activo del centro"
+                    } satisfies ResultadoAccion<never>;
+                }
                 profesionalId = prestacion.profesional_id;
                 prestacionId = prestacion.id_prestacion;
                 profesionalNombre = prestacion.profesional.nombre;
@@ -154,7 +175,12 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
                     where: { id_profesional: PROFESIONAL_EXAMENES_ID, estado: { in: ["Activo", "1"] } },
                     select: { id_profesional: true, nombre: true }
                 });
-                if (!profesionalExamenes) throw new Error("El profesional de examenes no existe o no esta activo");
+                if (!profesionalExamenes) {
+                    return {
+                        ok: false,
+                        error: "El profesional de examenes no existe o no esta activo"
+                    } satisfies ResultadoAccion<never>;
+                }
                 profesionalId = PROFESIONAL_EXAMENES_ID;
                 profesionalNombre = profesionalExamenes.nombre;
             }
@@ -212,9 +238,11 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput) {
         };
     });
 
+    if ("ok" in result) return result;
+
     await AuditLogger.logDataAccess("UPDATE", true, { id: user.email, name: user.nombre, rut: user.rut }, data.id_solicitud, {
         details: `Solicitud gestionada con accion ${data.accion}`
     });
 
-    return result;
+    return { ok: true, data: result };
 }

@@ -61,8 +61,15 @@ export function SomeView() {
     const [funcionarioRut, setFuncionarioRut] = useState("");
     const [demandaTemporalidad, setDemandaTemporalidad] = useState("Todas");
     const [activeMetric, setActiveMetric] = useState<MetricaProductividad>("solicitudesIngresadas");
-    const [data, setData] = useState<SomePanelData>(emptyData);
+    const [data, setData] = useState<SomePanelData | null>(null);
     const [loading, setLoading] = useState(false);
+
+    function sincronizarFiltros(panel: SomePanelData) {
+        setRangoDias(panel.rangoDias);
+        setCentroId(panel.centroSeleccionado);
+        setFuncionarioRut(panel.funcionarioSeleccionado);
+        setDemandaTemporalidad(panel.demandaTemporalidad);
+    }
 
     async function cargar(next?: { rangoDias?: SomeRangoDias; centroId?: string; funcionarioRut?: string; demandaTemporalidad?: string }) {
         setLoading(true);
@@ -73,12 +80,16 @@ export function SomeView() {
                 funcionarioRut: next?.funcionarioRut ?? funcionarioRut,
                 demandaTemporalidad: next?.demandaTemporalidad ?? demandaTemporalidad
             });
-            setData(result);
-            setCentroId(result.centroSeleccionado);
-            setFuncionarioRut(result.funcionarioSeleccionado);
-            setDemandaTemporalidad(result.demandaTemporalidad);
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Error al cargar panel SOME");
+            if (!result.ok) {
+                if (data) sincronizarFiltros(data);
+                toast.error(result.error);
+                return;
+            }
+            setData(result.data);
+            sincronizarFiltros(result.data);
+        } catch {
+            if (data) sincronizarFiltros(data);
+            toast.error("No se pudo cargar el panel SOME");
         } finally {
             setLoading(false);
         }
@@ -89,10 +100,11 @@ export function SomeView() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const panelData = data ?? emptyData;
     const centroNombre = useMemo(() => {
-        const centro = data.centros.find((item) => item.id_centro === data.centroSeleccionado);
-        return centro?.nombre_centro || data.centroSeleccionado || "-";
-    }, [data.centroSeleccionado, data.centros]);
+        const centro = panelData.centros.find((item) => item.id_centro === panelData.centroSeleccionado);
+        return centro?.nombre_centro || panelData.centroSeleccionado || "-";
+    }, [panelData.centroSeleccionado, panelData.centros]);
 
     return (
         <div className="space-y-6">
@@ -149,15 +161,13 @@ export function SomeView() {
                         <Field label="Centro">
                             <Select
                                 value={centroId}
-                                disabled={!data.esAdministrador}
+                                disabled={!panelData.esAdministrador}
                                 onChange={(event) => {
                                     const nextCentroId = event.target.value;
-                                    setCentroId(nextCentroId);
-                                    setFuncionarioRut("");
                                     cargar({ centroId: nextCentroId, funcionarioRut: "" });
                                 }}
                             >
-                                {data.centros.map((centro) => (
+                                {panelData.centros.map((centro) => (
                                     <option key={centro.id_centro} value={centro.id_centro}>
                                         {centro.nombre_centro || centro.id_centro}
                                     </option>
@@ -168,7 +178,7 @@ export function SomeView() {
                             <Field label="Funcionario">
                                 <Select value={funcionarioRut} onChange={(event) => setFuncionarioRut(event.target.value)}>
                                     <option value="">Todos</option>
-                                    {data.funcionarios.map((funcionario) => (
+                                    {panelData.funcionarios.map((funcionario) => (
                                         <option key={funcionario.rut} value={funcionario.rut}>
                                             {funcionario.nombre}
                                         </option>
@@ -196,13 +206,14 @@ export function SomeView() {
                 </CardContent>
             </Card>
 
-            {tab === "productividad" ? (
-                <ProductividadPanel data={data} activeMetric={activeMetric} onActiveMetricChange={setActiveMetric} />
-            ) : tab === "demanda" ? (
-                <DemandaClinicaPanel data={data} />
-            ) : (
-                <SolicitudesPendientesPanel data={data} />
-            )}
+            {data &&
+                (tab === "productividad" ? (
+                    <ProductividadPanel data={data} activeMetric={activeMetric} onActiveMetricChange={setActiveMetric} />
+                ) : tab === "demanda" ? (
+                    <DemandaClinicaPanel data={data} />
+                ) : (
+                    <SolicitudesPendientesPanel data={data} />
+                ))}
         </div>
     );
 }

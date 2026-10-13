@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CircleAlert } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getCitasPendientes, CitaFila } from "@/modules/comunicador/actions/getCitasPendientes.action";
@@ -8,6 +9,8 @@ import { getFiltrosComunicador } from "@/modules/comunicador/actions/getFiltrosC
 import { getContactoPaciente } from "@/modules/comunicador/actions/getContactoPaciente.action";
 import { getCentros, type CentroOption } from "@/modules/solicitudes/actions/getCentros.action";
 // components
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
+import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { CitasFiltros, CitasFiltrosUI, FILTROS_INICIALES } from "@/modules/comunicador/components/CitasFiltros";
 import { CitasPendientesTabla } from "@/modules/comunicador/components/CitasPendientesTabla";
@@ -26,17 +29,22 @@ export function ComunicadorView() {
     const [filtrosUI, setFiltrosUI] = useState<CitasFiltrosUI>(FILTROS_INICIALES);
     const [aplicados, setAplicados] = useState<CitasFiltrosUI>(FILTROS_INICIALES);
     const [pagina, setPagina] = useState(1);
-    const [data, setData] = useState<{ filas: CitaFila[]; total: number; pagina: number; porPagina: number }>({ filas: [], total: 0, pagina: 1, porPagina: 100 });
+    const [data, setData] = useState<{ filas: CitaFila[]; total: number; pagina: number; porPagina: number } | null>(null);
+    // Ante una falla se conserva la ultima cola cargada y se ofrece reintentar.
+    const [errorCola, setErrorCola] = useState<string | null>(null);
+    const [cargando, setCargando] = useState(true);
     const [citaSel, setCitaSel] = useState<CitaFila | null>(null);
     const [contacto, setContacto] = useState<{ telefonos: string; correo: string }>({ telefonos: "", correo: "" });
     const [citaHistorial, setCitaHistorial] = useState<CitaFila | null>(null);
     const [citaOtras, setCitaOtras] = useState<CitaFila | null>(null);
 
     useEffect(() => {
-        getFiltrosComunicador().then(setOpciones).catch((e) => toast.error(e instanceof Error ? e.message : "Error al cargar filtros"));
+        getFiltrosComunicador().then(setOpciones).catch(() => toast.error("Error al cargar filtros"));
     }, []);
 
     const cargar = useCallback(async () => {
+        setCargando(true);
+        setErrorCola(null);
         try {
             const r = await getCitasPendientes({
                 temporalidad: aplicados.temporalidad,
@@ -51,9 +59,18 @@ export function ComunicadorView() {
                 sector: aplicados.sector || undefined,
                 pagina
             });
-            setData(r);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Error al cargar la cola");
+            if (!r.ok) {
+                setErrorCola(r.error);
+                toast.error(r.error);
+                return;
+            }
+            setData(r.data);
+        } catch {
+            const mensaje = "Error al cargar la cola";
+            setErrorCola(mensaje);
+            toast.error(mensaje);
+        } finally {
+            setCargando(false);
         }
     }, [aplicados, pagina]);
 
@@ -65,7 +82,7 @@ export function ComunicadorView() {
     const editarPaciente = useUsuarioEdit(cargar);
 
     useEffect(() => {
-        getCentros().then(setCentros).catch((e) => toast.error(e instanceof Error ? e.message : "Error al cargar centros"));
+        getCentros().then(setCentros).catch(() => toast.error("Error al cargar centros"));
     }, []);
 
     async function abrirGestion(cita: CitaFila) {
@@ -108,23 +125,38 @@ export function ComunicadorView() {
                     <CardTitle>Citaciones pendientes</CardTitle>
                     <CardDescription>Ordenadas por estado (No contesta 2 → 1 → aviso → sin llamadas) y prioridad.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <CitasPendientesTabla
-                        filas={data.filas}
-                        total={data.total}
-                        pagina={data.pagina}
-                        porPagina={data.porPagina}
-                        onPagina={setPagina}
-                        onGestionar={abrirGestion}
-                        renderAcciones={(cita) => (
-                            <CitaAccionesMenu
-                                cita={cita}
-                                onVerHistorial={setCitaHistorial}
-                                onVerOtrasCitas={setCitaOtras}
-                                onEditarPaciente={(c) => editarPaciente.abrir(c.rut_usuario)}
-                            />
-                        )}
-                    />
+                <CardContent className="space-y-4">
+                    {errorCola && (
+                        <Alert variant="destructive">
+                            <CircleAlert />
+                            <AlertTitle>No fue posible cargar las citaciones</AlertTitle>
+                            <AlertDescription className="flex flex-col items-start gap-3">
+                                <p>{data ? `${errorCola}. Se muestra la última cola cargada.` : errorCola}</p>
+                                <Button type="button" variant="outline" size="sm" disabled={cargando} onClick={cargar}>
+                                    {cargando ? "Reintentando..." : "Reintentar"}
+                                </Button>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    {!data && cargando && <p className="text-sm text-muted-foreground">Cargando citaciones...</p>}
+                    {data && (
+                        <CitasPendientesTabla
+                            filas={data.filas}
+                            total={data.total}
+                            pagina={data.pagina}
+                            porPagina={data.porPagina}
+                            onPagina={setPagina}
+                            onGestionar={abrirGestion}
+                            renderAcciones={(cita) => (
+                                <CitaAccionesMenu
+                                    cita={cita}
+                                    onVerHistorial={setCitaHistorial}
+                                    onVerOtrasCitas={setCitaOtras}
+                                    onEditarPaciente={(c) => editarPaciente.abrir(c.rut_usuario)}
+                                />
+                            )}
+                        />
+                    )}
                 </CardContent>
             </Card>
 

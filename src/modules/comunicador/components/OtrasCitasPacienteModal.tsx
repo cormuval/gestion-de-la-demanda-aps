@@ -21,14 +21,34 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
     citaActualId: string;
     onCerrar: () => void;
 }) {
-    const [citas, setCitas] = useState<CitaPacienteFila[]>([]);
+    const [citas, setCitas] = useState<CitaPacienteFila[] | null>(null);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {
-        getCitasPendientesPaciente(rutUsuario, citaActualId)
-            .then(setCitas)
-            .catch((e) => toast.error(e instanceof Error ? e.message : "Error al cargar otras citas"))
-            .finally(() => setCargando(false));
+        let activo = true;
+        setCargando(true);
+        setCitas(null);
+
+        async function cargarCitas() {
+            try {
+                const resultado = await getCitasPendientesPaciente(rutUsuario, citaActualId);
+                if (!activo) return;
+                if (!resultado.ok) {
+                    toast.error(resultado.error);
+                    return;
+                }
+                setCitas(resultado.data);
+            } catch {
+                if (activo) toast.error("Error al cargar otras citas");
+            } finally {
+                if (activo) setCargando(false);
+            }
+        }
+
+        cargarCitas();
+        return () => {
+            activo = false;
+        };
     }, [rutUsuario, citaActualId]);
 
     return (
@@ -46,9 +66,9 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
                 <div className="mt-4 space-y-3">
                     {cargando ? (
                         <p className="text-sm text-muted-foreground">Cargando otras citas...</p>
-                    ) : citas.length === 0 ? (
+                    ) : citas?.length === 0 ? (
                         <p className="text-sm text-muted-foreground">Sin otras citas próximas.</p>
-                    ) : (
+                    ) : citas ? (
                         citas.map((c) => (
                             <div key={c.id_cita} className="rounded-md border p-3 text-sm">
                                 <div className="flex items-center justify-between gap-2">
@@ -60,7 +80,7 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
                                 </p>
                             </div>
                         ))
-                    )}
+                    ) : null}
                 </div>
             </div>
         </div>

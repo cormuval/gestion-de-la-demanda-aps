@@ -16,20 +16,32 @@ vi.mock("@/modules/configuracion/actions/mantenedores.action", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { UsuariosRolesView } from "./UsuariosRolesView";
-import { getMantenedoresConfig, guardarFuncionario, guardarRol } from "@/modules/configuracion/actions/mantenedores.action";
+import {
+    getMantenedoresConfig,
+    guardarFuncionario,
+    guardarMotivo,
+    guardarPrestacion,
+    guardarProfesional,
+    guardarRol,
+    guardarTipoSolicitud
+} from "@/modules/configuracion/actions/mantenedores.action";
 import type { Permiso } from "@/config/permisos";
 import { toast } from "sonner";
 
 const TODAS_LAS_PESTANAS = ["Tipo solicitud", "Motivos", "Roles", "Profesionales", "Prestaciones", "Funcionarios"];
 const rolSome = { id_rol: 2, nombre_rol: "SOME", estado: "Activo", permisos: [{ permiso: "config.ver" }, { permiso: "config.funcionarios" }] };
 const rolAdmin = { id_rol: 1, nombre_rol: "Administrador", estado: "Activo", permisos: [{ permiso: "config.ver" }, { permiso: "config.funcionarios" }, { permiso: "config.roles" }] };
+const tipoSolicitud = { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control", estado: "1" };
+const motivo = { id_motivo: 2, tipo_solicitud_id: 1, nombre_motivo: "Examen", estado: "1", tipoSolicitud };
+const profesional = { id_profesional: 3, nombre: "Medicina", estado: "Activo" };
+const prestacion = { id_prestacion: 4, profesional_id: 3, nombre_prestacion: "Morbilidad", estado: "Activo", profesional };
 
 const dataBase = {
-    tiposSolicitud: [],
-    motivos: [],
+    tiposSolicitud: [tipoSolicitud],
+    motivos: [motivo],
     roles: [rolAdmin, rolSome],
-    profesionales: [],
-    prestaciones: [],
+    profesionales: [profesional],
+    prestaciones: [prestacion],
     funcionarios: [
         {
             rut: "11.111.111-1",
@@ -74,6 +86,10 @@ beforeEach(() => {
     (getMantenedoresConfig as ReturnType<typeof vi.fn>).mockResolvedValue(dataBase);
     (guardarRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: rolSome });
     (guardarFuncionario as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: dataBase.funcionarios[1] });
+    (guardarTipoSolicitud as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: tipoSolicitud });
+    (guardarMotivo as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: motivo });
+    (guardarProfesional as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: profesional });
+    (guardarPrestacion as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: prestacion });
 });
 
 describe("UsuariosRolesView: pestanas segun permisos", () => {
@@ -201,6 +217,130 @@ describe("UsuariosRolesView: pestanas segun permisos", () => {
         fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("El nombre «Administrador» esta reservado"));
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("UsuariosRolesView: errores de catalogos", () => {
+    it("conserva el formulario de tipo de solicitud cuando el submit retorna ok false", async () => {
+        (guardarTipoSolicitud as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Ya existe un tipo de solicitud con ese nombre" });
+        await montar(["config.ver", "config.catalogos"]);
+
+        fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+        const modal = screen.getByText("Agregar tipo de solicitud").closest(".fixed") as HTMLElement;
+        const nombre = within(modal).getByRole("textbox");
+        fireEvent.change(nombre, { target: { value: "Duplicado" } });
+        fireEvent.click(within(modal).getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ya existe un tipo de solicitud con ese nombre"));
+        expect(screen.getByText("Agregar tipo de solicitud")).toBeInTheDocument();
+        expect(nombre).toHaveValue("Duplicado");
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("no recarga cuando el toggle de tipo de solicitud retorna ok false", async () => {
+        (guardarTipoSolicitud as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Ya existe un tipo de solicitud con ese nombre" });
+        await montar(["config.ver", "config.catalogos"]);
+
+        const fila = screen.getByText("Control").closest("tr") as HTMLElement;
+        fireEvent.click(within(fila).getByRole("button", { name: "Desactivar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ya existe un tipo de solicitud con ese nombre"));
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("conserva el formulario de motivo cuando el submit retorna ok false", async () => {
+        (guardarMotivo as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Ya existe un motivo con ese nombre para el tipo seleccionado" });
+        await montar(["config.ver", "config.catalogos"]);
+        fireEvent.click(screen.getByRole("button", { name: "Motivos" }));
+
+        fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+        const modal = screen.getByText("Agregar motivo").closest(".fixed") as HTMLElement;
+        const nombre = within(modal).getByRole("textbox");
+        fireEvent.change(nombre, { target: { value: "Duplicado" } });
+        fireEvent.click(within(modal).getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ya existe un motivo con ese nombre para el tipo seleccionado"));
+        expect(screen.getByText("Agregar motivo")).toBeInTheDocument();
+        expect(nombre).toHaveValue("Duplicado");
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("no recarga cuando el toggle de motivo retorna ok false", async () => {
+        (guardarMotivo as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Tipo de solicitud no existe" });
+        await montar(["config.ver", "config.catalogos"]);
+        fireEvent.click(screen.getByRole("button", { name: "Motivos" }));
+
+        const fila = screen.getByText("Examen").closest("tr") as HTMLElement;
+        fireEvent.click(within(fila).getByRole("button", { name: "Desactivar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tipo de solicitud no existe"));
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("conserva el formulario de profesional cuando el submit retorna ok false", async () => {
+        (guardarProfesional as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Ya existe un profesional con ese nombre" });
+        await montar(["config.ver", "config.catalogos"]);
+        fireEvent.click(screen.getByRole("button", { name: "Profesionales" }));
+
+        fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+        const modal = screen.getByText("Agregar profesional").closest(".fixed") as HTMLElement;
+        const nombre = within(modal).getByRole("textbox");
+        fireEvent.change(nombre, { target: { value: "Duplicado" } });
+        fireEvent.click(within(modal).getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ya existe un profesional con ese nombre"));
+        expect(screen.getByText("Agregar profesional")).toBeInTheDocument();
+        expect(nombre).toHaveValue("Duplicado");
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("no recarga cuando el toggle de profesional retorna ok false", async () => {
+        (guardarProfesional as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Ya existe un profesional con ese nombre" });
+        await montar(["config.ver", "config.catalogos"]);
+        fireEvent.click(screen.getByRole("button", { name: "Profesionales" }));
+
+        const fila = screen.getByText("Medicina").closest("tr") as HTMLElement;
+        fireEvent.click(within(fila).getByRole("button", { name: "Desactivar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ya existe un profesional con ese nombre"));
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("conserva el formulario de prestacion cuando el submit retorna ok false", async () => {
+        (guardarPrestacion as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Ya existe una prestacion con ese nombre para el profesional" });
+        await montar(["config.ver", "config.catalogos"]);
+        fireEvent.click(screen.getByRole("button", { name: "Prestaciones" }));
+
+        fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+        const modal = screen.getByText("Agregar prestacion").closest(".fixed") as HTMLElement;
+        const nombre = within(modal).getByRole("textbox");
+        fireEvent.change(nombre, { target: { value: "Duplicada" } });
+        fireEvent.click(within(modal).getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ya existe una prestacion con ese nombre para el profesional"));
+        expect(screen.getByText("Agregar prestacion")).toBeInTheDocument();
+        expect(nombre).toHaveValue("Duplicada");
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("no recarga cuando el toggle de prestacion retorna ok false", async () => {
+        (guardarPrestacion as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "Profesional no existe" });
+        await montar(["config.ver", "config.catalogos"]);
+        fireEvent.click(screen.getByRole("button", { name: "Prestaciones" }));
+
+        const fila = screen.getByText("Morbilidad").closest("tr") as HTMLElement;
+        fireEvent.click(within(fila).getByRole("button", { name: "Desactivar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Profesional no existe"));
+        expect(toast.success).not.toHaveBeenCalled();
         expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
     });
 });

@@ -4,6 +4,9 @@
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "@/modules/catalogos/utils/centroTipoSolicitud";
+import type { ResultadoAccion } from "@/shared/types/resultado";
+
+const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
 
 async function getNombreCentro(centroId: string | null): Promise<string | null> {
     if (!centroId) return null;
@@ -16,7 +19,7 @@ async function getNombreCentro(centroId: string | null): Promise<string | null> 
     return centros[0]?.nombre_centro ?? null;
 }
 
-async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string> {
+async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string | null> {
     if (centroSesion) return centroSesion;
 
     const funcionario = await prisma.funcionario.findUnique({
@@ -24,8 +27,7 @@ async function getCentroFuncionario(rutFuncionario: string, centroSesion: string
         select: { centro_id: true }
     });
 
-    if (!funcionario?.centro_id) throw new Error("El funcionario activo no tiene centro asignado");
-    return funcionario.centro_id;
+    return funcionario?.centro_id ?? null;
 }
 
 function buildCentroWhere(centroColumna: CentroTipoSolicitudColumna | null) {
@@ -36,6 +38,7 @@ export async function getRevisionCatalogos() {
     const user = await requirePermiso("solicitudes.gestionar");
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
+    if (!centroId) return { ok: false, error: ERROR_CENTRO } satisfies ResultadoAccion<never>;
     const nombreCentro = await getNombreCentro(centroId);
     const centroColumna = getColumnaTipoSolicitudPorCentro(nombreCentro);
 
@@ -67,5 +70,6 @@ export async function getRevisionCatalogos() {
         `
     ]);
 
-    return { tiposSolicitud, motivos, profesionales, prestaciones, centros };
+    const payload = { tiposSolicitud, motivos, profesionales, prestaciones, centros };
+    return { ok: true, data: payload } satisfies ResultadoAccion<typeof payload>;
 }

@@ -154,8 +154,11 @@ describe("editarCita", () => {
     });
 
     it("bloquea fecha anterior a hoy antes de abrir transaccion", async () => {
-        const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const result = await editarCita({ id_cita: "CITA-1", priorizacion_clinica: "Media", fecha_estimada_atencion: ayer });
+        const ayer = new Date();
+        ayer.setHours(0, 0, 0, 0);
+        ayer.setDate(ayer.getDate() - 1);
+        const fechaAyer = ayer.toISOString().slice(0, 10);
+        const result = await editarCita({ id_cita: "CITA-1", priorizacion_clinica: "Media", fecha_estimada_atencion: fechaAyer });
         expect(result).toEqual({ ok: false, error: "La fecha estimada no puede ser anterior a hoy" });
         expect(prisma.$transaction).not.toHaveBeenCalled();
     });

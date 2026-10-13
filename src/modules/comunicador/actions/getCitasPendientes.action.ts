@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
 import { citasFiltrosSchema } from "../schemas/llamada.schema";
 // utils
@@ -29,9 +30,11 @@ export interface CitaFila {
     tiene_llamada_hoy: boolean;
 }
 
-export async function getCitasPendientes(filtros: unknown): Promise<{ filas: CitaFila[]; total: number; pagina: number; porPagina: number }> {
+export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAccion<{ filas: CitaFila[]; total: number; pagina: number; porPagina: number }>> {
     const user = await requirePermiso("comunicador.ver");
-    if (!user.centro_id) throw new Error("El funcionario no tiene centro asignado");
+    if (!user.centro_id) {
+        return { ok: false, error: "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion." };
+    }
 
     const f = citasFiltrosSchema.parse(filtros ?? {});
     const hoy = new Date();
@@ -121,5 +124,5 @@ export async function getCitasPendientes(filtros: unknown): Promise<{ filas: Cit
         intentos: Number(r.intentos as unknown as bigint),
         tiene_llamada_hoy: Number(r.tiene_llamada_hoy as unknown as number) === 1
     }));
-    return { filas: filasNorm, total, pagina: f.pagina, porPagina: POR_PAGINA };
+    return { ok: true, data: { filas: filasNorm, total, pagina: f.pagina, porPagina: POR_PAGINA } };
 }

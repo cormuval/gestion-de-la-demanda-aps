@@ -5,14 +5,16 @@ import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 // types
+import type { ResultadoAccion } from "@/shared/types/resultado";
 import { SolicitudFiltros } from "../schemas/solicitud.schema";
 import { ACCION_ESPERA_VALIDACION } from "../schemas/revision.schema";
 // utils
 import { normalizarRut } from "../utils/rut";
 
 const PAGE_SIZE = 100;
+const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
 
-async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string> {
+async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string | null> {
     if (centroSesion) return centroSesion;
 
     const funcionario = await prisma.funcionario.findUnique({
@@ -20,8 +22,7 @@ async function getCentroFuncionario(rutFuncionario: string, centroSesion: string
         select: { centro_id: true }
     });
 
-    if (!funcionario?.centro_id) throw new Error("El funcionario activo no tiene centro asignado");
-    return funcionario.centro_id;
+    return funcionario?.centro_id ?? null;
 }
 
 function buildWhere(filtros: SolicitudFiltros, centroId: string): Prisma.SolicitudWhereInput {
@@ -75,6 +76,7 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
     const user = await requirePermiso("solicitudes.ver", "solicitudes.gestionar");
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
+    if (!centroId) return { ok: false, error: ERROR_CENTRO } satisfies ResultadoAccion<never>;
     const page = Math.max(1, Number(filtros.page ?? 1));
     const where = buildWhere(filtros, centroId);
 
@@ -113,7 +115,8 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
             details: `Filtros: ${JSON.stringify(filtros)}`
         });
 
-        return { solicitudes, total, page, pageSize: PAGE_SIZE, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+        const payload = { solicitudes, total, page, pageSize: PAGE_SIZE, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+        return { ok: true, data: payload } satisfies ResultadoAccion<typeof payload>;
     }
 
     const [solicitudes, total] = await Promise.all([
@@ -131,5 +134,6 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
         details: `Filtros: ${JSON.stringify(filtros)}`
     });
 
-    return { solicitudes, total, page, pageSize: PAGE_SIZE, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+    const payload = { solicitudes, total, page, pageSize: PAGE_SIZE, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+    return { ok: true, data: payload } satisfies ResultadoAccion<typeof payload>;
 }
