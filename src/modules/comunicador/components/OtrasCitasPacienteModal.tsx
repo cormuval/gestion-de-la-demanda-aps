@@ -57,7 +57,7 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h2 className="text-lg font-semibold">Otras citas del paciente</h2>
-                        <p className="text-sm text-muted-foreground">Agendamientos próximos · RUT {rutUsuario}</p>
+                        <p className="text-sm text-muted-foreground">Citas pendientes · RUT {rutUsuario}</p>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={onCerrar} aria-label="Cerrar">
                         <X size={18} />
@@ -73,7 +73,10 @@ export function OtrasCitasPacienteModal({ rutUsuario, citaActualId, onCerrar }: 
                             <div key={c.id_cita} className="rounded-md border p-3 text-sm">
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-medium">{c.profesion || "—"} · {c.prestacion || "—"}</span>
-                                    <Badge variant="warning">{c.estado_cita ?? "Sin estado"}</Badge>
+                                    <div className="flex shrink-0 gap-2">
+                                        {c.atrasada && <Badge variant="muted">Atrasada</Badge>}
+                                        <Badge variant="warning">{c.estado_cita ?? "Sin estado"}</Badge>
+                                    </div>
                                 </div>
                                 <p className="mt-1 text-muted-foreground">
                                     Fecha estimada: {formatFecha(c.fecha_estimada_atencion)} · Cita {acortarId(c.id_cita)}

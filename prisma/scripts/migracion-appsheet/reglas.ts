@@ -3,6 +3,8 @@
 
 // utils
 import { normalizarRut } from "../../../src/modules/solicitudes/utils/rut";
+// types
+import { esEstadoPendiente } from "../../../src/modules/comunicador/types/comunicador";
 
 export type Tabla = "roles" | "funcionarios" | "usuarios" | "solicitudes" | "citas" | "llamadas";
 
@@ -15,7 +17,8 @@ export type Regla =
     | "funcionario duplicado por RUT"
     | "advertencia: referencia opcional anulada"
     | "advertencia: correo duplicado con alias"
-    | "advertencia: RUT de destino reemplazado";
+    | "advertencia: RUT de destino reemplazado"
+    | "advertencia: aviso de rechazo cerrado";
 
 export interface Rechazo {
     tabla: Tabla;
@@ -238,6 +241,14 @@ export function estadoSolicitud(valor: string | null): string | null {
     return limpio;
 }
 
+// En AppSheet rechazar una solicitud la deja "En curso" y crea una cita "Rechazar cita" para avisar al
+// paciente; la solicitud pasa a "Realizado" recien con ese aviso. El nuevo sistema la cierra como
+// "Rechazado" sin cita, asi que se migran con ese estado y los avisos pendientes quedan cerrados.
+export const ACCION_RECHAZAR_SOLICITUD = "Rechazar solicitud";
+export const ESTADO_SOLICITUD_RECHAZADA = "Rechazado";
+export const TIPO_PRESTACION_RECHAZO = "Rechazar cita";
+export const ESTADO_CITA_RECHAZO_CERRADA = "Cita Rechazada (Gestor)";
+
 function rechazo(tabla: Tabla, clave: string, regla: Regla, detalle: string): { ok: false; rechazo: Rechazo } {
     return { ok: false, rechazo: { tabla, clave, regla, detalle } };
 }
@@ -381,7 +392,9 @@ export function deduplicarUsuarios(usuarios: UsuarioDestino[], rutOriginal: Read
 export function transformarSolicitud(s: SolicitudOrigen, cat: Catalogos, ref: Referencias): Resultado<SolicitudDestino> {
     const clave = s.id_solicitud;
     const rut_usuario = rutNormalizado(s.rut_usuario);
-    const estado = estadoSolicitud(s.estado_solicitud);
+    const accion = vacioANull(s.accion);
+    const estadoOrigen = estadoSolicitud(s.estado_solicitud);
+    const estado = estadoOrigen !== null && accion === ACCION_RECHAZAR_SOLICITUD ? ESTADO_SOLICITUD_RECHAZADA : estadoOrigen;
     const tipo = aEntero(s.tipo_solicitud_id);
     const motivo = aEntero(s.motivo_id);
     if (s.fecha_inicio === null || rut_usuario === null || estado === null || tipo === null) {
@@ -407,7 +420,7 @@ export function transformarSolicitud(s: SolicitudOrigen, cat: Catalogos, ref: Re
             disponibilidad_llamada: vacioANull(s.disponibilidad_llamada),
             priorizacion_admin: s.priorizacion_admin,
             rut_gestor: funcionarioOpcional("solicitudes", clave, "rut_gestor", s.rut_gestor, ref, advertencias),
-            accion: vacioANull(s.accion),
+            accion,
             razon_rechazo: vacioANull(s.razon_rechazo),
             fecha_validacion: s.fecha_validacion,
             estado_solicitud: estado,
@@ -442,6 +455,11 @@ export function transformarCita(c: CitaOrigen, cat: Catalogos, ref: Referencias)
     if (prestacion === "invalido") return rechazo("citas", clave, "valor fuera de catalogo", `prestacion_id=${c.prestacion_id}`);
 
     const advertencias: Rechazo[] = [];
+    let estado_cita = vacioANull(c.estado_cita);
+    if (tipo_prestacion === TIPO_PRESTACION_RECHAZO && esEstadoPendiente(estado_cita)) {
+        advertencias.push({ tabla: "citas", clave, regla: "advertencia: aviso de rechazo cerrado", detalle: `${estado_cita} -> ${ESTADO_CITA_RECHAZO_CERRADA}` });
+        estado_cita = ESTADO_CITA_RECHAZO_CERRADA;
+    }
     return {
         ok: true,
         advertencias,
@@ -455,7 +473,7 @@ export function transformarCita(c: CitaOrigen, cat: Catalogos, ref: Referencias)
             prestacion_id: prestacion,
             fecha_estimada_atencion: c.fecha_estimada_atencion,
             observacion: vacioANull(c.observacion),
-            estado_cita: vacioANull(c.estado_cita),
+            estado_cita,
             priorizacion_clinica: vacioANull(c.priorizacion_clinica),
             priorizacion: c.priorizacion,
             centro_id: vacioANull(c.centro_id),

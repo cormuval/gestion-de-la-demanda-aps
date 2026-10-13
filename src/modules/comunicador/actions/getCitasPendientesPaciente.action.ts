@@ -16,6 +16,7 @@ export interface CitaPacienteFila {
     profesion: string | null;
     prestacion: string | null;
     fecha_estimada_atencion: Date | null;
+    atrasada: boolean;
     intentos: number;
 }
 
@@ -25,32 +26,34 @@ export async function getCitasPendientesPaciente(rutUsuario: string, citaActualI
         return { ok: false, error: "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion." };
     }
 
-    const rango = rangoTemporalidad(TEMPORALIDAD.PROXIMOS, new Date());
+    // Sin filtro de temporalidad: al llamar se debe ver todo lo pendiente del paciente,
+    // incluidas las citas atrasadas, para resolverlo en un solo llamado.
+    const limiteAtrasada = rangoTemporalidad(TEMPORALIDAD.ATRASADOS, new Date())?.lt;
 
     const citas = await prisma.cita.findMany({
         where: {
             rut_usuario: normalizarRut(rutUsuario),
             centro_id: user.centro_id,
             id_cita: { not: citaActualId },
-            estado_cita: { in: [...ESTADOS_PENDIENTES] },
-            fecha_estimada_atencion: { gte: rango?.gte, lte: rango?.lte }
+            estado_cita: { in: [...ESTADOS_PENDIENTES] }
         },
-        include: { profesional: true, prestacion: true },
-        orderBy: { priorizacion: "desc" }
+        include: {
+            profesional: true,
+            prestacion: true,
+            _count: { select: { llamadas: { where: { respuesta_usuario: "No contesta" } } } }
+        },
+        orderBy: [{ priorizacion: "desc" }, { fecha_estimada_atencion: "asc" }]
     });
 
-    const filas: CitaPacienteFila[] = [];
-    for (const c of citas) {
-        const intentos = await prisma.llamada.count({ where: { cita_id: c.id_cita, respuesta_usuario: "No contesta" } });
-        filas.push({
-            id_cita: c.id_cita,
-            estado_cita: c.estado_cita,
-            priorizacion: c.priorizacion,
-            profesion: c.profesional?.nombre ?? null,
-            prestacion: c.prestacion?.nombre_prestacion ?? null,
-            fecha_estimada_atencion: c.fecha_estimada_atencion,
-            intentos
-        });
-    }
+    const filas: CitaPacienteFila[] = citas.map((c) => ({
+        id_cita: c.id_cita,
+        estado_cita: c.estado_cita,
+        priorizacion: c.priorizacion,
+        profesion: c.profesional?.nombre ?? null,
+        prestacion: c.prestacion?.nombre_prestacion ?? null,
+        fecha_estimada_atencion: c.fecha_estimada_atencion,
+        atrasada: !!(c.fecha_estimada_atencion && limiteAtrasada && c.fecha_estimada_atencion < limiteAtrasada),
+        intentos: c._count.llamadas
+    }));
     return { ok: true, data: filas };
 }
