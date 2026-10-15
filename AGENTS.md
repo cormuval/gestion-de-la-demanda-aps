@@ -68,8 +68,8 @@ src/
   auth.ts · auth.config.ts · middleware.ts
 ```
 
-Modulos: `solicitudes`, `comunicador` (citas + llamados), `dashboard`, `some`, `configuracion`
-(funcionarios, roles, permisos), `catalogos`.
+Modulos: `solicitudes`, `comunicador` (citas + llamados), `historial` (historial del paciente),
+`dashboard`, `some`, `configuracion` (funcionarios, roles, permisos), `catalogos`.
 
 **La aplicacion es modular y la convencion se respeta en todo el ciclo de desarrollo.** Lo exclusivo
 de un modulo o entidad (actions, componentes, hooks, schemas, tipos, interfaces, utils) vive en
