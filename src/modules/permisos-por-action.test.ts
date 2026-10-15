@@ -36,6 +36,8 @@ import { getFiltrosComunicador } from "./comunicador/actions/getFiltrosComunicad
 import { getHistorialLlamadas } from "./comunicador/actions/getHistorialLlamadas.action";
 import { getUsuarioParaEdicion } from "./comunicador/actions/getUsuarioParaEdicion.action";
 import { registrarLlamada } from "./comunicador/actions/registrarLlamada.action";
+// actions: historial
+import { getHistorialPaciente } from "./historial/actions/getHistorialPaciente.action";
 // actions: configuracion
 import {
     getMantenedoresConfig,
@@ -76,8 +78,8 @@ interface CasoPermiso {
 }
 
 // La tabla es la especificacion: se derivo leyendo el guard (primera linea de cada
-// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 30
-// Server Actions repartidas en catalogos, comunicador, configuracion y solicitudes.
+// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 31
+// Server Actions repartidas en catalogos, comunicador, historial, configuracion y solicitudes.
 const tabla: CasoPermiso[] = [
     // catalogos
     { nombre: "getCatalogos", invocar: () => getCatalogos(), permisos: ["solicitudes.ver"] },
@@ -107,6 +109,9 @@ const tabla: CasoPermiso[] = [
         permisos: ["comunicador.paciente"]
     },
     { nombre: "registrarLlamada", invocar: () => registrarLlamada({} as never), permisos: ["comunicador.llamar"] },
+
+    // historial
+    { nombre: "getHistorialPaciente", invocar: () => getHistorialPaciente("11111111-1"), permisos: ["historial.ver"] },
 
     // configuracion
     { nombre: "getMantenedoresConfig", invocar: () => getMantenedoresConfig(), permisos: ["config.ver"] },
@@ -178,8 +183,8 @@ beforeEach(() => {
 });
 
 describe("permiso exigido por cada Server Action", () => {
-    it("cubre las 30 Server Actions del sistema", () => {
-        expect(tabla.length).toBe(30);
+    it("cubre las 31 Server Actions del sistema", () => {
+        expect(tabla.length).toBe(31);
     });
 
     for (const caso of tabla) {
