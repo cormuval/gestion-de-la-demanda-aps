@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -131,8 +131,17 @@ describe("HistorialPacienteView", () => {
         buscar();
 
         await screen.findByText("Juana Perez");
-        expect(screen.getByText("No cumple criterios")).toBeInTheDocument();
-        expect(screen.getAllByText(/20-01-2026|20\/01\/2026/).length).toBeGreaterThan(0);
+
+        // La solicitud Rechazada (SOL-3) muestra su propia razon de rechazo y su propia fecha
+        // de cierre (fecha_validacion = 2026-01-03), dentro de su propia tarjeta: no basta con que
+        // esa fecha exista en algun lugar de la pantalla (la Realizada tambien tiene una fecha de
+        // cierre, 2026-01-20).
+        const razonRechazo = screen.getByText("No cumple criterios");
+        const tarjetaRechazada = razonRechazo.closest('div[class^="rounded-xl"]');
+        expect(tarjetaRechazada).not.toBeNull();
+        expect(within(tarjetaRechazada as HTMLElement).getByText("Rechazado")).toBeInTheDocument();
+        expect(within(tarjetaRechazada as HTMLElement).getByText("03-01-2026")).toBeInTheDocument();
+
         // La cita CITA-2 esta cerrada pero sin llamadas: su fecha de cierre es "—".
         expect(screen.getAllByText("—").length).toBeGreaterThan(0);
     });
@@ -199,6 +208,52 @@ describe("HistorialPacienteView", () => {
 
         await screen.findByText("RUT invalido");
         expect(screen.queryByText("Juana Perez")).not.toBeInTheDocument();
+    });
+
+    it("ignora la respuesta de una busqueda anterior si llega despues de una mas reciente", async () => {
+        const pacienteA: HistorialPaciente = {
+            paciente: { rut: "11111111-1", nombre: "Paciente A" },
+            solicitudes: [SOLICITUD_EN_CURSO]
+        };
+        const pacienteB: HistorialPaciente = {
+            paciente: { rut: "22222222-2", nombre: "Paciente B" },
+            solicitudes: [SOLICITUD_REALIZADA]
+        };
+
+        let resolverA: (value: { ok: true; data: HistorialPaciente }) => void = () => {};
+        let resolverB: (value: { ok: true; data: HistorialPaciente }) => void = () => {};
+
+        vi.mocked(getHistorialPaciente)
+            .mockImplementationOnce(() => new Promise((resolve) => { resolverA = resolve; }))
+            .mockImplementationOnce(() => new Promise((resolve) => { resolverB = resolve; }));
+
+        render(<HistorialPacienteView />);
+        const form = screen.getByRole("button", { name: "Buscar" }).closest("form") as HTMLFormElement;
+
+        // Se busca el RUT A...
+        escribirRut("11111111-1");
+        buscar();
+
+        // ...y, antes de que responda, se busca el RUT B. El boton ya quedo deshabilitado
+        // ("Buscando...") mientras A esta en vuelo, pero el formulario puede volver a enviarse
+        // (p.ej. con Enter) y el handler debe seguir siendo seguro ante envios superpuestos:
+        // se dispara el submit directamente sobre el form para cubrir ese caso.
+        escribirRut("22222222-2");
+        fireEvent.submit(form);
+
+        // La busqueda mas reciente (B) responde primero.
+        await act(async () => {
+            resolverB({ ok: true, data: pacienteB });
+        });
+        expect(screen.getByText("Paciente B")).toBeInTheDocument();
+
+        // La busqueda anterior (A), mas lenta, responde despues: su resultado debe descartarse
+        // en vez de pisar el de B.
+        await act(async () => {
+            resolverA({ ok: true, data: pacienteA });
+        });
+        expect(screen.queryByText("Paciente A")).not.toBeInTheDocument();
+        expect(screen.getByText("Paciente B")).toBeInTheDocument();
     });
 
     it("indica la carga", async () => {

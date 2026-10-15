@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 // actions
 import { getHistorialPaciente } from "../actions/getHistorialPaciente.action";
 // types
@@ -145,6 +145,9 @@ export function HistorialPacienteView() {
     const [error, setError] = useState<string | null>(null);
     const [historial, setHistorial] = useState<HistorialPaciente | null>(null);
     const [citasExpandidas, setCitasExpandidas] = useState<Set<string>>(new Set());
+    // Contador de la ultima busqueda disparada: si una respuesta llega cuando ya no es la mas
+    // reciente (se lanzo otra busqueda despues), se descarta en vez de pisar el resultado vigente.
+    const idUltimaBusqueda = useRef(0);
 
     function toggleCita(idCita: string) {
         setCitasExpandidas((previo) => {
@@ -160,6 +163,7 @@ export function HistorialPacienteView() {
 
     async function buscar(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        const idBusqueda = ++idUltimaBusqueda.current;
         setCargando(true);
         setError(null);
         setHistorial(null);
@@ -167,15 +171,19 @@ export function HistorialPacienteView() {
 
         try {
             const resultado = await getHistorialPaciente(rut);
+            // Si mientras esperabamos se disparo una busqueda mas nueva, esta respuesta quedo
+            // obsoleta: se descarta por completo (ni error, ni datos, ni el fin de carga).
+            if (idBusqueda !== idUltimaBusqueda.current) return;
             if (!resultado.ok) {
                 setError(resultado.error);
                 return;
             }
             setHistorial(resultado.data);
         } catch {
+            if (idBusqueda !== idUltimaBusqueda.current) return;
             setError(ERROR_GENERICO);
         } finally {
-            setCargando(false);
+            if (idBusqueda === idUltimaBusqueda.current) setCargando(false);
         }
     }
 
