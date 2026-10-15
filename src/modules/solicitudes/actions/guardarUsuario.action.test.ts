@@ -94,6 +94,15 @@ describe("guardarUsuario actions", () => {
         expect(arg.data.priorizacion_administrativa).toEqual(expect.any(Number));
     });
 
+    it("crea usuario sin telefono alternativo y lo guarda como null", async () => {
+        (prisma.usuario.findUnique as any).mockResolvedValue(null);
+        (prisma.usuario.create as any).mockResolvedValue({ rut: "12345678-5" });
+
+        await expect(crearUsuario({ ...usuarioInput, telefono_alternativo: "" })).resolves.toMatchObject({ ok: true });
+
+        expect((prisma.usuario.create as any).mock.calls[0][0].data.telefono_alternativo).toBeNull();
+    });
+
     it("actualiza usuario sin cambiar el RUT", async () => {
         const usuario = { rut: "12345678-5" };
         (prisma.usuario.update as any).mockResolvedValue(usuario);

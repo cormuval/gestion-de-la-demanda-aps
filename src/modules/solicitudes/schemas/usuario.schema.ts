@@ -30,7 +30,7 @@ export const usuarioSolicitudSchema = z.object({
         .min(1, "Fecha de nacimiento requerida")
         .refine((value) => !Number.isNaN(new Date(`${value}T00:00:00`).getTime()), "Fecha de nacimiento invalida"),
     telefono: z.string().trim().min(1, "Telefono requerido"),
-    telefono_alternativo: z.string().trim().min(1, "Telefono alternativo requerido"),
+    telefono_alternativo: z.string().trim().optional().default(""),
     gestante: z.enum(GESTANTE_USUARIO, { required_error: "Gestante requerido" }),
     discapacidad: z.enum(DISCAPACIDAD_USUARIO, { required_error: "Discapacidad requerida" }),
     centro_id: z.string().trim().min(1, "Centro requerido")

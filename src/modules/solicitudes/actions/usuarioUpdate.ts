@@ -55,7 +55,7 @@ export function toUsuarioData(data: UsuarioSolicitudData) {
         genero: data.genero,
         fecha_nacimiento: new Date(`${data.fecha_nacimiento}T00:00:00`),
         telefono: data.telefono,
-        telefono_alternativo: data.telefono_alternativo,
+        telefono_alternativo: data.telefono_alternativo || null,
         gestante: data.gestante,
         discapacidad: data.discapacidad,
         centro_id: data.centro_id,
