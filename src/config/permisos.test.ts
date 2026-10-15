@@ -18,6 +18,7 @@ describe("catalogo de permisos", () => {
         expect(CLAVES_PERMISOS).toContain("comunicador.paciente");
         expect(CLAVES_PERMISOS).toContain("some.ver");
         expect(CLAVES_PERMISOS).toContain("config.roles");
+        expect(CLAVES_PERMISOS).toContain("historial.ver");
     });
 
     it("esPermiso reconoce claves validas y rechaza el resto", () => {

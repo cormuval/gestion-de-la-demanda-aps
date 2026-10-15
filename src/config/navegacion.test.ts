@@ -33,6 +33,11 @@ describe("navegacion", () => {
         expect(visibles.map((item) => item.href)).toEqual(["/some"]);
     });
 
+    it("muestra Historial del paciente cuando el rol tiene permiso historial.ver", () => {
+        const visibles = navVisible(["historial.ver"] as Permiso[]);
+        expect(visibles.map((item) => item.href)).toEqual(["/historial"]);
+    });
+
     it("navVisible devuelve vacio sin permisos", () => {
         expect(navVisible([])).toEqual([]);
     });

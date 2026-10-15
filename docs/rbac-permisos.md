@@ -58,7 +58,8 @@ export const PERMISOS = {
     "config.ver":           { modulo: "Configuracion", etiqueta: "Ver configuracion" },
     "config.funcionarios":  { modulo: "Configuracion", etiqueta: "Editar funcionarios" },
     "config.roles":         { modulo: "Configuracion", etiqueta: "Editar roles y permisos" },
-    "config.catalogos":     { modulo: "Configuracion", etiqueta: "Editar catalogos" }
+    "config.catalogos":     { modulo: "Configuracion", etiqueta: "Editar catalogos" },
+    "historial.ver":        { modulo: "Historial",     etiqueta: "Ver historial del paciente" }
 } as const;
 ```
 
@@ -246,7 +247,7 @@ Si es una pagina, `requirePermisoPagina("comunicador.exportar")` en el Server Co
 **Paso 3 — Registrar la action en el inventario de tests.**
 `src/modules/permisos-por-action.test.ts` mantiene una tabla con **todas** las Server Actions y el
 permiso que exige cada una, mas una assertion de conteo total
-(`it("cubre las 28 Server Actions del sistema")`). Si agregas una action: agregar la entrada **y**
+(`it("cubre las 31 Server Actions del sistema")`). Si agregas una action: agregar la entrada **y**
 actualizar el numero (en la assertion y en el comentario de la tabla). Si solo cambias el permiso de
 una action existente: actualizar su fila.
 
@@ -258,12 +259,30 @@ item a `NAV` en `src/config/navegacion.ts`. El test de navegacion verifica que l
 `rolePermisos` de `prisma/seed.ts`. Recordar que esto **solo** afecta instalaciones limpias: en
 entornos ya configurados el seed no lo va a otorgar.
 
-**Paso 6 — Asignarlo en los entornos existentes.** Es un cambio de datos, no de codigo. Dos opciones:
+**Paso 6 — Asignarlo en los entornos existentes.** Es un cambio de datos, no de esquema, pero en
+produccion/ensayo se despliega como **migracion de datos** aplicada por `prisma migrate deploy`
+(no cambia ninguna tabla, solo inserta filas en `roles_permisos`). Tres opciones, de la mas manual
+a la mas automatica:
 
-- Desde la UI: Configuracion -> Roles -> Permisos, marcar la casilla en cada rol. Preferida, porque
-  queda auditada.
+- Desde la UI: Configuracion -> Roles -> Permisos, marcar la casilla en cada rol. Sirve para ajustes
+  puntuales ya con el permiso desplegado, y queda auditada.
 - Con SQL/script puntual sobre `roles_permisos`, si son muchos roles. En ese caso, dejar constancia
   de lo aplicado.
+- Con una migracion de Prisma versionada en el repo, si el permiso debe otorgarse a roles existentes
+  en todos los entornos como parte del mismo deploy (el caso de `historial.ver`, otorgado a todos
+  los roles). Se crea con `prisma migrate dev --create-only` (o a mano) una carpeta en
+  `prisma/migrations/` con el `migration.sql` que inserta las filas, por ejemplo
+  `prisma/migrations/20261015120000_permiso_historial_ver/migration.sql`:
+
+  ```sql
+  INSERT IGNORE INTO `roles_permisos` (`rol_id`, `permiso`) SELECT `id_rol`, 'historial.ver' FROM `roles`;
+  ```
+
+  En produccion/ensayo, `prisma migrate deploy` la aplica como cualquier otra migracion, en el mismo
+  despliegue que trae el codigo que exige el permiso nuevo. **Entornos locales o de ensayo que usan
+  `db:push` en vez de migraciones no la reciben automaticamente**: hay que correr ese mismo SQL a
+  mano contra esa base (o reproducir el efecto desde la UI), o esos roles quedan sin el permiso
+  nuevo pese a tener el codigo desplegado.
 
 **Paso 7 — Verificar.**
 
@@ -272,9 +291,6 @@ npm test            # incluye permisos, navegacion, permisos-por-action, paginas
 npx tsc --noEmit
 npm run lint
 ```
-
-**No hace falta** `db:push` ni migracion: no cambia el esquema, solo el contenido de una tabla que
-ya existe.
 
 ### Checklist
 
@@ -309,7 +325,7 @@ Tres tests impiden que el sistema se degrade silenciosamente. **No relajarlos.**
 | Test | Que garantiza |
 | --- | --- |
 | `src/app/paginas-protegidas.test.ts` | Toda pagina del grupo `(app)` llama a `requirePermisoPagina`, y ninguna es componente cliente |
-| `src/modules/permisos-por-action.test.ts` | Inventario explicito de las 28 Server Actions y el permiso exacto que exige cada una |
+| `src/modules/permisos-por-action.test.ts` | Inventario explicito de las 31 Server Actions y el permiso exacto que exige cada una |
 | `src/config/navegacion.test.ts` | Los items del menu usan permisos del catalogo y apuntan a paginas que existen |
 
 Mas `src/config/permisos.test.ts` (formato e integridad del catalogo) y

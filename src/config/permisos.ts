@@ -13,7 +13,8 @@ export const PERMISOS = {
     "config.ver": { modulo: "Configuracion", etiqueta: "Ver configuracion" },
     "config.funcionarios": { modulo: "Configuracion", etiqueta: "Editar funcionarios" },
     "config.roles": { modulo: "Configuracion", etiqueta: "Editar roles y permisos" },
-    "config.catalogos": { modulo: "Configuracion", etiqueta: "Editar catalogos" }
+    "config.catalogos": { modulo: "Configuracion", etiqueta: "Editar catalogos" },
+    "historial.ver": { modulo: "Historial", etiqueta: "Ver historial del paciente" }
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;
