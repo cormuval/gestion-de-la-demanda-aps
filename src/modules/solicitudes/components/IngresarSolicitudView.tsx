@@ -656,7 +656,7 @@ function UsuarioModal({
                         <Input value={form.telefono} onChange={(e) => onChange("telefono", e.target.value)} required />
                     </Field>
                     <Field label="Telefono alternativo">
-                        <Input value={form.telefono_alternativo} onChange={(e) => onChange("telefono_alternativo", e.target.value)} required />
+                        <Input value={form.telefono_alternativo} onChange={(e) => onChange("telefono_alternativo", e.target.value)} />
                     </Field>
                     <Field label="Gestante">
                         <Select value={form.gestante} onChange={(e) => onChange("gestante", e.target.value)} required disabled={form.genero !== "Femenino"}>
