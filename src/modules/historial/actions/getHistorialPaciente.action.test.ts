@@ -30,11 +30,20 @@ describe("getHistorialPaciente", () => {
         expect(requirePermiso).toHaveBeenCalledWith("historial.ver");
     });
 
-    it("rechaza un RUT invalido sin consultar", async () => {
+    it("rechaza un RUT invalido sin consultar ni auditar", async () => {
         const resultado = await getHistorialPaciente("123");
 
         expect(resultado).toEqual({ ok: false, error: "RUT invalido" });
+        expect(prisma.usuario.findUnique).not.toHaveBeenCalled();
         expect(prisma.solicitud.findMany).not.toHaveBeenCalled();
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("rechaza un valor no-string sin lanzar excepcion", async () => {
+        const resultado = await getHistorialPaciente(123 as unknown as string);
+
+        expect(resultado).toEqual({ ok: false, error: "RUT invalido" });
+        expect(prisma.usuario.findUnique).not.toHaveBeenCalled();
     });
 
     it("informa cuando el funcionario no tiene centro", async () => {
@@ -46,10 +55,20 @@ describe("getHistorialPaciente", () => {
             ok: false,
             error: "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion."
         });
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
 
     it("paciente inexistente devuelve historial vacio", async () => {
         (prisma.usuario.findUnique as any).mockResolvedValueOnce(null);
+
+        const resultado = await getHistorialPaciente("12345678-5");
+
+        expect(resultado).toEqual({ ok: true, data: { paciente: null, solicitudes: [] } });
+    });
+
+    it("paciente existente sin solicitudes en este centro devuelve historial vacio sin nombre", async () => {
+        (prisma.usuario.findUnique as any).mockResolvedValueOnce({ rut: "12345678-5", nombre: "Juana", apellido: "Perez" });
+        (prisma.solicitud.findMany as any).mockResolvedValueOnce([]);
 
         const resultado = await getHistorialPaciente("12345678-5");
 
@@ -65,6 +84,25 @@ describe("getHistorialPaciente", () => {
                 orderBy: { fecha_inicio: "desc" }
             })
         );
+    });
+
+    it("ordena citas por fecha_creacion asc y llamadas por fecha_llamada asc, seleccionando solo columnas", async () => {
+        await getHistorialPaciente("12345678-5");
+
+        const argsFindMany = (prisma.solicitud.findMany as any).mock.calls[0][0];
+        expect(argsFindMany.select.citas.orderBy).toEqual({ fecha_creacion: "asc" });
+        expect(argsFindMany.select.citas.select.llamadas.orderBy).toEqual({ fecha_llamada: "asc" });
+
+        // No debe incluirse ninguna fila completa de Funcionario (password_hash, email, etc.):
+        // solo el campo `nombre` seleccionado por cada relacion de funcionario.
+        expect(argsFindMany.select.orientador).toEqual({ select: { nombre: true } });
+        expect(argsFindMany.select.gestor).toEqual({ select: { nombre: true } });
+        expect(argsFindMany.select.citas.select.llamadas.select.comunicador).toEqual({ select: { nombre: true } });
+        expect(argsFindMany.select.citas.select.profesional).toEqual({ select: { nombre: true } });
+        expect(argsFindMany.select.citas.select.prestacion).toEqual({ select: { nombre_prestacion: true } });
+        expect(argsFindMany.select.tipoSolicitud).toEqual({ select: { nombre_tipo_solicitud: true } });
+        expect(argsFindMany.select.motivo).toEqual({ select: { nombre_motivo: true } });
+        expect(argsFindMany.include).toBeUndefined();
     });
 
     it("mapea citas y llamadas con fechas de cierre", async () => {
@@ -140,5 +178,29 @@ describe("getHistorialPaciente", () => {
             "HISTORIAL_PACIENTE",
             expect.objectContaining({ details: expect.stringContaining("rut=12345678-5") })
         );
+    });
+
+    it("audita la busqueda aunque el paciente no exista", async () => {
+        (prisma.usuario.findUnique as any).mockResolvedValueOnce(null);
+
+        await getHistorialPaciente("12345678-5");
+
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith(
+            "SEARCH",
+            true,
+            expect.anything(),
+            "HISTORIAL_PACIENTE",
+            expect.objectContaining({ details: expect.stringContaining("rut=12345678-5") })
+        );
+    });
+
+    it("no usa throw new Error en la action", async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const archivo = fs.readFileSync(
+            path.join(process.cwd(), "src/modules/historial/actions/getHistorialPaciente.action.ts"),
+            "utf-8"
+        );
+        expect(archivo).not.toMatch(/throw new Error/);
     });
 });

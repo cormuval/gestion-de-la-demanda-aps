@@ -1,6 +1,7 @@
 "use server";
 
 // lib
+import { z } from "zod";
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
@@ -13,27 +14,50 @@ import { esEstadoTerminal } from "@/modules/comunicador/types/comunicador";
 import { esRutChilenoValido, normalizarRut } from "@/modules/solicitudes/utils/rut";
 import { fechaCierreCita, fechaCierreSolicitud } from "../utils/cierre";
 
+const ERROR_RUT = "RUT invalido";
 const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
 
-const SOLICITUD_HISTORIAL_INCLUDE = {
-    tipoSolicitud: true,
-    motivo: true,
-    orientador: true,
-    gestor: true,
+const rutSchema = z.string();
+
+// Solo las columnas escalares que leen los mappers, y de cada relacion solo el campo que
+// se muestra (nunca la fila completa: evita traer password_hash/email de Funcionario, etc).
+const SOLICITUD_HISTORIAL_SELECT = {
+    id_solicitud: true,
+    fecha_inicio: true,
+    descripcion: true,
+    estado_solicitud: true,
+    accion: true,
+    razon_rechazo: true,
+    fecha_validacion: true,
+    tipoSolicitud: { select: { nombre_tipo_solicitud: true } },
+    motivo: { select: { nombre_motivo: true } },
+    orientador: { select: { nombre: true } },
+    gestor: { select: { nombre: true } },
     citas: {
         orderBy: { fecha_creacion: "asc" },
-        include: {
-            profesional: true,
-            prestacion: true,
+        select: {
+            id_cita: true,
+            estado_cita: true,
+            fecha_estimada_atencion: true,
+            observacion: true,
+            profesional: { select: { nombre: true } },
+            prestacion: { select: { nombre_prestacion: true } },
             llamadas: {
                 orderBy: { fecha_llamada: "asc" },
-                include: { comunicador: true }
+                select: {
+                    id_llamada: true,
+                    fecha_llamada: true,
+                    respuesta_usuario: true,
+                    observacion: true,
+                    hora_agendada: true,
+                    comunicador: { select: { nombre: true } }
+                }
             }
         }
     }
-} satisfies Prisma.SolicitudInclude;
+} satisfies Prisma.SolicitudSelect;
 
-type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{ include: typeof SOLICITUD_HISTORIAL_INCLUDE }>;
+type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{ select: typeof SOLICITUD_HISTORIAL_SELECT }>;
 type CitaConRelaciones = SolicitudConRelaciones["citas"][number];
 type LlamadaConRelaciones = CitaConRelaciones["llamadas"][number];
 
@@ -90,11 +114,20 @@ function mapSolicitud(solicitud: SolicitudConRelaciones): SolicitudHistorial {
 export async function getHistorialPaciente(rutPaciente: string): Promise<ResultadoAccion<HistorialPaciente>> {
     const user = await requirePermiso("historial.ver");
 
-    const rut = normalizarRut(rutPaciente);
-    if (!esRutChilenoValido(rut)) return { ok: false, error: "RUT invalido" };
+    const parsedRut = rutSchema.safeParse(rutPaciente);
+    if (!parsedRut.success) return { ok: false, error: ERROR_RUT };
+
+    const rut = normalizarRut(parsedRut.data);
+    if (!esRutChilenoValido(rut)) return { ok: false, error: ERROR_RUT };
 
     const centroId = user.centro_id;
     if (!centroId) return { ok: false, error: ERROR_CENTRO };
+
+    // Se audita todo intento de busqueda con RUT y centro validos, incluso cuando el
+    // paciente no existe o no tiene solicitudes en este centro.
+    await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "HISTORIAL_PACIENTE", {
+        details: `rut=${rut}`
+    });
 
     const usuario = await prisma.usuario.findUnique({
         where: { rut },
@@ -107,13 +140,15 @@ export async function getHistorialPaciente(rutPaciente: string): Promise<Resulta
 
     const solicitudes = await prisma.solicitud.findMany({
         where: { rut_usuario: rut, centro_id: centroId },
-        include: SOLICITUD_HISTORIAL_INCLUDE,
+        select: SOLICITUD_HISTORIAL_SELECT,
         orderBy: { fecha_inicio: "desc" }
     });
 
-    await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "HISTORIAL_PACIENTE", {
-        details: `rut=${rut}`
-    });
+    // Sin solicitudes en este centro, no se informa el nombre del paciente: no hay nada
+    // que mostrar y evita exponer datos de un paciente ajeno a este centro.
+    if (solicitudes.length === 0) {
+        return { ok: true, data: { paciente: null, solicitudes: [] } };
+    }
 
     return {
         ok: true,

@@ -136,14 +136,16 @@ describe("HistorialPacienteView", () => {
         // de cierre (fecha_validacion = 2026-01-03), dentro de su propia tarjeta: no basta con que
         // esa fecha exista en algun lugar de la pantalla (la Realizada tambien tiene una fecha de
         // cierre, 2026-01-20).
-        const razonRechazo = screen.getByText("No cumple criterios");
-        const tarjetaRechazada = razonRechazo.closest('div[class^="rounded-xl"]');
-        expect(tarjetaRechazada).not.toBeNull();
-        expect(within(tarjetaRechazada as HTMLElement).getByText("Rechazado")).toBeInTheDocument();
-        expect(within(tarjetaRechazada as HTMLElement).getByText("03-01-2026")).toBeInTheDocument();
+        const tarjetaRechazada = screen.getByTestId("solicitud-SOL-3");
+        expect(within(tarjetaRechazada).getByText("No cumple criterios")).toBeInTheDocument();
+        expect(within(tarjetaRechazada).getByText("Rechazado")).toBeInTheDocument();
+        expect(within(tarjetaRechazada).getByText("03-01-2026")).toBeInTheDocument();
 
-        // La cita CITA-2 esta cerrada pero sin llamadas: su fecha de cierre es "—".
-        expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+        // La cita CITA-2 (dentro de SOL-2) esta cerrada pero sin llamadas: su fecha de cierre
+        // es "—", especificamente dentro de su propia tarjeta (a diferencia de CITA-1, en la
+        // misma solicitud, que si tiene fecha de cierre).
+        const tarjetaCita2 = screen.getByTestId("cita-CITA-2");
+        expect(within(tarjetaCita2).getByText("—")).toBeInTheDocument();
     });
 
     it("despliega las llamadas de una cita", async () => {
@@ -154,12 +156,22 @@ describe("HistorialPacienteView", () => {
         buscar();
 
         const botonLlamadas = await screen.findByRole("button", { name: "Ver llamadas (2)" });
+        expect(botonLlamadas).toHaveAttribute("aria-expanded", "false");
+        const idLlamadas = botonLlamadas.getAttribute("aria-controls");
+        expect(idLlamadas).toBeTruthy();
+
         fireEvent.click(botonLlamadas);
 
-        expect(screen.getByText("Comunicador: Comunicador Uno")).toBeInTheDocument();
-        expect(screen.getByText("Observacion de la llamada 1")).toBeInTheDocument();
-        expect(screen.getByText("Comunicador: Comunicador Dos")).toBeInTheDocument();
-        expect(screen.getByText("Observacion de la llamada 2")).toBeInTheDocument();
+        expect(botonLlamadas).toHaveAttribute("aria-expanded", "true");
+        const listaLlamadas = document.getElementById(idLlamadas as string) as HTMLElement;
+        expect(listaLlamadas).not.toBeNull();
+
+        expect(within(listaLlamadas).getByText("Cita Aceptada")).toBeInTheDocument();
+        expect(within(listaLlamadas).getByText("No contesta")).toBeInTheDocument();
+        expect(within(listaLlamadas).getByText("Comunicador: Comunicador Uno")).toBeInTheDocument();
+        expect(within(listaLlamadas).getByText("Observacion de la llamada 1")).toBeInTheDocument();
+        expect(within(listaLlamadas).getByText("Comunicador: Comunicador Dos")).toBeInTheDocument();
+        expect(within(listaLlamadas).getByText("Observacion de la llamada 2")).toBeInTheDocument();
     });
 
     it("muestra el vacio solo con exito", async () => {

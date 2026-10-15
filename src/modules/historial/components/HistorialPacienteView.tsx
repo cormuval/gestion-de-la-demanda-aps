@@ -40,8 +40,10 @@ function resumenSolicitudes(solicitudes: SolicitudHistorial[]): string {
 }
 
 function CitaItem({ cita, expandida, onToggle }: { cita: CitaHistorial; expandida: boolean; onToggle: () => void }) {
+    const idLlamadas = `llamadas-${cita.id_cita}`;
+
     return (
-        <div className="rounded-md border bg-muted/20 p-3">
+        <div className="rounded-md border bg-muted/20 p-3" data-testid={`cita-${cita.id_cita}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <p className="text-sm font-medium"><CodigoId id={cita.id_cita} /></p>
@@ -56,12 +58,19 @@ function CitaItem({ cita, expandida, onToggle }: { cita: CitaHistorial; expandid
                 </div>
             </div>
             <div className="mt-2">
-                <Button type="button" variant="outline" size="sm" onClick={onToggle}>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onToggle}
+                    aria-expanded={expandida}
+                    aria-controls={idLlamadas}
+                >
                     {`Ver llamadas (${cita.llamadas.length})`}
                 </Button>
             </div>
             {expandida && (
-                <div className="mt-2 flex flex-col gap-2">
+                <div id={idLlamadas} className="mt-2 flex flex-col gap-2">
                     {cita.llamadas.length === 0 ? (
                         <p className="text-sm text-muted-foreground">Sin llamadas registradas.</p>
                     ) : (
@@ -91,12 +100,14 @@ function SolicitudItem({
     citasExpandidas: Set<string>;
     onToggleCita: (idCita: string) => void;
 }) {
+    const idTitulo = `solicitud-titulo-${solicitud.id_solicitud}`;
+
     return (
-        <Card>
+        <Card data-testid={`solicitud-${solicitud.id_solicitud}`} aria-labelledby={idTitulo}>
             <CardHeader>
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                        <CardTitle className="text-base"><CodigoId id={solicitud.id_solicitud} /></CardTitle>
+                        <CardTitle id={idTitulo} className="text-base"><CodigoId id={solicitud.id_solicitud} /></CardTitle>
                         <CardDescription>
                             {[solicitud.tipo || "—", solicitud.motivo || "—"].join(" · ")}
                         </CardDescription>
