@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock("@/modules/solicitudes/actions/getRevisionCatalogos.action", () => ({
     getRevisionCatalogos: vi.fn()
 }));
@@ -10,6 +10,7 @@ vi.mock("@/modules/solicitudes/actions/gestionarSolicitud.action", () => ({ gest
 vi.mock("@/modules/solicitudes/actions/guardarUsuario.action", () => ({ actualizarUsuario: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/getOtrasSolicitudes.action", () => ({ getOtrasSolicitudes: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/editarCita.action", () => ({ editarCita: vi.fn() }));
+vi.mock("@/modules/solicitudes/actions/verificarSolicitudPendiente.action", () => ({ verificarSolicitudPendiente: vi.fn() }));
 vi.mock("@/shared/components/ui/dropdown-menu", () => ({
     DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -28,6 +29,9 @@ import { getRevisionCatalogos } from "@/modules/solicitudes/actions/getRevisionC
 import { getSolicitudes } from "@/modules/solicitudes/actions/getSolicitudes.action";
 import { gestionarSolicitud } from "@/modules/solicitudes/actions/gestionarSolicitud.action";
 import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
+import { verificarSolicitudPendiente } from "@/modules/solicitudes/actions/verificarSolicitudPendiente.action";
+// types
+import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestion";
 // components
 import { RevisarSolicitudesView } from "./RevisarSolicitudesView";
 // lib
@@ -83,6 +87,7 @@ beforeEach(() => {
             ]
         }
     } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+    vi.mocked(verificarSolicitudPendiente).mockResolvedValue({ ok: true, data: { pendiente: true, estado: "En Curso" } });
 });
 
 async function openGestionMenu() {
@@ -482,5 +487,190 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         expect(selects[1]).toHaveValue("Media");
         expect(toast.success).not.toHaveBeenCalled();
         expect(getSolicitudes).toHaveBeenCalledTimes(1);
+    });
+});
+
+type RespuestaSolicitudes = Awaited<ReturnType<typeof getSolicitudes>>;
+
+function respuestaCon(idSolicitud: string): RespuestaSolicitudes {
+    return {
+        ok: true,
+        data: { solicitudes: [{ ...solicitudBase, id_solicitud: idSolicitud }], total: 1, page: 1, pageSize: 100, totalPages: 1 }
+    } as RespuestaSolicitudes;
+}
+
+describe("RevisarSolicitudesView verificacion antes de gestionar", () => {
+    it("no abre Realizar si otro funcionario ya la gestiono", async () => {
+        vi.mocked(verificarSolicitudPendiente).mockResolvedValueOnce({ ok: true, data: { pendiente: false, estado: "Rechazado" } });
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+
+        await waitFor(() => expect(toast.warning).toHaveBeenCalledWith("Otro funcionario ya gestionó esta solicitud (Rechazado)"));
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
+        expect(verificarSolicitudPendiente).toHaveBeenCalledWith("SOL-1");
+        expect(screen.queryByRole("dialog", { name: "Realizar solicitud" })).not.toBeInTheDocument();
+    });
+
+    it("avisa cuando ya no esta disponible en el centro", async () => {
+        vi.mocked(verificarSolicitudPendiente).mockResolvedValueOnce({ ok: true, data: { pendiente: false, estado: null } });
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+
+        await waitFor(() => expect(toast.warning).toHaveBeenCalledWith("Esta solicitud ya no está disponible en tu centro"));
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
+        expect(screen.queryByRole("dialog", { name: "Rechazar solicitud" })).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ["ok: false", () => vi.mocked(verificarSolicitudPendiente).mockResolvedValueOnce({ ok: false, error: "x" })],
+        ["un rechazo", () => vi.mocked(verificarSolicitudPendiente).mockRejectedValueOnce(new Error("red"))]
+    ])("abre igual si la verificacion falla (%s)", async (_caso, preparar) => {
+        preparar();
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+
+        expect(await screen.findByRole("dialog", { name: "Realizar solicitud" })).toBeInTheDocument();
+        expect(toast.warning).not.toHaveBeenCalled();
+        expect(toast.error).not.toHaveBeenCalled();
+        expect(getSolicitudes).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignora una segunda pulsacion mientras verifica", async () => {
+        let responder: (valor: Awaited<ReturnType<typeof verificarSolicitudPendiente>>) => void = () => undefined;
+        vi.mocked(verificarSolicitudPendiente).mockReturnValueOnce(new Promise((resolve) => (responder = resolve)));
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        const rechazar = screen.getByRole("menuitem", { name: /Rechazar solicitud/i });
+        fireEvent.click(rechazar);
+        fireEvent.click(rechazar);
+
+        expect(verificarSolicitudPendiente).toHaveBeenCalledTimes(1);
+
+        await act(async () => responder({ ok: true, data: { pendiente: true, estado: "En Curso" } }));
+        expect(await screen.findAllByRole("dialog", { name: "Rechazar solicitud" })).toHaveLength(1);
+        expect(verificarSolicitudPendiente).toHaveBeenCalledTimes(1);
+    });
+
+    it("cierra el modal y recarga si al guardar otro se adelanto", async () => {
+        vi.mocked(gestionarSolicitud).mockResolvedValueOnce({ ok: false, error: ERROR_SOLICITUD_NO_PENDIENTE });
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+        const modal = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        const razon = within(modal).getByRole("combobox") as HTMLSelectElement;
+        fireEvent.change(razon, { target: { value: "Otra" } });
+        fireEvent.submit(within(modal).getByRole("button", { name: "Confirmar rechazo" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith(ERROR_SOLICITUD_NO_PENDIENTE));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Rechazar solicitud" })).not.toBeInTheDocument());
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
+        expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it("cierra Realizar y recarga si al guardar otro se adelanto", async () => {
+        vi.mocked(gestionarSolicitud).mockResolvedValueOnce({ ok: false, error: ERROR_SOLICITUD_NO_PENDIENTE });
+        const fecha = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+        const modal = await screen.findByRole("dialog", { name: "Realizar solicitud" });
+        const selects = within(modal).getAllByRole("combobox") as HTMLSelectElement[];
+        fireEvent.change(modal.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: fecha } });
+        fireEvent.change(selects[1], { target: { value: "Media" } });
+        fireEvent.submit(within(modal).getByRole("button", { name: "Guardar gestion" }).closest("form")!);
+
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Realizar solicitud" })).not.toBeInTheDocument());
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
+    });
+});
+
+describe("RevisarSolicitudesView refresco automatico", () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    async function avanzar(ms: number) {
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(ms);
+        });
+    }
+
+    it("refresca en silencio cada 60 s sin mostrar errores", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+
+        abrirFiltros();
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.change(within(panel).getAllByRole("textbox")[0], { target: { value: "12345678-5" } });
+        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
+        const filtrosAplicados = vi.mocked(getSolicitudes).mock.calls[1][0];
+        expect(filtrosAplicados).toMatchObject({ rut: "12345678-5" });
+
+        vi.mocked(getSolicitudes).mockClear();
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({ ok: false, error: "Fallo silencioso" });
+        await avanzar(60_000);
+
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(1));
+        expect(getSolicitudes).toHaveBeenCalledWith(filtrosAplicados);
+        expect(toast.error).not.toHaveBeenCalled();
+        expect(screen.getByText("SOL-1")).toBeInTheDocument();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+        expect(screen.getByText("SOL-1").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
+
+        vi.mocked(getSolicitudes).mockResolvedValueOnce(respuestaCon("SOL-9"));
+        await avanzar(60_000);
+        expect(await screen.findByText("SOL-9")).toBeInTheDocument();
+    });
+
+    it("no refresca con un modal abierto", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+        await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+
+        await avanzar(60_000 * 3);
+        expect(getSolicitudes).toHaveBeenCalledTimes(1);
+    });
+
+    it("descarta una recarga silenciosa obsoleta", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+
+        let responderSilenciosa: (valor: RespuestaSolicitudes) => void = () => undefined;
+        vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responderSilenciosa = resolve)));
+        await avanzar(60_000);
+        expect(getSolicitudes).toHaveBeenCalledTimes(2);
+
+        vi.mocked(getSolicitudes).mockResolvedValueOnce(respuestaCon("SOL-NUEVA"));
+        abrirFiltros();
+        fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
+        expect(await screen.findByText("SOL-NUEVA")).toBeInTheDocument();
+
+        await act(async () => responderSilenciosa(respuestaCon("SOL-VIEJA")));
+        expect(screen.queryByText("SOL-VIEJA")).not.toBeInTheDocument();
+        expect(screen.getByText("SOL-NUEVA")).toBeInTheDocument();
     });
 });
