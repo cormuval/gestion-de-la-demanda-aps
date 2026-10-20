@@ -112,10 +112,10 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
             .filter((solicitud): solicitud is NonNullable<typeof solicitud> => Boolean(solicitud));
         const total = Number(countRows[0]?.total ?? 0);
 
-        const detailsEdad = `Filtros: ${JSON.stringify(filtros)}`;
-        if (debeRegistrarBusqueda(`${user.rut}|LISTADO_SOLICITUDES|${detailsEdad}`)) {
+        const details = `Filtros: ${JSON.stringify(filtros)}`;
+        if (debeRegistrarBusqueda(`${user.rut}|${centroId}|LISTADO_SOLICITUDES|${details}`)) {
             await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
-                details: detailsEdad
+                details
             });
         }
 
@@ -135,7 +135,7 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
     ]);
 
     const details = `Filtros: ${JSON.stringify(filtros)}`;
-    if (debeRegistrarBusqueda(`${user.rut}|LISTADO_SOLICITUDES|${details}`)) {
+    if (debeRegistrarBusqueda(`${user.rut}|${centroId}|LISTADO_SOLICITUDES|${details}`)) {
         await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
             details
         });

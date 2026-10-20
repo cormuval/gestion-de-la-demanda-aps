@@ -56,6 +56,14 @@ describe("getCitasPendientes", () => {
         expect(AuditLogger.logDataAccess).toHaveBeenCalledTimes(1);
     });
 
+    it("registra la auditoria de nuevo si la misma busqueda se hace en otro centro", async () => {
+        await getCitasPendientes({ pagina: 1 });
+        vi.mocked(requirePermiso).mockResolvedValue({ ...funcionario, centro_id: "655" } as never);
+        await getCitasPendientes({ pagina: 1 });
+
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledTimes(2);
+    });
+
     it("registra la auditoria de nuevo si los filtros cambian", async () => {
         await getCitasPendientes({ pagina: 1 });
         await getCitasPendientes({ pagina: 1, rut: "11.111.111-1" });

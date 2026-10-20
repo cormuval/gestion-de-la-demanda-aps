@@ -118,7 +118,7 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
     const total = Number(totalRows[0]?.total ?? 0);
 
     const details = `Filtros: ${JSON.stringify(f)}`;
-    if (debeRegistrarBusqueda(`${user.rut}|COLA_COMUNICADOR|${details}`)) {
+    if (debeRegistrarBusqueda(`${user.rut}|${user.centro_id}|COLA_COMUNICADOR|${details}`)) {
         await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "COLA_COMUNICADOR", {
             details
         });

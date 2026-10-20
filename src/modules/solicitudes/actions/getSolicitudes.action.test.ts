@@ -142,6 +142,14 @@ describe("getSolicitudes", () => {
         expect(AuditLogger.logDataAccess).toHaveBeenCalledTimes(1);
     });
 
+    it("registra la auditoria de nuevo si la misma busqueda se hace en otro centro", async () => {
+        await getSolicitudes({ rut: "12.345.678-5" });
+        (requirePermiso as any).mockResolvedValue({ rut: "22.222.222-2", email: "o@demo.local", nombre: "Orientador", centro_id: "655", centro_nombre: "CESFAM 2", rol: { id: 2, nombre: "Orientador" } });
+        await getSolicitudes({ rut: "12.345.678-5" });
+
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledTimes(2);
+    });
+
     it("registra la auditoria de nuevo si los filtros cambian", async () => {
         await getSolicitudes({ rut: "12.345.678-5" });
         await getSolicitudes({ rut: "98.765.432-1" });
