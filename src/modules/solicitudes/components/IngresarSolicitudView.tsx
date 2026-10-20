@@ -310,9 +310,9 @@ export function IngresarSolicitudView() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-normal">Ingresar solicitud</h1>
+                <h1 className="text-2xl font-semibold tracking-normal">Crear solicitud</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Primero busca el RUT para informar solicitudes en curso y citas pendientes antes del registro.
+                    Ingresa el RUT del paciente para verificar sus solicitudes en curso y citas pendientes antes de registrar una nueva.
                 </p>
             </div>
 

@@ -25,7 +25,7 @@ describe("navegacion", () => {
 
     it("navVisible filtra por los permisos entregados", () => {
         const visibles = navVisible(["comunicador.ver"] as Permiso[]);
-        expect(visibles.map((item) => item.href)).toEqual(["/comunicador"]);
+        expect(visibles.map((item) => item.href)).toEqual(["/contactar"]);
     });
 
     it("muestra SOME cuando el rol tiene permiso some.ver", () => {
@@ -39,7 +39,7 @@ describe("navegacion", () => {
     });
 
     it("tituloPagina usa el nombre del menu", () => {
-        expect(tituloPagina("/comunicador")).toBe("Llamadas");
+        expect(tituloPagina("/contactar")).toBe("Contactar pacientes");
         expect(() => tituloPagina("/no-existe")).toThrow();
     });
 
