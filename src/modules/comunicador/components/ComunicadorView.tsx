@@ -20,6 +20,7 @@ import { HistorialLlamadasModal } from "@/modules/comunicador/components/Histori
 import { OtrasCitasPacienteModal } from "@/modules/comunicador/components/OtrasCitasPacienteModal";
 import { UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
 import { TablaSkeleton } from "@/shared/components/feedback/tabla-skeleton";
+import { PanelFiltros, contarFiltrosActivos } from "@/shared/components/filtros/panel-filtros";
 // hooks
 import { useUsuarioEdit } from "@/modules/comunicador/hooks/useUsuarioEdit";
 
@@ -104,27 +105,26 @@ export function ComunicadorView() {
             </div>
 
             <Card>
-                <CardHeader>
-                    <CardTitle>Filtros</CardTitle>
-                    <CardDescription>Filtra por temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <CitasFiltros
-                        opciones={opciones}
-                        valor={filtrosUI}
-                        onCambio={setFiltrosUI}
+                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                    <div className="space-y-1.5">
+                        <CardTitle>Citaciones pendientes</CardTitle>
+                        <CardDescription>Ordenadas por estado (No contesta 2 → 1 → aviso → sin llamadas) y prioridad.</CardDescription>
+                    </div>
+                    <PanelFiltros
+                        descripcion="Filtra por temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector."
+                        activos={contarFiltrosActivos(aplicados, [], FILTROS_INICIALES)}
                         onAplicar={() => {
                             setPagina(1);
                             setAplicados(filtrosUI);
                         }}
-                    />
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Citaciones pendientes</CardTitle>
-                    <CardDescription>Ordenadas por estado (No contesta 2 → 1 → aviso → sin llamadas) y prioridad.</CardDescription>
+                        onLimpiar={() => {
+                            setFiltrosUI(FILTROS_INICIALES);
+                            setPagina(1);
+                            setAplicados(FILTROS_INICIALES);
+                        }}
+                    >
+                        <CitasFiltros opciones={opciones} valor={filtrosUI} onCambio={setFiltrosUI} />
+                    </PanelFiltros>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {errorCola && (

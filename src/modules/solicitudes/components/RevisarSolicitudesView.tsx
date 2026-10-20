@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, Check, CircleAlert, Copy, Edit, Eye, Filter, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CalendarPlus, Check, CircleAlert, Copy, Edit, Eye, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getRevisionCatalogos } from "@/modules/solicitudes/actions/getRevisionCatalogos.action";
@@ -39,6 +39,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { TablaSkeleton } from "@/shared/components/feedback/tabla-skeleton";
+import { PanelFiltros, contarFiltrosActivos } from "@/shared/components/filtros/panel-filtros";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
@@ -69,6 +70,7 @@ type CitaForm = {
 };
 
 const COLUMNAS_TABLA = 7;
+const FILTROS_VACIOS: SolicitudFiltros = { rut: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", page: 1 };
 const emptyResponse: SolicitudesResponse = { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 };
 const emptyCatalogos: RevisionCatalogos = { tiposSolicitud: [], motivos: [], profesionales: [], prestaciones: [], centros: [] };
 const emptyUsuarioForm: UsuarioEditFormState = {
@@ -177,7 +179,9 @@ function toUsuarioForm(usuario: SolicitudRow["usuario"]): UsuarioEditFormState {
 }
 
 export function RevisarSolicitudesView() {
-    const [filters, setFilters] = useState<SolicitudFiltros>({ rut: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", page: 1 });
+    const [filters, setFilters] = useState<SolicitudFiltros>(FILTROS_VACIOS);
+    // Filtros con los que se cargo la tabla (los de `filters` pueden estar editandose en el panel).
+    const [filtrosAplicados, setFiltrosAplicados] = useState<SolicitudFiltros>(FILTROS_VACIOS);
     const [data, setData] = useState<SolicitudesResponse>(emptyResponse);
     const [catalogos, setCatalogos] = useState<RevisionCatalogos>(emptyCatalogos);
     const [catalogosError, setCatalogosError] = useState<string | null>(null);
@@ -237,7 +241,7 @@ export function RevisarSolicitudesView() {
         }
     }
 
-    async function loadSolicitudes(nextFilters: SolicitudFiltros = filters) {
+    async function loadSolicitudes(nextFilters: SolicitudFiltros = filtrosAplicados) {
         setLoading(true);
         setSolicitudesError(null);
         try {
@@ -249,6 +253,7 @@ export function RevisarSolicitudesView() {
             }
             setData(result.data);
             setFilters((current) => ({ ...current, page: result.data.page }));
+            setFiltrosAplicados({ ...nextFilters, page: result.data.page });
         } catch {
             const mensaje = "Error al consultar solicitudes";
             setSolicitudesError(mensaje);
@@ -262,9 +267,13 @@ export function RevisarSolicitudesView() {
         setFilters((current) => ({ ...current, [field]: value, page: 1, ...(field === "tipoSolicitudId" ? { motivoId: "" } : {}) }));
     }
 
-    function handleSubmit(event: React.FormEvent) {
-        event.preventDefault();
+    function aplicarFiltros() {
         loadSolicitudes({ ...filters, page: 1 });
+    }
+
+    function limpiarFiltros() {
+        setFilters(FILTROS_VACIOS);
+        loadSolicitudes(FILTROS_VACIOS);
     }
 
     function openRechazo(solicitud: SolicitudRow) {
@@ -344,7 +353,7 @@ export function RevisarSolicitudesView() {
             }
             toast.success("Usuario actualizado");
             setEditingUsuario(null);
-            await loadSolicitudes(filters);
+            await loadSolicitudes(filtrosAplicados);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch {
             toast.error("Error al guardar usuario");
@@ -371,7 +380,7 @@ export function RevisarSolicitudesView() {
             toast.success("Solicitud rechazada");
             setRechazoSolicitud(null);
             setResumenGestion(result.data.resumen);
-            await loadSolicitudes(filters);
+            await loadSolicitudes(filtrosAplicados);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch {
             toast.error("Error al rechazar solicitud");
@@ -411,7 +420,7 @@ export function RevisarSolicitudesView() {
             toast.success("Solicitud realizada");
             setRealizarSolicitud(null);
             setResumenGestion(result.data.resumen);
-            await loadSolicitudes(filters);
+            await loadSolicitudes(filtrosAplicados);
             if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
         } catch {
             toast.error("Error al realizar solicitud");
@@ -445,7 +454,7 @@ export function RevisarSolicitudesView() {
 
     function cambiarPagina(page: number) {
         const nextPage = Math.min(Math.max(1, page), data.totalPages);
-        loadSolicitudes({ ...filters, page: nextPage });
+        loadSolicitudes({ ...filtrosAplicados, page: nextPage });
     }
 
     return (
@@ -456,77 +465,72 @@ export function RevisarSolicitudesView() {
             </div>
 
             <Card>
-                <CardHeader>
-                    <CardTitle>Filtros</CardTitle>
-                    <CardDescription>Consulta por RUT, tipo, motivo y fecha de ingreso.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {catalogosError && (
-                        <div className="mb-4">
-                            <ErrorCarga
-                                titulo="No fue posible cargar los catalogos"
-                                mensaje={`${catalogosError}. Puedes seguir filtrando por RUT, sector, edad y fecha.`}
-                                etiquetaReintento="Reintentar catalogos"
-                                reintentando={loadingCatalogos}
-                                onRetry={loadCatalogos}
-                            />
+                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                    <div className="space-y-1.5">
+                        <CardTitle>Solicitudes pendientes</CardTitle>
+                        <CardDescription>
+                            {data.total} solicitudes encontradas. Pagina {data.page} de {data.totalPages}.
+                        </CardDescription>
+                    </div>
+                    <PanelFiltros
+                        descripcion="Consulta por RUT, tipo, motivo, sector, edad y fecha de ingreso."
+                        activos={contarFiltrosActivos(filtrosAplicados, ["page"])}
+                        aplicando={loading}
+                        onAplicar={aplicarFiltros}
+                        onLimpiar={limpiarFiltros}
+                        aviso={
+                            catalogosError ? (
+                                <ErrorCarga
+                                    titulo="No fue posible cargar los catalogos"
+                                    mensaje={`${catalogosError}. Puedes seguir filtrando por RUT, sector, edad y fecha.`}
+                                    etiquetaReintento="Reintentar catalogos"
+                                    reintentando={loadingCatalogos}
+                                    onRetry={loadCatalogos}
+                                />
+                            ) : null
+                        }
+                    >
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="RUT">
+                                <Input value={filters.rut ?? ""} onChange={(e) => updateFilter("rut", e.target.value)} />
+                            </Field>
+                            <Field label="Tipo solicitud">
+                                <Select value={filters.tipoSolicitudId ?? ""} disabled={loadingCatalogos} onChange={(e) => updateFilter("tipoSolicitudId", e.target.value)}>
+                                    <option value="">Todos</option>
+                                    {catalogos.tiposSolicitud.map((tipo) => (
+                                        <option key={tipo.id_tipo_solicitud} value={tipo.id_tipo_solicitud}>
+                                            {tipo.nombre_tipo_solicitud}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </Field>
+                            <Field label="Motivo">
+                                <Select value={filters.motivoId ?? ""} disabled={loadingCatalogos} onChange={(e) => updateFilter("motivoId", e.target.value)}>
+                                    <option value="">Todos</option>
+                                    {motivosFiltrados.map((motivo) => (
+                                        <option key={motivo.id_motivo} value={motivo.id_motivo}>
+                                            {motivo.nombre_motivo}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </Field>
+                            <Field label="Sector">
+                                <Input value={filters.sector ?? ""} onChange={(e) => updateFilter("sector", e.target.value)} />
+                            </Field>
+                            <Field label="Edad desde">
+                                <Input type="number" min={0} value={filters.edadDesde ?? ""} onChange={(e) => updateFilter("edadDesde", e.target.value)} />
+                            </Field>
+                            <Field label="Edad hasta">
+                                <Input type="number" min={0} value={filters.edadHasta ?? ""} onChange={(e) => updateFilter("edadHasta", e.target.value)} />
+                            </Field>
+                            <Field label="Desde">
+                                <Input type="date" value={filters.fechaDesde ?? ""} onChange={(e) => updateFilter("fechaDesde", e.target.value)} />
+                            </Field>
+                            <Field label="Hasta">
+                                <Input type="date" value={filters.fechaHasta ?? ""} onChange={(e) => updateFilter("fechaHasta", e.target.value)} />
+                            </Field>
                         </div>
-                    )}
-                    <form className="grid gap-4 md:grid-cols-4 xl:grid-cols-8" onSubmit={handleSubmit}>
-                        <Field label="RUT">
-                            <Input value={filters.rut ?? ""} onChange={(e) => updateFilter("rut", e.target.value)} />
-                        </Field>
-                        <Field label="Tipo solicitud">
-                            <Select value={filters.tipoSolicitudId ?? ""} disabled={loadingCatalogos} onChange={(e) => updateFilter("tipoSolicitudId", e.target.value)}>
-                                <option value="">Todos</option>
-                                {catalogos.tiposSolicitud.map((tipo) => (
-                                    <option key={tipo.id_tipo_solicitud} value={tipo.id_tipo_solicitud}>
-                                        {tipo.nombre_tipo_solicitud}
-                                    </option>
-                                ))}
-                            </Select>
-                        </Field>
-                        <Field label="Motivo">
-                            <Select value={filters.motivoId ?? ""} disabled={loadingCatalogos} onChange={(e) => updateFilter("motivoId", e.target.value)}>
-                                <option value="">Todos</option>
-                                {motivosFiltrados.map((motivo) => (
-                                    <option key={motivo.id_motivo} value={motivo.id_motivo}>
-                                        {motivo.nombre_motivo}
-                                    </option>
-                                ))}
-                            </Select>
-                        </Field>
-                        <Field label="Sector">
-                            <Input value={filters.sector ?? ""} onChange={(e) => updateFilter("sector", e.target.value)} />
-                        </Field>
-                        <Field label="Edad desde">
-                            <Input type="number" min={0} value={filters.edadDesde ?? ""} onChange={(e) => updateFilter("edadDesde", e.target.value)} />
-                        </Field>
-                        <Field label="Edad hasta">
-                            <Input type="number" min={0} value={filters.edadHasta ?? ""} onChange={(e) => updateFilter("edadHasta", e.target.value)} />
-                        </Field>
-                        <Field label="Desde">
-                            <Input type="date" value={filters.fechaDesde ?? ""} onChange={(e) => updateFilter("fechaDesde", e.target.value)} />
-                        </Field>
-                        <Field label="Hasta">
-                            <Input type="date" value={filters.fechaHasta ?? ""} onChange={(e) => updateFilter("fechaHasta", e.target.value)} />
-                        </Field>
-                        <div className="md:col-span-4 xl:col-span-8">
-                            <Button disabled={loading}>
-                                <Filter size={16} />
-                                {loading ? "Consultando..." : "Aplicar filtros"}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Solicitudes pendientes</CardTitle>
-                    <CardDescription>
-                        {data.total} solicitudes encontradas. Pagina {data.page} de {data.totalPages}.
-                    </CardDescription>
+                    </PanelFiltros>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {solicitudesError && (
@@ -535,7 +539,7 @@ export function RevisarSolicitudesView() {
                             mensaje={solicitudesError}
                             etiquetaReintento="Reintentar solicitudes"
                             reintentando={loading}
-                            onRetry={() => loadSolicitudes(filters)}
+                            onRetry={() => loadSolicitudes(filtrosAplicados)}
                         />
                     )}
                     {sinDatosAun && loading ? (

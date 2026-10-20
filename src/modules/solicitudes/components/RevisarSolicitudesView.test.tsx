@@ -90,6 +90,11 @@ async function openGestionMenu() {
     await screen.findByRole("menuitem", { name: /Realizar solicitud/i });
 }
 
+
+function abrirFiltros() {
+    fireEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
+}
+
 describe("RevisarSolicitudesView contexto de citas", () => {
     it("abre otras solicitudes y citas con acciones condicionales", async () => {
         render(<RevisarSolicitudesView />);
@@ -349,9 +354,11 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         render(<RevisarSolicitudesView />);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro sin catalogos"));
-        expect(screen.getByRole("alert")).toHaveTextContent("No fue posible cargar los catalogos");
-        expect(screen.getByRole("alert")).toHaveTextContent("Centro sin catalogos");
         expect(await screen.findByText("SOL-1")).toBeInTheDocument();
+        abrirFiltros();
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        expect(within(panel).getByRole("alert")).toHaveTextContent("No fue posible cargar los catalogos");
+        expect(within(panel).getByRole("alert")).toHaveTextContent("Centro sin catalogos");
 
         fireEvent.click(screen.getByRole("button", { name: "Reintentar catalogos" }));
 
@@ -365,8 +372,10 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         render(<RevisarSolicitudesView />);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro sin catalogos"));
-        expect(screen.getByRole("button", { name: /Aplicar filtros/i })).toBeInTheDocument();
-        expect(screen.getByText("RUT")).toBeInTheDocument();
+        abrirFiltros();
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        expect(within(panel).getByRole("button", { name: /Aplicar filtros/i })).toBeEnabled();
+        expect(within(panel).getByText("RUT")).toBeInTheDocument();
     });
 
     it("mantiene la tabla visible mientras se recarga el listado", async () => {
@@ -375,10 +384,10 @@ describe("RevisarSolicitudesView errores de acciones", () => {
 
         let responder: (valor: Awaited<ReturnType<typeof getSolicitudes>>) => void = () => undefined;
         vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responder = resolve)));
-        fireEvent.click(screen.getByRole("button", { name: /Aplicar filtros/i }));
+        abrirFiltros();
+        fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
 
-        await screen.findByRole("button", { name: /Consultando/i });
-        expect(screen.getByText("SOL-1")).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByText("SOL-1").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true"));
         expect(screen.queryByText("Consultando solicitudes...")).not.toBeInTheDocument();
 
         responder({ ok: true, data: { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 } });
@@ -390,7 +399,8 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         await screen.findByText("SOL-1");
 
         vi.mocked(getSolicitudes).mockResolvedValueOnce({ ok: false, error: "No se pudo listar" });
-        fireEvent.click(screen.getByRole("button", { name: /Aplicar filtros/i }));
+        abrirFiltros();
+        fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
 
         await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No se pudo listar"));
         expect(screen.getByText("SOL-1")).toBeInTheDocument();
