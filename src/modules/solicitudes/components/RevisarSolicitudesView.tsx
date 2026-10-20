@@ -9,6 +9,7 @@ import { getSolicitudes } from "@/modules/solicitudes/actions/getSolicitudes.act
 import { gestionarSolicitud } from "@/modules/solicitudes/actions/gestionarSolicitud.action";
 import { getOtrasSolicitudes } from "@/modules/solicitudes/actions/getOtrasSolicitudes.action";
 import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
+import { verificarSolicitudPendiente } from "@/modules/solicitudes/actions/verificarSolicitudPendiente.action";
 // schemas
 import {
     ACCION_ESPERA_VALIDACION,
@@ -45,10 +46,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shar
 import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
 import { ListaPendientes } from "@/modules/solicitudes/components/PendientesCascada";
 import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
+// hooks
+import { useRefrescoAutomatico } from "@/shared/hooks/useRefrescoAutomatico";
 // lib
 import { cn } from "@/shared/lib/utils";
 // types
 import type { SolicitudFiltros } from "@/modules/solicitudes/schemas/solicitud.schema";
+import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestion";
 import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
 
 type SolicitudesResponse = Extract<Awaited<ReturnType<typeof getSolicitudes>>, { ok: true }>["data"];
@@ -206,6 +210,17 @@ export function RevisarSolicitudesView() {
     const [savingUsuario, setSavingUsuario] = useState(false);
     const [resumenGestion, setResumenGestion] = useState<GestionResumen | null>(null);
     const accionOrigenRef = useRef<HTMLElement | null>(null);
+    // Solo la ultima peticion del listado puede actualizar la tabla.
+    const ultimaPeticionRef = useRef(0);
+    // Cargas normales (no silenciosas) sin responder: mientras haya alguna, no se recarga en silencio.
+    const cargasNormalesEnCursoRef = useRef(0);
+    // Espejo de `filtrosAplicados` para recargas disparadas desde closures antiguos (intervalo, verificacion).
+    const filtrosAplicadosRef = useRef<SolicitudFiltros>(FILTROS_VACIOS);
+    // Solicitud cuya vigencia se esta verificando; ignora pulsaciones repetidas.
+    const verificandoRef = useRef<string | null>(null);
+    const hayModalAbierto = Boolean(rechazoSolicitud || realizarSolicitud || otrasSolicitudBase || citaEditando || editingUsuario);
+
+    useRefrescoAutomatico(() => loadSolicitudes(filtrosAplicadosRef.current, { silencioso: true }), { pausado: hayModalAbierto });
 
     useEffect(() => {
         loadCatalogos();
@@ -241,25 +256,43 @@ export function RevisarSolicitudesView() {
         }
     }
 
-    async function loadSolicitudes(nextFilters: SolicitudFiltros = filtrosAplicados) {
-        setLoading(true);
-        setSolicitudesError(null);
+    async function loadSolicitudes(nextFilters: SolicitudFiltros = filtrosAplicados, opciones?: { silencioso?: boolean }) {
+        // La recarga silenciosa (refresco automatico) no muestra carga ni errores: si falla, conserva la tabla.
+        const silencioso = opciones?.silencioso ?? false;
+        // Una recarga silenciosa nunca reemplaza a una carga normal pendiente: esa ya trae datos frescos.
+        if (silencioso && cargasNormalesEnCursoRef.current > 0) return;
+        const peticion = ++ultimaPeticionRef.current;
+        const esVigente = () => peticion === ultimaPeticionRef.current;
+        if (!silencioso) {
+            cargasNormalesEnCursoRef.current += 1;
+            setLoading(true);
+            setSolicitudesError(null);
+        }
         try {
             const result = await getSolicitudes(nextFilters);
+            if (!esVigente()) return;
             if (!result.ok) {
-                setSolicitudesError(result.error);
-                toast.error(result.error);
+                if (!silencioso) {
+                    setSolicitudesError(result.error);
+                    toast.error(result.error);
+                }
                 return;
             }
             setData(result.data);
             setFilters((current) => ({ ...current, page: result.data.page }));
-            setFiltrosAplicados({ ...nextFilters, page: result.data.page });
+            filtrosAplicadosRef.current = { ...nextFilters, page: result.data.page };
+            setFiltrosAplicados(filtrosAplicadosRef.current);
         } catch {
+            if (!esVigente() || silencioso) return;
             const mensaje = "Error al consultar solicitudes";
             setSolicitudesError(mensaje);
             toast.error(mensaje);
         } finally {
-            setLoading(false);
+            if (!silencioso) {
+                cargasNormalesEnCursoRef.current -= 1;
+                // La carga se apaga cuando no queda ninguna carga normal pendiente, sea o no la vigente.
+                if (cargasNormalesEnCursoRef.current === 0) setLoading(false);
+            }
         }
     }
 
@@ -276,17 +309,50 @@ export function RevisarSolicitudesView() {
         loadSolicitudes(FILTROS_VACIOS);
     }
 
+    // Antes de gestionar confirma que la solicitud sigue pendiente: otro funcionario pudo haberla
+    // gestionado mientras la tabla estaba abierta. Si la verificacion falla, se abre igual.
+    async function verificarAntesDeAbrir(solicitud: SolicitudRow, abrir: () => void) {
+        if (verificandoRef.current) return;
+        verificandoRef.current = solicitud.id_solicitud;
+        const origen = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        let pendiente = true;
+        let estado: string | null = null;
+        try {
+            const result = await verificarSolicitudPendiente(solicitud.id_solicitud);
+            if (result.ok) {
+                pendiente = result.data.pendiente;
+                estado = result.data.estado;
+            }
+        } catch {
+            // Sin verificacion se abre igual; el guardado vuelve a validar.
+        } finally {
+            verificandoRef.current = null;
+        }
+        if (!pendiente) {
+            toast.warning(estado ? `Otro funcionario ya gestionó esta solicitud (${estado})` : "Esta solicitud ya no está disponible en tu centro");
+            // Si hay una carga normal pendiente (p. ej. filtros nuevos), esa ya traera la tabla al dia.
+            if (cargasNormalesEnCursoRef.current === 0) void loadSolicitudes(filtrosAplicadosRef.current);
+            // Si la accion se abrio desde el modal de Otras solicitudes, ese contexto tambien queda obsoleto.
+            if (otrasSolicitudBase) void cargarContexto(otrasSolicitudBase);
+            return;
+        }
+        accionOrigenRef.current = origen;
+        abrir();
+    }
+
     function openRechazo(solicitud: SolicitudRow) {
-        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        setRechazoSolicitud(solicitud);
-        setRazonRechazo("");
-        setObservacionRechazo("");
+        void verificarAntesDeAbrir(solicitud, () => {
+            setRechazoSolicitud(solicitud);
+            setRazonRechazo("");
+            setObservacionRechazo("");
+        });
     }
 
     function openRealizar(solicitud: SolicitudRow) {
-        accionOrigenRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        setRealizarSolicitud(solicitud);
-        setCitas([emptyCita()]);
+        void verificarAntesDeAbrir(solicitud, () => {
+            setRealizarSolicitud(solicitud);
+            setCitas([emptyCita()]);
+        });
     }
 
     async function cargarContexto(solicitud: SolicitudRow) {
@@ -375,6 +441,12 @@ export function RevisarSolicitudesView() {
             });
             if (!result.ok) {
                 toast.error(result.error);
+                if (result.error === ERROR_SOLICITUD_NO_PENDIENTE) {
+                    // Otro funcionario se adelanto: el formulario ya no aplica.
+                    setRechazoSolicitud(null);
+                    await loadSolicitudes(filtrosAplicados);
+                    if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
+                }
                 return;
             }
             toast.success("Solicitud rechazada");
@@ -415,6 +487,12 @@ export function RevisarSolicitudesView() {
             });
             if (!result.ok) {
                 toast.error(result.error);
+                if (result.error === ERROR_SOLICITUD_NO_PENDIENTE) {
+                    // Otro funcionario se adelanto: el formulario ya no aplica.
+                    setRealizarSolicitud(null);
+                    await loadSolicitudes(filtrosAplicados);
+                    if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
+                }
                 return;
             }
             toast.success("Solicitud realizada");

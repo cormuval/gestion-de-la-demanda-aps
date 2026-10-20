@@ -58,6 +58,29 @@ describe("RegistrarLlamadaModal", () => {
         expect(onRegistrado).not.toHaveBeenCalled();
     });
 
+    it("avisa al padre si la cita ya estaba cerrada", async () => {
+        vi.mocked(registrarLlamada).mockResolvedValue({ ok: false, error: "La cita ya está cerrada" } as never);
+        const onCitaCerrada = vi.fn();
+
+        render(<RegistrarLlamadaModal cita={cita} telefonos="9 1234 5678" correo="paciente@example.com" onCerrar={vi.fn()} onRegistrado={vi.fn()} onCitaCerrada={onCitaCerrada} />);
+        fireEvent.submit(screen.getByRole("button", { name: "Registrar" }).closest("form")!);
+
+        await waitFor(() => expect(onCitaCerrada).toHaveBeenCalledTimes(1));
+        expect(toast.error).toHaveBeenCalledWith("La cita ya está cerrada");
+    });
+
+    it("no avisa al padre ante otro error de negocio", async () => {
+        vi.mocked(registrarLlamada).mockResolvedValue({ ok: false, error: "Debe indicar la hora agendada" } as never);
+        const onCitaCerrada = vi.fn();
+
+        render(<RegistrarLlamadaModal cita={cita} telefonos="9 1234 5678" correo="paciente@example.com" onCerrar={vi.fn()} onRegistrado={vi.fn()} onCitaCerrada={onCitaCerrada} />);
+        fireEvent.submit(screen.getByRole("button", { name: "Registrar" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Debe indicar la hora agendada"));
+        expect(onCitaCerrada).not.toHaveBeenCalled();
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
     it("usa data del resultado exitoso al notificar el registro", async () => {
         vi.mocked(registrarLlamada).mockResolvedValue({
             ok: true,

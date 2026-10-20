@@ -11,7 +11,7 @@ import { registrarLlamadaSchema, RegistrarLlamadaInput } from "../schemas/llamad
 // utils
 import { computeEstadoCita } from "../utils/estadoCita";
 // types
-import { ESTADO_CITA, ESTADOS_PENDIENTES, RESPUESTA_LLAMADA, RespuestaLlamada, esEstadoTerminal } from "../types/comunicador";
+import { ERROR_CITA_CERRADA, ESTADO_CITA, ESTADOS_PENDIENTES, RESPUESTA_LLAMADA, RespuestaLlamada, esEstadoTerminal } from "../types/comunicador";
 
 export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<ResultadoAccion<{ estadoCita: string; solicitudRealizada: boolean }>> {
     const user = await requirePermiso("comunicador.llamar");
@@ -28,7 +28,7 @@ export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<Re
         if (cita.centro_id !== user.centro_id) return { ok: false, error: "La cita no pertenece a tu centro" } satisfies ResultadoAccion<never>;
 
         const estadoActual = cita.estado_cita ?? ESTADO_CITA.SIN_LLAMADAS;
-        if (esEstadoTerminal(estadoActual)) return { ok: false, error: "La cita ya está cerrada" } satisfies ResultadoAccion<never>;
+        if (esEstadoTerminal(estadoActual)) return { ok: false, error: ERROR_CITA_CERRADA } satisfies ResultadoAccion<never>;
 
         const intentosNoContestaPrevios = await tx.llamada.count({
             where: { cita_id: cita.id_cita, respuesta_usuario: RESPUESTA_LLAMADA.NO_CONTESTA }
