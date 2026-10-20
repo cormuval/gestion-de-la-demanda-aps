@@ -205,6 +205,55 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         expect(modalContexto).toBeInTheDocument();
         expect(botonRechazar).toHaveFocus();
     });
+
+    it("refresca el contexto de Otras solicitudes si la verificacion encuentra un conflicto", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValue({
+            ok: true,
+            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación" }], citas: [] }
+        } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        vi.mocked(verificarSolicitudPendiente).mockResolvedValueOnce({ ok: true, data: { pendiente: false, estado: "Rechazado" } });
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(1));
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Realizar" }));
+
+        await waitFor(() => expect(toast.warning).toHaveBeenCalledWith("Otro funcionario ya gestionó esta solicitud (Rechazado)"));
+        expect(screen.queryByRole("dialog", { name: "Realizar solicitud" })).not.toBeInTheDocument();
+        expect(modalContexto).toBeInTheDocument();
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+    });
+
+    it("refresca el contexto de Otras solicitudes si el guardado encuentra un conflicto", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValue({
+            ok: true,
+            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación" }], citas: [] }
+        } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        vi.mocked(gestionarSolicitud).mockResolvedValueOnce({ ok: false, error: ERROR_SOLICITUD_NO_PENDIENTE });
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(1));
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Rechazar" }));
+
+        const modalRechazo = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        const razon = within(modalRechazo).getByRole("combobox") as HTMLSelectElement;
+        fireEvent.change(razon, { target: { value: "Otra" } });
+        fireEvent.submit(within(modalRechazo).getByRole("button", { name: "Confirmar rechazo" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith(ERROR_SOLICITUD_NO_PENDIENTE));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Rechazar solicitud" })).not.toBeInTheDocument());
+        expect(modalContexto).toBeInTheDocument();
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+    });
 });
 
 describe("RevisarSolicitudesView tabla compacta", () => {
@@ -560,6 +609,11 @@ describe("RevisarSolicitudesView verificacion antes de gestionar", () => {
         await act(async () => responder({ ok: true, data: { pendiente: true, estado: "En Curso" } }));
         expect(await screen.findAllByRole("dialog", { name: "Rechazar solicitud" })).toHaveLength(1);
         expect(verificarSolicitudPendiente).toHaveBeenCalledTimes(1);
+
+        // Tras la verificacion se libera el bloqueo.
+        fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+        fireEvent.click(rechazar);
+        await waitFor(() => expect(verificarSolicitudPendiente).toHaveBeenCalledTimes(2));
     });
 
     it("recarga con los filtros aplicados al responder la verificacion", async () => {
@@ -629,6 +683,7 @@ describe("RevisarSolicitudesView refresco automatico", () => {
 
     afterEach(() => {
         vi.useRealTimers();
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
     });
 
     async function avanzar(ms: number) {
@@ -666,12 +721,16 @@ describe("RevisarSolicitudesView refresco automatico", () => {
         expect(await screen.findByText("SOL-9")).toBeInTheDocument();
     });
 
-    it("no refresca con un modal abierto", async () => {
+    it.each([
+        ["rechazo", "Rechazar solicitud", "Rechazar solicitud"],
+        ["otras solicitudes", "Otras solicitudes y citas", "Solicitudes y citas en curso"],
+        ["editar usuario", "Editar usuario", "Editar usuario"]
+    ])("no refresca con el modal de %s abierto", async (_nombre, menuItem, dialogo) => {
         render(<RevisarSolicitudesView />);
         await screen.findByText("SOL-1");
         await openGestionMenu();
-        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
-        await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        fireEvent.click(screen.getByRole("menuitem", { name: menuItem }));
+        await screen.findByRole("dialog", { name: dialogo });
 
         await avanzar(60_000 * 3);
         expect(getSolicitudes).toHaveBeenCalledTimes(1);

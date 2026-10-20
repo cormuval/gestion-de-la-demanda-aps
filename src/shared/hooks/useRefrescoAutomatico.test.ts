@@ -84,6 +84,27 @@ describe("useRefrescoAutomatico", () => {
         expect(recargarNueva).toHaveBeenCalledTimes(1);
     });
 
+    it("reinicia el intervalo al refrescar por volver a estar visible", () => {
+        const recargar = vi.fn();
+        definirVisibilidad("hidden");
+        renderHook(() => useRefrescoAutomatico(recargar));
+
+        vi.advanceTimersByTime(50_000);
+        expect(recargar).toHaveBeenCalledTimes(0);
+
+        definirVisibilidad("visible");
+        dispararCambioVisibilidad();
+        expect(recargar).toHaveBeenCalledTimes(1);
+
+        // El intervalo original (a los 60s desde el montaje, es decir a los 10s de esto) no debe
+        // disparar una recarga extra: se reinicio junto con el refresco de la visibilidad.
+        vi.advanceTimersByTime(30_000);
+        expect(recargar).toHaveBeenCalledTimes(1);
+
+        vi.advanceTimersByTime(30_000);
+        expect(recargar).toHaveBeenCalledTimes(2);
+    });
+
     it("limpia el intervalo y el listener al desmontar", () => {
         const recargar = vi.fn();
         const { unmount } = renderHook(() => useRefrescoAutomatico(recargar));

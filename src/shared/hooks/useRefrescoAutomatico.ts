@@ -1,10 +1,10 @@
-import * as React from "react"
+import { useEffect, useRef } from "react";
 
-const INTERVALO_MS_POR_DEFECTO = 60_000
+const INTERVALO_MS_POR_DEFECTO = 60_000;
 
 interface OpcionesRefrescoAutomatico {
-    intervaloMs?: number
-    pausado?: boolean
+    intervaloMs?: number;
+    pausado?: boolean;
 }
 
 /**
@@ -13,48 +13,62 @@ interface OpcionesRefrescoAutomatico {
  * unico refresco (sin ráfaga acumulada por los intervalos perdidos).
  */
 export function useRefrescoAutomatico(recargar: () => void, opciones?: OpcionesRefrescoAutomatico): void {
-    const intervaloMs = opciones?.intervaloMs ?? INTERVALO_MS_POR_DEFECTO
-    const pausado = opciones?.pausado ?? false
+    const intervaloMs = opciones?.intervaloMs ?? INTERVALO_MS_POR_DEFECTO;
+    const pausado = opciones?.pausado ?? false;
 
-    const recargarRef = React.useRef(recargar)
-    const pausadoRef = React.useRef(pausado)
+    const recargarRef = useRef(recargar);
+    const pausadoRef = useRef(pausado);
 
-    React.useEffect(() => {
-        recargarRef.current = recargar
-    }, [recargar])
+    useEffect(() => {
+        recargarRef.current = recargar;
+    }, [recargar]);
 
-    React.useEffect(() => {
-        pausadoRef.current = pausado
-    }, [pausado])
+    useEffect(() => {
+        pausadoRef.current = pausado;
+    }, [pausado]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         // Evita el refresco acumulado: solo recarga una vez al volver a estar
         // visible, sin importar cuantos intervalos pasaron oculta. Si ya
         // esta visible al montar, no hay refresco pendiente por hacer.
-        let hayRefrescoPendienteAlVolver = document.visibilityState !== "visible"
+        // Si la pestana sigue pausada al volver a estar visible, el refresco
+        // pendiente se descarta: no queda guardado para cuando se despause,
+        // ya que el intervalo normal se encarga de retomar mas adelante.
+        let hayRefrescoPendienteAlVolver = document.visibilityState !== "visible";
+        let intervalId: ReturnType<typeof setInterval>;
 
-        const intervalId = setInterval(() => {
+        const tick = () => {
             if (!pausadoRef.current && document.visibilityState === "visible") {
-                recargarRef.current()
+                recargarRef.current();
             }
-        }, intervaloMs)
+        };
+
+        const iniciarIntervalo = () => {
+            intervalId = setInterval(tick, intervaloMs);
+        };
+
+        iniciarIntervalo();
 
         const onVisibilityChange = () => {
             if (document.visibilityState === "visible") {
                 if (hayRefrescoPendienteAlVolver && !pausadoRef.current) {
-                    recargarRef.current()
+                    recargarRef.current();
+                    // Reinicia el intervalo para que el tick que ya estaba en curso no
+                    // dispare una segunda recarga a los pocos instantes de esta.
+                    clearInterval(intervalId);
+                    iniciarIntervalo();
                 }
-                hayRefrescoPendienteAlVolver = false
+                hayRefrescoPendienteAlVolver = false;
             } else {
-                hayRefrescoPendienteAlVolver = true
+                hayRefrescoPendienteAlVolver = true;
             }
-        }
+        };
 
-        document.addEventListener("visibilitychange", onVisibilityChange)
+        document.addEventListener("visibilitychange", onVisibilityChange);
 
         return () => {
-            clearInterval(intervalId)
-            document.removeEventListener("visibilitychange", onVisibilityChange)
-        }
-    }, [intervaloMs])
+            clearInterval(intervalId);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+        };
+    }, [intervaloMs]);
 }

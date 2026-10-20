@@ -96,6 +96,9 @@ export function ComunicadorView() {
                 return;
             }
             setData(r.data);
+            // Una recarga silenciosa exitosa usa la misma consulta que fallo antes: si tuvo exito, el
+            // reintento funciono y ya no corresponde avisar que se muestra la ultima cola cargada.
+            if (silencioso) setErrorCola(null);
         } catch {
             if (!esVigente() || silencioso) return;
             const mensaje = "Error al cargar la cola";

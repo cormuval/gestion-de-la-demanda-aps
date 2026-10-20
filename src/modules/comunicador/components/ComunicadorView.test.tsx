@@ -297,6 +297,7 @@ describe("ComunicadorView refresco automatico", () => {
 
     afterEach(() => {
         vi.useRealTimers();
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
     });
 
     async function avanzar(ms: number) {
@@ -359,6 +360,23 @@ describe("ComunicadorView refresco automatico", () => {
         expect(screen.getByRole("alert")).toHaveTextContent("No fue posible cargar la pagina");
         expect(screen.getByRole("button", { name: "Reintentar" })).toBeEnabled();
         expect(toast.error).toHaveBeenCalledTimes(1);
+    });
+
+    it("limpia la alerta cuando el refresco silencioso tiene exito tras una falla", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaCon("CITA-1"))
+            .mockResolvedValueOnce({ ok: false, error: "No fue posible cargar la pagina" } as never);
+
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-1");
+        fireEvent.click(screen.getByRole("button", { name: "Pagina 2" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("Se muestra la última cola cargada");
+
+        vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaCon("CITA-9", 7));
+        await avanzar(60_000);
+
+        await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+        expect(await screen.findByText("CITA-9")).toBeInTheDocument();
     });
 
     it.each([

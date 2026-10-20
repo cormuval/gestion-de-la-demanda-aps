@@ -332,6 +332,8 @@ export function RevisarSolicitudesView() {
             toast.warning(estado ? `Otro funcionario ya gestionó esta solicitud (${estado})` : "Esta solicitud ya no está disponible en tu centro");
             // Si hay una carga normal pendiente (p. ej. filtros nuevos), esa ya traera la tabla al dia.
             if (cargasNormalesEnCursoRef.current === 0) void loadSolicitudes(filtrosAplicadosRef.current);
+            // Si la accion se abrio desde el modal de Otras solicitudes, ese contexto tambien queda obsoleto.
+            if (otrasSolicitudBase) void cargarContexto(otrasSolicitudBase);
             return;
         }
         accionOrigenRef.current = origen;
@@ -443,6 +445,7 @@ export function RevisarSolicitudesView() {
                     // Otro funcionario se adelanto: el formulario ya no aplica.
                     setRechazoSolicitud(null);
                     await loadSolicitudes(filtrosAplicados);
+                    if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
                 }
                 return;
             }
@@ -488,6 +491,7 @@ export function RevisarSolicitudesView() {
                     // Otro funcionario se adelanto: el formulario ya no aplica.
                     setRealizarSolicitud(null);
                     await loadSolicitudes(filtrosAplicados);
+                    if (otrasSolicitudBase) await cargarContexto(otrasSolicitudBase);
                 }
                 return;
             }
