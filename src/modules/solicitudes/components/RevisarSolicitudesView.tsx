@@ -38,6 +38,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { TablaSkeleton } from "@/shared/components/feedback/tabla-skeleton";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
@@ -67,6 +68,7 @@ type CitaForm = {
     priorizacion_clinica: PrioridadClinica | "";
 };
 
+const COLUMNAS_TABLA = 7;
 const emptyResponse: SolicitudesResponse = { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 };
 const emptyCatalogos: RevisionCatalogos = { tiposSolicitud: [], motivos: [], profesionales: [], prestaciones: [], centros: [] };
 const emptyUsuarioForm: UsuarioEditFormState = {
@@ -537,7 +539,7 @@ export function RevisarSolicitudesView() {
                         />
                     )}
                     {sinDatosAun && loading ? (
-                        <p className="text-sm text-muted-foreground">Consultando solicitudes...</p>
+                        <TablaSkeleton columnas={COLUMNAS_TABLA} etiqueta="Consultando solicitudes..." />
                     ) : sinDatosAun && solicitudesError ? null : (
                         <>
                             <TooltipProvider>

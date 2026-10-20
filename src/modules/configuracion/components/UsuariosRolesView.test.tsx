@@ -40,6 +40,7 @@ const dataBase = {
     tiposSolicitud: [tipoSolicitud],
     motivos: [motivo],
     roles: [rolAdmin, rolSome],
+    rolesCatalogo: [rolAdmin, rolSome],
     profesionales: [profesional],
     prestaciones: [prestacion],
     funcionarios: [
@@ -164,20 +165,53 @@ describe("UsuariosRolesView: pestanas segun permisos", () => {
         expect(within(filaAdmin).getByRole("button", { name: "Desactivar" })).toBeDisabled();
     });
 
-    it("deshabilita funcionarios cuando la busqueda no trae permisos de su rol", async () => {
+    it("permite editar funcionarios aunque la busqueda no traiga su rol en la pestana Roles", async () => {
+        // La busqueda filtra la pestana Roles, pero los privilegios se deciden con el catalogo completo.
         (getMantenedoresConfig as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
             ...dataBase,
-            roles: [rolSome],
-            funcionarios: [dataBase.funcionarios[0]]
+            roles: [],
+            funcionarios: [dataBase.funcionarios[1]]
         });
 
-        render(<UsuariosRolesView permisos={["config.ver", "config.funcionarios"]} actor={{ rut: "22.222.222-2", rolId: 2 }} />);
+        render(<UsuariosRolesView permisos={["config.ver", "config.funcionarios", "config.roles"]} actor={{ rut: "11.111.111-1", rolId: 1 }} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Funcionarios" }));
 
-        await screen.findByText("Administrador");
-        const filaAdmin = screen.getByText("admin@demo.local").closest("tr") as HTMLElement;
+        await screen.findByText("some@demo.local");
+        const filaSome = screen.getByText("some@demo.local").closest("tr") as HTMLElement;
 
-        expect(within(filaAdmin).getByRole("button", { name: "Editar" })).toBeDisabled();
-        expect(within(filaAdmin).getByRole("button", { name: "Desactivar" })).toBeDisabled();
+        expect(within(filaSome).getByRole("button", { name: "Editar" })).toBeEnabled();
+        expect(within(filaSome).getByRole("button", { name: "Desactivar" })).toBeEnabled();
+    });
+
+    it("el programa asociado es opcional salvo para el rol Jefe de Programa", async () => {
+        const rolJefe = { id_rol: 10, nombre_rol: "Jefe de Programa", estado: "Activo", permisos: [{ permiso: "config.ver" }] };
+        (getMantenedoresConfig as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ...dataBase, rolesCatalogo: [rolAdmin, rolSome, rolJefe] });
+
+        render(<UsuariosRolesView permisos={["config.ver", "config.funcionarios", "config.roles"]} actor={{ rut: "11.111.111-1", rolId: 1 }} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Funcionarios" }));
+        await screen.findByText("some@demo.local");
+        fireEvent.click(screen.getByRole("button", { name: /Agregar/ }));
+
+        fireEvent.change(screen.getByLabelText("Rol"), { target: { value: "2" } });
+        expect(screen.getByLabelText("Programa asociado")).not.toBeRequired();
+        expect(screen.getByLabelText("Programa asociado")).toHaveValue("");
+
+        fireEvent.change(screen.getByLabelText("Rol"), { target: { value: "10" } });
+        expect(screen.getByLabelText("Programa asociado")).toBeRequired();
+    });
+
+    it("al editar un funcionario sin programa no le asigna uno", async () => {
+        (getMantenedoresConfig as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+            ...dataBase,
+            funcionarios: [{ ...dataBase.funcionarios[1], rut: "33.333.333-3", email: "sin@demo.local", programa_asociado: null }]
+        });
+
+        render(<UsuariosRolesView permisos={["config.ver", "config.funcionarios", "config.roles"]} actor={{ rut: "11.111.111-1", rolId: 1 }} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Funcionarios" }));
+        await screen.findByText("sin@demo.local");
+        fireEvent.click(within(screen.getByText("sin@demo.local").closest("tr") as HTMLElement).getByRole("button", { name: "Editar" }));
+
+        expect(screen.getByLabelText("Programa asociado")).toHaveValue("");
     });
 
     it("en edicion propia deshabilita rol, centro y estado con aviso", async () => {

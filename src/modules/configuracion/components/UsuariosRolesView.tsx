@@ -14,7 +14,7 @@ import {
     guardarTipoSolicitud
 } from "@/modules/configuracion/actions/mantenedores.action";
 // schemas
-import { CENTRO_COLUMNAS, PROGRAMAS_FUNCIONARIO } from "@/modules/configuracion/schemas/mantenedores.schema";
+import { CENTRO_COLUMNAS, PROGRAMAS_FUNCIONARIO, requiereProgramaAsociado } from "@/modules/configuracion/schemas/mantenedores.schema";
 // components
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -89,7 +89,7 @@ const tabs: { key: TabKey; label: string; permiso: Permiso }[] = [
     { key: "funcionarios", label: "Funcionarios", permiso: "config.funcionarios" }
 ];
 
-const emptyData: ConfigData = { tiposSolicitud: [], motivos: [], roles: [], profesionales: [], prestaciones: [], funcionarios: [], centros: [] };
+const emptyData: ConfigData = { tiposSolicitud: [], motivos: [], roles: [], rolesCatalogo: [], profesionales: [], prestaciones: [], funcionarios: [], centros: [] };
 
 function emptyCentros(): CentroState {
     return CENTRO_COLUMNAS.reduce((acc, columna) => {
@@ -112,8 +112,9 @@ function labelCentro(columna: string): string {
         .join(" ");
 }
 
-function asProgramaFuncionario(value: string | null): (typeof PROGRAMAS_FUNCIONARIO)[number] {
-    return PROGRAMAS_FUNCIONARIO.find((programa) => programa === value) ?? PROGRAMAS_FUNCIONARIO[0];
+// Sin programa (o uno desconocido) queda vacio: antes se asignaba el primero en silencio al editar.
+function asProgramaFuncionario(value: string | null): (typeof PROGRAMAS_FUNCIONARIO)[number] | "" {
+    return PROGRAMAS_FUNCIONARIO.find((programa) => programa === value) ?? "";
 }
 
 export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; actor: ActorConfig | null }) {
@@ -141,12 +142,13 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
 
     const tiposActivos = useMemo(() => data.tiposSolicitud.filter((tipo) => tipo.estado === "1"), [data.tiposSolicitud]);
     const profesionalesActivos = useMemo(() => data.profesionales.filter((profesional) => profesional.estado === "Activo"), [data.profesionales]);
-    const rolesActivos = useMemo(() => data.roles.filter((rol) => rol.estado === "Activo"), [data.roles]);
+    const rolesActivos = useMemo(() => data.rolesCatalogo.filter((rol) => rol.estado === "Activo"), [data.rolesCatalogo]);
     const editandoRolReservado = Boolean(rolForm.id_rol && esNombreReservado(rolPorId(rolForm.id_rol)?.nombre_rol ?? ""));
     const editandoFuncionarioPropio = Boolean(editingFuncionarioRut && actor?.rut === editingFuncionarioRut);
+    const programaRequerido = requiereProgramaAsociado(rolPorId(Number(funcionarioForm.rol_id))?.nombre_rol);
 
     function rolPorId(rolId: number) {
-        return data.roles.find((rol) => rol.id_rol === rolId);
+        return data.rolesCatalogo.find((rol) => rol.id_rol === rolId);
     }
 
     function permisosRol(rolId: number): Permiso[] | null {
@@ -191,7 +193,7 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                 nombre: "",
                 rol_id: rolesActivos[0]?.id_rol ? String(rolesActivos[0].id_rol) : "",
                 centro_id: data.centros[0]?.id_centro ?? "",
-                programa_asociado: PROGRAMAS_FUNCIONARIO[0],
+                programa_asociado: "",
                 estado: "Activo"
             });
         }
@@ -369,7 +371,6 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
         event.preventDefault();
         setSaving(true);
         try {
-            if (!funcionarioForm.programa_asociado) throw new Error("Programa asociado requerido");
             const result = await guardarFuncionario({
                 ...funcionarioForm,
                 rol_id: Number(funcionarioForm.rol_id),
@@ -776,7 +777,7 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                     <Field label="Rol">
                         <Select aria-label="Rol" value={funcionarioForm.rol_id} onChange={(event) => setFuncionarioForm((current) => ({ ...current, rol_id: event.target.value }))} required disabled={editandoFuncionarioPropio}>
                             <option value="">Seleccionar</option>
-                            {data.roles.map((rol) => {
+                            {data.rolesCatalogo.map((rol) => {
                                 const superior = esRolSuperior(rol.id_rol);
                                 return (
                                     <option key={rol.id_rol} value={rol.id_rol} disabled={superior}>
@@ -797,9 +798,14 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                             ))}
                         </Select>
                     </Field>
-                    <Field label="Programa asociado">
-                        <Select value={funcionarioForm.programa_asociado} onChange={(event) => setFuncionarioForm((current) => ({ ...current, programa_asociado: event.target.value as (typeof PROGRAMAS_FUNCIONARIO)[number] }))} required>
-                            <option value="">Seleccionar</option>
+                    <Field label={programaRequerido ? "Programa asociado" : "Programa asociado (opcional)"}>
+                        <Select
+                            aria-label="Programa asociado"
+                            value={funcionarioForm.programa_asociado}
+                            onChange={(event) => setFuncionarioForm((current) => ({ ...current, programa_asociado: event.target.value as (typeof PROGRAMAS_FUNCIONARIO)[number] | "" }))}
+                            required={programaRequerido}
+                        >
+                            <option value="">{programaRequerido ? "Seleccionar" : "Sin programa"}</option>
                             {PROGRAMAS_FUNCIONARIO.map((programa) => (
                                 <option key={programa} value={programa}>
                                     {programa}

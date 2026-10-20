@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "./Providers";
 
 export const metadata: Metadata = {
-    title: "Gestion de la Demanda",
+    title: { template: "%s · Gestión de la Demanda", default: "Gestión de la Demanda" },
     description: "Sistema de gestion de solicitudes, citas y llamados"
 };
 

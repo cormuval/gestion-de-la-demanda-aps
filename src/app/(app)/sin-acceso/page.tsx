@@ -1,5 +1,9 @@
 // Pagina de destino cuando requirePermisoPagina rechaza el acceso.
 // No lleva guard: es accesible para cualquier sesion valida (ver paginas-protegidas.test.ts).
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Sin acceso" };
+
 export default function SinAccesoPage() {
     return (
         <div className="mx-auto max-w-lg rounded-lg border bg-card p-8 text-center">

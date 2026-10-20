@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 // components
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+
+export const metadata: Metadata = { title: "Error de acceso" };
 
 export default function AuthErrorPage() {
     return (

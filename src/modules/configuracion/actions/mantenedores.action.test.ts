@@ -242,6 +242,40 @@ describe("mantenedores configuracion", () => {
         });
     });
 
+    it("crea funcionario sin programa asociado y lo guarda como null", async () => {
+        (prisma.funcionario.create as any).mockResolvedValue({ rut: "12345678-5" });
+
+        const result = await guardarFuncionario({
+            rut: "12.345.678-5",
+            email: "funcionario@demo.local",
+            nombre: "Funcionario",
+            rol_id: 3,
+            centro_id: "CENTRO-01",
+            programa_asociado: "",
+            estado: "Activo"
+        });
+
+        expect(result.ok).toBe(true);
+        expect((prisma.funcionario.create as any).mock.calls[0][0].data.programa_asociado).toBeNull();
+    });
+
+    it("exige programa asociado solo al rol Jefe de Programa", async () => {
+        (prisma.role.findUnique as any).mockResolvedValue({ id_rol: 10, nombre_rol: "Jefe de Programa", estado: "Activo", permisos: [{ permiso: "config.ver" }] });
+
+        const result = await guardarFuncionario({
+            rut: "12.345.678-5",
+            email: "jefe@demo.local",
+            nombre: "Jefe",
+            rol_id: 10,
+            centro_id: "CENTRO-01",
+            programa_asociado: "",
+            estado: "Activo"
+        });
+
+        expect(result).toEqual({ ok: false, error: "Programa asociado requerido para el rol Jefe de Programa" });
+        expect(prisma.funcionario.create).not.toHaveBeenCalled();
+    });
+
     it("edita funcionario existente sin cambiar rut", async () => {
         (prisma.funcionario.findUnique as any).mockResolvedValue({
             rut: "12345678-5",

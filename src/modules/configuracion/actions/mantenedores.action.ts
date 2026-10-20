@@ -8,6 +8,7 @@ import {
     permisosRolSchema,
     prestacionConfigSchema,
     profesionalConfigSchema,
+    requiereProgramaAsociado,
     rolConfigSchema,
     tipoSolicitudConfigSchema,
     type FuncionarioConfigInput,
@@ -87,7 +88,7 @@ export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) 
     await requirePermiso("config.ver");
     const search = searchContains(filtros.search);
 
-    const [tiposSolicitud, motivos, roles, profesionales, prestaciones, funcionarios, centros] = await Promise.all([
+    const [tiposSolicitud, motivos, roles, rolesCatalogo, profesionales, prestaciones, funcionarios, centros] = await Promise.all([
         prisma.tipoSolicitud.findMany({
             where: search ? { nombre_tipo_solicitud: search } : undefined,
             orderBy: { nombre_tipo_solicitud: "asc" },
@@ -104,6 +105,12 @@ export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) 
             include: { permisos: { select: { permiso: true } } },
             orderBy: { nombre_rol: "asc" },
             take: 300
+        }),
+        // Catalogo completo de roles, sin la busqueda: decide privilegios y opciones del formulario
+        // de funcionarios. Filtrarlo por la busqueda dejaba filas sin rol conocido (bloqueadas).
+        prisma.role.findMany({
+            include: { permisos: { select: { permiso: true } } },
+            orderBy: { nombre_rol: "asc" }
         }),
         prisma.profesional.findMany({
             where: search ? { nombre: search } : undefined,
@@ -131,7 +138,7 @@ export async function getMantenedoresConfig(filtros: ConfiguracionFiltros = {}) 
         })
     ]);
 
-    return { tiposSolicitud, motivos, roles, profesionales, prestaciones, funcionarios, centros };
+    return { tiposSolicitud, motivos, roles, rolesCatalogo, profesionales, prestaciones, funcionarios, centros };
 }
 
 export async function guardarTipoSolicitud(input: TipoSolicitudConfigInput): Promise<ResultadoAccion<TipoSolicitud>> {
@@ -328,6 +335,9 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
     const emailDuplicado = await prisma.funcionario.findFirst({ where: { email: data.email, NOT: { rut: { in: rutsIdentidad } } }, select: { rut: true } });
 
     if (!rolDestino) return { ok: false, error: "Rol no existe" };
+    if (requiereProgramaAsociado(rolDestino.nombre_rol) && !data.programa_asociado) {
+        return { ok: false, error: "Programa asociado requerido para el rol Jefe de Programa" };
+    }
     if (!centro) return { ok: false, error: "Centro no existe" };
     if (emailDuplicado) return { ok: false, error: "Ya existe un funcionario con ese email" };
 
@@ -373,7 +383,7 @@ export async function guardarFuncionario(input: FuncionarioConfigInput): Promise
         nombre: data.nombre,
         rol_id: data.rol_id,
         centro_id: data.centro_id,
-        programa_asociado: data.programa_asociado,
+        programa_asociado: data.programa_asociado || null,
         estado: data.estado
     };
 
