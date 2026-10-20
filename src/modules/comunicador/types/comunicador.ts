@@ -51,6 +51,8 @@ export type Temporalidad = (typeof TEMPORALIDAD)[keyof typeof TEMPORALIDAD];
 
 export const TEMPORALIDADES = Object.values(TEMPORALIDAD);
 
+export const ERROR_CITA_CERRADA = "La cita ya está cerrada";
+
 export function esEstadoPendiente(estado: string | null | undefined): boolean {
     return !!estado && (ESTADOS_PENDIENTES as readonly string[]).includes(estado);
 }
