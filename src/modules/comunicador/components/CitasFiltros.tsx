@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Filter } from "lucide-react";
 // components
-import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
@@ -39,11 +37,11 @@ export const FILTROS_INICIALES: CitasFiltrosUI = {
 
 type Opciones = Awaited<ReturnType<typeof getFiltrosComunicador>>;
 
-export function CitasFiltros({ opciones, valor, onCambio, onAplicar }: {
+// Campos de filtro de la cola; el formulario y el boton Aplicar los pone PanelFiltros.
+export function CitasFiltros({ opciones, valor, onCambio }: {
     opciones: Opciones;
     valor: CitasFiltrosUI;
     onCambio: (f: CitasFiltrosUI) => void;
-    onAplicar: () => void;
 }) {
     // Nombres de prestación únicos (deduplicados). Si hay profesional seleccionado, solo los suyos.
     const prestacionesUnicas = useMemo(() => {
@@ -60,13 +58,7 @@ export function CitasFiltros({ opciones, valor, onCambio, onAplicar }: {
     }
 
     return (
-        <form
-            className="grid gap-4 md:grid-cols-4"
-            onSubmit={(e) => {
-                e.preventDefault();
-                onAplicar();
-            }}
-        >
+        <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Temporalidad">
                 <Select value={valor.temporalidad} onChange={(e) => set("temporalidad", e.target.value)}>
                     {TEMPORALIDADES.map((t) => (
@@ -124,13 +116,7 @@ export function CitasFiltros({ opciones, valor, onCambio, onAplicar }: {
             <Field label="Sector">
                 <Input value={valor.sector} onChange={(e) => set("sector", e.target.value)} placeholder="Ej: Amarillo, 1, 2" />
             </Field>
-            <div className="md:col-span-4">
-                <Button type="submit">
-                    <Filter size={16} />
-                    Aplicar filtros
-                </Button>
-            </div>
-        </form>
+        </div>
     );
 }
 

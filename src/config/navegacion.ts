@@ -11,9 +11,9 @@ export interface NavItem {
 
 // Orden del menu lateral. Reemplaza a la tabla `menu`: la visibilidad la da el permiso.
 export const NAV: readonly NavItem[] = [
-    { label: "Solicitudes", href: "/solicitudes/ingresar", icon: ClipboardList, permiso: "solicitudes.ver" },
-    { label: "Revisar solicitudes", href: "/solicitudes/revisar", icon: ClipboardCheck, permiso: "solicitudes.gestionar" },
-    { label: "Llamadas", href: "/comunicador", icon: Megaphone, permiso: "comunicador.ver" },
+    { label: "Crear solicitud", href: "/solicitudes/crear", icon: ClipboardList, permiso: "solicitudes.ver" },
+    { label: "Gestionar solicitudes", href: "/solicitudes/gestionar", icon: ClipboardCheck, permiso: "solicitudes.gestionar" },
+    { label: "Contactar pacientes", href: "/contactar", icon: Megaphone, permiso: "comunicador.ver" },
     { label: "Historial del paciente", href: "/historial", icon: History, permiso: "historial.ver" },
     { label: "Dashboard", href: "/dashboard", icon: BarChart3, permiso: "dashboard.ver" },
     { label: "SOME", href: "/some", icon: ShieldCheck, permiso: "some.ver" },

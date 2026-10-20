@@ -7,7 +7,7 @@ import type { Permiso } from "@/config/permisos";
 import type { SessionUser } from "@/shared/types/session";
 
 vi.mock("next/navigation", () => ({
-    usePathname: () => "/comunicador",
+    usePathname: () => "/contactar",
     useRouter: () => ({ refresh: vi.fn() })
 }));
 vi.mock("next-auth/react", () => ({
@@ -49,9 +49,9 @@ describe("AppShell", () => {
     it("filtra el nav por permisos: solo comunicador.ver muestra Llamadas una vez", () => {
         renderShell(["comunicador.ver"]);
 
-        expect(screen.getAllByText("Llamadas")).toHaveLength(1);
-        expect(screen.queryAllByText("Solicitudes")).toHaveLength(0);
-        expect(screen.queryAllByText("Revisar solicitudes")).toHaveLength(0);
+        expect(screen.getAllByText("Contactar pacientes")).toHaveLength(1);
+        expect(screen.queryAllByText("Crear solicitud")).toHaveLength(0);
+        expect(screen.queryAllByText("Gestionar solicitudes")).toHaveLength(0);
         expect(screen.queryAllByText("Dashboard")).toHaveLength(0);
         expect(screen.queryAllByText("Configuracion")).toHaveLength(0);
     });
@@ -59,17 +59,17 @@ describe("AppShell", () => {
     it("muestra multiples links cuando hay multiples permisos sin duplicarlos en header movil", () => {
         renderShell(["solicitudes.ver", "solicitudes.gestionar"]);
 
-        expect(screen.getAllByText("Solicitudes")).toHaveLength(1);
-        expect(screen.getAllByText("Revisar solicitudes")).toHaveLength(1);
-        expect(screen.queryAllByText("Llamadas")).toHaveLength(0);
+        expect(screen.getAllByText("Crear solicitud")).toHaveLength(1);
+        expect(screen.getAllByText("Gestionar solicitudes")).toHaveLength(1);
+        expect(screen.queryAllByText("Contactar pacientes")).toHaveLength(0);
     });
 
     it("sin permisos no renderiza links, pero el shell sigue montando", () => {
         renderShell([]);
 
-        expect(screen.queryAllByText("Solicitudes")).toHaveLength(0);
-        expect(screen.queryAllByText("Revisar solicitudes")).toHaveLength(0);
-        expect(screen.queryAllByText("Llamadas")).toHaveLength(0);
+        expect(screen.queryAllByText("Crear solicitud")).toHaveLength(0);
+        expect(screen.queryAllByText("Gestionar solicitudes")).toHaveLength(0);
+        expect(screen.queryAllByText("Contactar pacientes")).toHaveLength(0);
         expect(screen.queryAllByText("Dashboard")).toHaveLength(0);
         expect(screen.queryAllByText("Configuracion")).toHaveLength(0);
 
@@ -111,7 +111,7 @@ describe("AppShell", () => {
     it("marca el item activo segun usePathname", () => {
         renderShell(["comunicador.ver"]);
 
-        const link = screen.getByRole("link", { name: /Llamadas/i });
+        const link = screen.getByRole("link", { name: /Contactar pacientes/i });
         expect(link.closest("[data-active]")).toHaveAttribute("data-active", "true");
     });
 

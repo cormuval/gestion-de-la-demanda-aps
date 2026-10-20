@@ -3,11 +3,11 @@
 // que rol tiene cada clave (tabla roles_permisos).
 export const PERMISOS = {
     "solicitudes.ver": { modulo: "Solicitudes", etiqueta: "Ver solicitudes" },
-    "solicitudes.crear": { modulo: "Solicitudes", etiqueta: "Ingresar solicitud" },
-    "solicitudes.gestionar": { modulo: "Solicitudes", etiqueta: "Revisar y gestionar" },
-    "comunicador.ver": { modulo: "Comunicador", etiqueta: "Ver citas y llamados" },
-    "comunicador.llamar": { modulo: "Comunicador", etiqueta: "Registrar llamada" },
-    "comunicador.paciente": { modulo: "Comunicador", etiqueta: "Editar datos del paciente" },
+    "solicitudes.crear": { modulo: "Solicitudes", etiqueta: "Crear solicitud" },
+    "solicitudes.gestionar": { modulo: "Solicitudes", etiqueta: "Gestionar solicitudes" },
+    "comunicador.ver": { modulo: "Contactar pacientes", etiqueta: "Ver citas y llamados" },
+    "comunicador.llamar": { modulo: "Contactar pacientes", etiqueta: "Registrar llamada" },
+    "comunicador.paciente": { modulo: "Contactar pacientes", etiqueta: "Editar datos del paciente" },
     "dashboard.ver": { modulo: "Dashboard", etiqueta: "Ver indicadores" },
     "some.ver": { modulo: "SOME", etiqueta: "Ver panel SOME" },
     "config.ver": { modulo: "Configuracion", etiqueta: "Ver configuracion" },
