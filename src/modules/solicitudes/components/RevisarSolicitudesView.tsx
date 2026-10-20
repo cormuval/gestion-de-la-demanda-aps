@@ -212,11 +212,15 @@ export function RevisarSolicitudesView() {
     const accionOrigenRef = useRef<HTMLElement | null>(null);
     // Solo la ultima peticion del listado puede actualizar la tabla.
     const ultimaPeticionRef = useRef(0);
+    // Cargas normales (no silenciosas) sin responder: mientras haya alguna, no se recarga en silencio.
+    const cargasNormalesEnCursoRef = useRef(0);
+    // Espejo de `filtrosAplicados` para recargas disparadas desde closures antiguos (intervalo, verificacion).
+    const filtrosAplicadosRef = useRef<SolicitudFiltros>(FILTROS_VACIOS);
     // Solicitud cuya vigencia se esta verificando; ignora pulsaciones repetidas.
     const verificandoRef = useRef<string | null>(null);
     const hayModalAbierto = Boolean(rechazoSolicitud || realizarSolicitud || otrasSolicitudBase || citaEditando || editingUsuario);
 
-    useRefrescoAutomatico(() => loadSolicitudes(filtrosAplicados, { silencioso: true }), { pausado: hayModalAbierto });
+    useRefrescoAutomatico(() => loadSolicitudes(filtrosAplicadosRef.current, { silencioso: true }), { pausado: hayModalAbierto });
 
     useEffect(() => {
         loadCatalogos();
@@ -255,9 +259,12 @@ export function RevisarSolicitudesView() {
     async function loadSolicitudes(nextFilters: SolicitudFiltros = filtrosAplicados, opciones?: { silencioso?: boolean }) {
         // La recarga silenciosa (refresco automatico) no muestra carga ni errores: si falla, conserva la tabla.
         const silencioso = opciones?.silencioso ?? false;
+        // Una recarga silenciosa nunca reemplaza a una carga normal pendiente: esa ya trae datos frescos.
+        if (silencioso && cargasNormalesEnCursoRef.current > 0) return;
         const peticion = ++ultimaPeticionRef.current;
         const esVigente = () => peticion === ultimaPeticionRef.current;
         if (!silencioso) {
+            cargasNormalesEnCursoRef.current += 1;
             setLoading(true);
             setSolicitudesError(null);
         }
@@ -273,15 +280,19 @@ export function RevisarSolicitudesView() {
             }
             setData(result.data);
             setFilters((current) => ({ ...current, page: result.data.page }));
-            setFiltrosAplicados({ ...nextFilters, page: result.data.page });
+            filtrosAplicadosRef.current = { ...nextFilters, page: result.data.page };
+            setFiltrosAplicados(filtrosAplicadosRef.current);
         } catch {
             if (!esVigente() || silencioso) return;
             const mensaje = "Error al consultar solicitudes";
             setSolicitudesError(mensaje);
             toast.error(mensaje);
         } finally {
-            // Una peticion obsoleta no apaga la carga de la vigente.
-            if (!silencioso && esVigente()) setLoading(false);
+            if (!silencioso) {
+                cargasNormalesEnCursoRef.current -= 1;
+                // La carga se apaga cuando no queda ninguna carga normal pendiente, sea o no la vigente.
+                if (cargasNormalesEnCursoRef.current === 0) setLoading(false);
+            }
         }
     }
 
@@ -319,7 +330,8 @@ export function RevisarSolicitudesView() {
         }
         if (!pendiente) {
             toast.warning(estado ? `Otro funcionario ya gestionó esta solicitud (${estado})` : "Esta solicitud ya no está disponible en tu centro");
-            void loadSolicitudes(filtrosAplicados);
+            // Si hay una carga normal pendiente (p. ej. filtros nuevos), esa ya traera la tabla al dia.
+            if (cargasNormalesEnCursoRef.current === 0) void loadSolicitudes(filtrosAplicadosRef.current);
             return;
         }
         accionOrigenRef.current = origen;

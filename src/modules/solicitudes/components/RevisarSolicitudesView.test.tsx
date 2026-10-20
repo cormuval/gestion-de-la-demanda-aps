@@ -562,6 +562,28 @@ describe("RevisarSolicitudesView verificacion antes de gestionar", () => {
         expect(verificarSolicitudPendiente).toHaveBeenCalledTimes(1);
     });
 
+    it("recarga con los filtros aplicados al responder la verificacion", async () => {
+        let responder: (valor: Awaited<ReturnType<typeof verificarSolicitudPendiente>>) => void = () => undefined;
+        vi.mocked(verificarSolicitudPendiente).mockReturnValueOnce(new Promise((resolve) => (responder = resolve)));
+
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+
+        abrirFiltros();
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.change(within(panel).getAllByRole("textbox")[0], { target: { value: "99999999-9" } });
+        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.getByText("SOL-1").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false"));
+
+        await act(async () => responder({ ok: true, data: { pendiente: false, estado: "Rechazado" } }));
+
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(3));
+        expect(vi.mocked(getSolicitudes).mock.calls[2][0]).toMatchObject({ rut: "99999999-9" });
+    });
+
     it("cierra el modal y recarga si al guardar otro se adelanto", async () => {
         vi.mocked(gestionarSolicitud).mockResolvedValueOnce({ ok: false, error: ERROR_SOLICITUD_NO_PENDIENTE });
 
@@ -654,6 +676,64 @@ describe("RevisarSolicitudesView refresco automatico", () => {
         await avanzar(60_000 * 3);
         expect(getSolicitudes).toHaveBeenCalledTimes(1);
     });
+
+    it("no adelanta una carga normal en curso con una recarga silenciosa", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+
+        let responderNormal: (valor: RespuestaSolicitudes) => void = () => undefined;
+        vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responderNormal = resolve)));
+        abrirFiltros();
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.change(within(panel).getAllByRole("textbox")[0], { target: { value: "99999999-9" } });
+        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
+
+        // La recarga silenciosa no parte mientras la carga normal esta pendiente.
+        await avanzar(60_000);
+        expect(getSolicitudes).toHaveBeenCalledTimes(2);
+        await act(async () => responderNormal(respuestaCon("SOL-NUEVA")));
+
+        expect(await screen.findByText("SOL-NUEVA")).toBeInTheDocument();
+        expect(screen.getByText("SOL-NUEVA").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
+
+        // La siguiente recarga silenciosa usa los filtros nuevos.
+        await avanzar(60_000);
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(3));
+        expect(vi.mocked(getSolicitudes).mock.calls[2][0]).toMatchObject({ rut: "99999999-9" });
+    });
+
+    it.each(["silenciosa primero", "normal primero"])(
+        "una carga normal iniciada durante una silenciosa gana y apaga la carga (%s)",
+        async (orden) => {
+            render(<RevisarSolicitudesView />);
+            await screen.findByText("SOL-1");
+
+            let responderSilenciosa: (valor: RespuestaSolicitudes) => void = () => undefined;
+            vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responderSilenciosa = resolve)));
+            await avanzar(60_000);
+            expect(getSolicitudes).toHaveBeenCalledTimes(2);
+
+            let responderNormal: (valor: RespuestaSolicitudes) => void = () => undefined;
+            vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responderNormal = resolve)));
+            abrirFiltros();
+            fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
+            await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(3));
+
+            if (orden === "silenciosa primero") {
+                await act(async () => responderSilenciosa(respuestaCon("SOL-VIEJA")));
+                await act(async () => responderNormal(respuestaCon("SOL-NUEVA")));
+            } else {
+                await act(async () => responderNormal(respuestaCon("SOL-NUEVA")));
+                await act(async () => responderSilenciosa(respuestaCon("SOL-VIEJA")));
+            }
+
+            expect(await screen.findByText("SOL-NUEVA")).toBeInTheDocument();
+            expect(screen.queryByText("SOL-VIEJA")).not.toBeInTheDocument();
+            expect(screen.getByText("SOL-NUEVA").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
+        }
+    );
 
     it("descarta una recarga silenciosa obsoleta", async () => {
         render(<RevisarSolicitudesView />);
