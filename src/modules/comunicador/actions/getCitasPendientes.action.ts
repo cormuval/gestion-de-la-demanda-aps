@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+import { debeRegistrarBusqueda } from "@/shared/lib/auditoriaBusquedas";
 import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
 import { citasFiltrosSchema } from "../schemas/llamada.schema";
@@ -116,9 +117,12 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
     `;
     const total = Number(totalRows[0]?.total ?? 0);
 
-    await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "COLA_COMUNICADOR", {
-        details: `Filtros: ${JSON.stringify(f)}`
-    });
+    const details = `Filtros: ${JSON.stringify(f)}`;
+    if (debeRegistrarBusqueda(`${user.rut}|COLA_COMUNICADOR|${details}`)) {
+        await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "COLA_COMUNICADOR", {
+            details
+        });
+    }
 
     // `intentos` puede venir como bigint desde MySQL; normalizar a number.
     const filasNorm = filas.map((r) => ({

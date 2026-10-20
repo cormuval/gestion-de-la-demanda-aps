@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
+import { debeRegistrarBusqueda } from "@/shared/lib/auditoriaBusquedas";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
 import { SolicitudFiltros } from "../schemas/solicitud.schema";
@@ -111,9 +112,12 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
             .filter((solicitud): solicitud is NonNullable<typeof solicitud> => Boolean(solicitud));
         const total = Number(countRows[0]?.total ?? 0);
 
-        await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
-            details: `Filtros: ${JSON.stringify(filtros)}`
-        });
+        const detailsEdad = `Filtros: ${JSON.stringify(filtros)}`;
+        if (debeRegistrarBusqueda(`${user.rut}|LISTADO_SOLICITUDES|${detailsEdad}`)) {
+            await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
+                details: detailsEdad
+            });
+        }
 
         const payload = { solicitudes, total, page, pageSize: PAGE_SIZE, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
         return { ok: true, data: payload } satisfies ResultadoAccion<typeof payload>;
@@ -130,9 +134,12 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
         prisma.solicitud.count({ where })
     ]);
 
-    await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
-        details: `Filtros: ${JSON.stringify(filtros)}`
-    });
+    const details = `Filtros: ${JSON.stringify(filtros)}`;
+    if (debeRegistrarBusqueda(`${user.rut}|LISTADO_SOLICITUDES|${details}`)) {
+        await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
+            details
+        });
+    }
 
     const payload = { solicitudes, total, page, pageSize: PAGE_SIZE, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
     return { ok: true, data: payload } satisfies ResultadoAccion<typeof payload>;

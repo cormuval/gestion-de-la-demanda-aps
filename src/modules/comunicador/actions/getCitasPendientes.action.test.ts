@@ -7,13 +7,16 @@ vi.mock("@/shared/lib/logger", () => ({ AuditLogger: { logDataAccess: vi.fn() } 
 import { getCitasPendientes } from "./getCitasPendientes.action";
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
+import { AuditLogger } from "@/shared/lib/logger";
+import { limpiarDedupBusquedas } from "@/shared/lib/auditoriaBusquedas";
 
 const funcionario = { rut: "1-9", email: "comunicador@aps.cl", nombre: "Comunicador", centro_id: "501", rol: { id: 3, nombre: "Comunicador" } };
 
 beforeEach(() => {
     vi.clearAllMocks();
+    limpiarDedupBusquedas();
     vi.mocked(requirePermiso).mockResolvedValue(funcionario as never);
-    vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: BigInt(0) }]);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
 });
 
 describe("getCitasPendientes", () => {
@@ -44,5 +47,19 @@ describe("getCitasPendientes", () => {
         vi.mocked(prisma.$queryRaw).mockReset().mockRejectedValueOnce(new Error("Base de datos no disponible"));
 
         await expect(getCitasPendientes({ pagina: 1 })).rejects.toThrow("Base de datos no disponible");
+    });
+
+    it("no repite el registro de auditoria si la misma busqueda se repite enseguida", async () => {
+        await getCitasPendientes({ pagina: 1 });
+        await getCitasPendientes({ pagina: 1 });
+
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledTimes(1);
+    });
+
+    it("registra la auditoria de nuevo si los filtros cambian", async () => {
+        await getCitasPendientes({ pagina: 1 });
+        await getCitasPendientes({ pagina: 1, rut: "11.111.111-1" });
+
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledTimes(2);
     });
 });
