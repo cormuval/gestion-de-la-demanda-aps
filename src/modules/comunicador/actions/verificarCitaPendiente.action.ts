@@ -5,8 +5,8 @@ import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
+import type { EstadoPendiente } from "@/shared/types/estadoPendiente";
 import { esEstadoPendiente } from "../types/comunicador";
-import type { EstadoPendiente } from "@/modules/solicitudes/types/gestion";
 
 export async function verificarCitaPendiente(idCita: string): Promise<ResultadoAccion<EstadoPendiente>> {
     const user = await requirePermiso("comunicador.llamar");

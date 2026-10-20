@@ -5,7 +5,7 @@ import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
-import { EstadoPendiente } from "../types/gestion";
+import type { EstadoPendiente } from "@/shared/types/estadoPendiente";
 // schemas
 import { ACCION_ESPERA_VALIDACION } from "../schemas/revision.schema";
 
