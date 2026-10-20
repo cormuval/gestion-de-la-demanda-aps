@@ -13,7 +13,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 // lib
 import { acortarId } from "@/shared/lib/acortarId";
 // types
-import { RESPUESTAS_LLAMADA, RESPUESTA_LLAMADA } from "../types/comunicador";
+import { ERROR_CITA_CERRADA, RESPUESTAS_LLAMADA, RESPUESTA_LLAMADA } from "../types/comunicador";
 import { toast } from "sonner";
 
 function DatoCita({ etiqueta, valor, className }: { etiqueta: string; valor: string | null; className?: string }) {
@@ -25,12 +25,14 @@ function DatoCita({ etiqueta, valor, className }: { etiqueta: string; valor: str
     );
 }
 
-export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onRegistrado }: {
+export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onRegistrado, onCitaCerrada }: {
     cita: CitaFila;
     telefonos: string;
     correo: string;
     onCerrar: () => void;
     onRegistrado: (mensaje: string) => void;
+    // Otro funcionario cerro la cita mientras el modal estaba abierto: el padre cierra y recarga.
+    onCitaCerrada?: () => void;
 }) {
     const [respuesta, setRespuesta] = useState<string>(RESPUESTA_LLAMADA.NO_CONTESTA);
     const [observacion, setObservacion] = useState("");
@@ -51,6 +53,7 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onReg
             });
             if (!resultado.ok) {
                 toast.error(resultado.error);
+                if (resultado.error === ERROR_CITA_CERRADA) onCitaCerrada?.();
                 return;
             }
             const { estadoCita, solicitudRealizada } = resultado.data;

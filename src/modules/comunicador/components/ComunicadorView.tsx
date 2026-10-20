@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getCitasPendientes, CitaFila } from "@/modules/comunicador/actions/getCitasPendientes.action";
 import { getFiltrosComunicador } from "@/modules/comunicador/actions/getFiltrosComunicador.action";
 import { getContactoPaciente } from "@/modules/comunicador/actions/getContactoPaciente.action";
+import { verificarCitaPendiente } from "@/modules/comunicador/actions/verificarCitaPendiente.action";
 import { getCentros, type CentroOption } from "@/modules/solicitudes/actions/getCentros.action";
 // components
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
@@ -23,8 +24,14 @@ import { TablaSkeleton } from "@/shared/components/feedback/tabla-skeleton";
 import { PanelFiltros, contarFiltrosActivos } from "@/shared/components/filtros/panel-filtros";
 // hooks
 import { useUsuarioEdit } from "@/modules/comunicador/hooks/useUsuarioEdit";
+import { useRefrescoAutomatico } from "@/shared/hooks/useRefrescoAutomatico";
 
 type Opciones = Awaited<ReturnType<typeof getFiltrosComunicador>>;
+
+interface ConsultaCola {
+    aplicados: CitasFiltrosUI;
+    pagina: number;
+}
 
 export function ComunicadorView() {
     const [opciones, setOpciones] = useState<Opciones>({ profesionales: [], prestaciones: [] });
@@ -44,9 +51,28 @@ export function ComunicadorView() {
         getFiltrosComunicador().then(setOpciones).catch(() => toast.error("Error al cargar filtros"));
     }, []);
 
-    const cargar = useCallback(async () => {
-        setCargando(true);
-        setErrorCola(null);
+    // Espejo de los filtros y la pagina aplicados para recargas disparadas desde closures antiguos (intervalo, verificacion).
+    const consultaRef = useRef<ConsultaCola>({ aplicados: FILTROS_INICIALES, pagina: 1 });
+    // Solo la ultima peticion de la cola puede actualizar la tabla.
+    const ultimaPeticionRef = useRef(0);
+    // Cargas normales (no silenciosas) sin responder: mientras haya alguna, no se recarga en silencio.
+    const cargasNormalesEnCursoRef = useRef(0);
+    // Cita cuya vigencia se esta verificando; ignora pulsaciones repetidas en "Llamar".
+    const verificandoRef = useRef<string | null>(null);
+
+    const cargar = useCallback(async (opciones?: { silencioso?: boolean }) => {
+        // La recarga silenciosa (refresco automatico) no muestra carga ni errores: si falla, conserva la cola.
+        const silencioso = opciones?.silencioso ?? false;
+        // Una recarga silenciosa nunca reemplaza a una carga normal pendiente: esa ya trae datos frescos.
+        if (silencioso && cargasNormalesEnCursoRef.current > 0) return;
+        const peticion = ++ultimaPeticionRef.current;
+        const esVigente = () => peticion === ultimaPeticionRef.current;
+        const { aplicados, pagina } = consultaRef.current;
+        if (!silencioso) {
+            cargasNormalesEnCursoRef.current += 1;
+            setCargando(true);
+            setErrorCola(null);
+        }
         try {
             const r = await getCitasPendientes({
                 temporalidad: aplicados.temporalidad,
@@ -61,33 +87,68 @@ export function ComunicadorView() {
                 sector: aplicados.sector || undefined,
                 pagina
             });
+            if (!esVigente()) return;
             if (!r.ok) {
-                setErrorCola(r.error);
-                toast.error(r.error);
+                if (!silencioso) {
+                    setErrorCola(r.error);
+                    toast.error(r.error);
+                }
                 return;
             }
             setData(r.data);
         } catch {
+            if (!esVigente() || silencioso) return;
             const mensaje = "Error al cargar la cola";
             setErrorCola(mensaje);
             toast.error(mensaje);
         } finally {
-            setCargando(false);
+            if (!silencioso) {
+                cargasNormalesEnCursoRef.current -= 1;
+                // La carga se apaga cuando no queda ninguna carga normal pendiente, sea o no la vigente.
+                if (cargasNormalesEnCursoRef.current === 0) setCargando(false);
+            }
         }
-    }, [aplicados, pagina]);
+    }, []);
 
     useEffect(() => {
-        cargar();
-    }, [cargar]);
+        consultaRef.current = { aplicados, pagina };
+        void cargar();
+    }, [aplicados, pagina, cargar]);
 
     const [centros, setCentros] = useState<CentroOption[]>([]);
-    const editarPaciente = useUsuarioEdit(cargar);
+    const editarPaciente = useUsuarioEdit(() => void cargar());
+    const hayModalAbierto = Boolean(citaSel || citaHistorial || citaOtras || editarPaciente.open);
+
+    useRefrescoAutomatico(() => void cargar({ silencioso: true }), { pausado: hayModalAbierto });
 
     useEffect(() => {
         getCentros().then(setCentros).catch(() => toast.error("Error al cargar centros"));
     }, []);
 
+    // Antes de llamar confirma que la cita sigue pendiente: otro funcionario pudo haberla cerrado
+    // mientras la cola estaba abierta. Si la verificacion falla, se abre igual (el guardado vuelve a validar).
     async function abrirGestion(cita: CitaFila) {
+        if (verificandoRef.current) return;
+        verificandoRef.current = cita.id_cita;
+        let pendiente = true;
+        let estado: string | null = null;
+        try {
+            const r = await verificarCitaPendiente(cita.id_cita);
+            if (r.ok) {
+                pendiente = r.data.pendiente;
+                estado = r.data.estado;
+            }
+        } catch {
+            // Sin verificacion se abre igual.
+        } finally {
+            verificandoRef.current = null;
+        }
+        if (!pendiente) {
+            toast.warning(estado ? `Esta cita ya fue cerrada (${estado})` : "Esta cita ya no está disponible en tu centro");
+            // Si hay una carga normal pendiente (p. ej. filtros nuevos), esa ya traera la cola al dia.
+            if (cargasNormalesEnCursoRef.current === 0) void cargar();
+            return;
+        }
         setCitaSel(cita);
         try {
             const contacto = await getContactoPaciente(cita.rut_usuario);
@@ -133,7 +194,7 @@ export function ComunicadorView() {
                             <AlertTitle>No fue posible cargar las citaciones</AlertTitle>
                             <AlertDescription className="flex flex-col items-start gap-3">
                                 <p>{data ? `${errorCola}. Se muestra la última cola cargada.` : errorCola}</p>
-                                <Button type="button" variant="outline" size="sm" disabled={cargando} onClick={cargar}>
+                                <Button type="button" variant="outline" size="sm" disabled={cargando} onClick={() => void cargar()}>
                                     {cargando ? "Reintentando..." : "Reintentar"}
                                 </Button>
                             </AlertDescription>
@@ -170,7 +231,11 @@ export function ComunicadorView() {
                     onRegistrado={(mensaje) => {
                         toast.success(mensaje);
                         setCitaSel(null);
-                        cargar();
+                        void cargar();
+                    }}
+                    onCitaCerrada={() => {
+                        setCitaSel(null);
+                        void cargar();
                     }}
                 />
             )}
