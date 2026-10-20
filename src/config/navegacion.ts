@@ -20,6 +20,13 @@ export const NAV: readonly NavItem[] = [
     { label: "Configuracion", href: "/configuracion/usuarios-roles", icon: Settings, permiso: "config.ver" }
 ];
 
+// Titulo de la pestana del navegador: el mismo nombre que ve el usuario en el menu.
+export function tituloPagina(href: string): string {
+    const item = NAV.find((nav) => nav.href === href);
+    if (!item) throw new Error(`Ruta sin item de menu: ${href}`);
+    return item.label;
+}
+
 export function navVisible(permisos: readonly Permiso[]): NavItem[] {
     return NAV.filter((item) => permisos.includes(item.permiso));
 }

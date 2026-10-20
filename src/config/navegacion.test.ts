@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { NAV, navVisible } from "./navegacion";
+import { NAV, navVisible, tituloPagina } from "./navegacion";
 import { CLAVES_PERMISOS, type Permiso } from "./permisos";
 
 describe("navegacion", () => {
@@ -36,6 +36,11 @@ describe("navegacion", () => {
     it("muestra Historial del paciente cuando el rol tiene permiso historial.ver", () => {
         const visibles = navVisible(["historial.ver"] as Permiso[]);
         expect(visibles.map((item) => item.href)).toEqual(["/historial"]);
+    });
+
+    it("tituloPagina usa el nombre del menu", () => {
+        expect(tituloPagina("/comunicador")).toBe("Llamadas");
+        expect(() => tituloPagina("/no-existe")).toThrow();
     });
 
     it("navVisible devuelve vacio sin permisos", () => {

@@ -72,9 +72,17 @@ export const funcionarioConfigSchema = z.object({
     nombre: z.string().trim().min(1, "Nombre requerido").max(50, "Maximo 50 caracteres"),
     rol_id: z.coerce.number().int().positive("Rol requerido"),
     centro_id: z.string().trim().min(1, "Centro requerido").max(50, "Maximo 50 caracteres"),
-    programa_asociado: z.enum(PROGRAMAS_FUNCIONARIO),
+    programa_asociado: z.union([z.enum(PROGRAMAS_FUNCIONARIO), z.literal("")]).optional().default(""),
     estado: z.enum(ESTADOS_ACTIVO)
 });
+
+// Solo el Jefe de Programa necesita un programa asociado. Se identifica por nombre de rol
+// (misma deuda que #21: comparar por nombre hasta tener un permiso explicito).
+export const ROL_JEFE_PROGRAMA = "Jefe de Programa";
+
+export function requiereProgramaAsociado(nombreRol: string | null | undefined): boolean {
+    return (nombreRol ?? "").trim().toLocaleLowerCase("es-CL") === ROL_JEFE_PROGRAMA.toLocaleLowerCase("es-CL");
+}
 
 export interface ConfiguracionFiltros {
     search?: string;

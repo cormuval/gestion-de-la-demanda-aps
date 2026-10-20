@@ -19,6 +19,7 @@ import { CitaAccionesMenu } from "@/modules/comunicador/components/CitaAccionesM
 import { HistorialLlamadasModal } from "@/modules/comunicador/components/HistorialLlamadasModal";
 import { OtrasCitasPacienteModal } from "@/modules/comunicador/components/OtrasCitasPacienteModal";
 import { UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
+import { TablaSkeleton } from "@/shared/components/feedback/tabla-skeleton";
 // hooks
 import { useUsuarioEdit } from "@/modules/comunicador/hooks/useUsuarioEdit";
 
@@ -138,7 +139,7 @@ export function ComunicadorView() {
                             </AlertDescription>
                         </Alert>
                     )}
-                    {!data && cargando && <p className="text-sm text-muted-foreground">Cargando citaciones...</p>}
+                    {!data && cargando && <TablaSkeleton columnas={6} etiqueta="Cargando citaciones..." />}
                     {data && (
                         <CitasPendientesTabla
                             filas={data.filas}
