@@ -60,6 +60,7 @@ import { getRevisionCatalogos } from "./solicitudes/actions/getRevisionCatalogos
 import { getSolicitudes } from "./solicitudes/actions/getSolicitudes.action";
 import { getUsuarioPorRut } from "./solicitudes/actions/getUsuarioPorRut.action";
 import { actualizarUsuario, crearUsuario } from "./solicitudes/actions/guardarUsuario.action";
+import { verificarSolicitudPendiente } from "./solicitudes/actions/verificarSolicitudPendiente.action";
 
 const usuarioSesion = {
     rut: "11.111.111-1",
@@ -78,7 +79,7 @@ interface CasoPermiso {
 }
 
 // La tabla es la especificacion: se derivo leyendo el guard (primera linea de cada
-// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 31
+// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 32
 // Server Actions repartidas en catalogos, comunicador, historial, configuracion y solicitudes.
 const tabla: CasoPermiso[] = [
     // catalogos
@@ -174,6 +175,11 @@ const tabla: CasoPermiso[] = [
         nombre: "actualizarUsuario",
         invocar: () => actualizarUsuario({} as never),
         permisos: ["solicitudes.crear", "solicitudes.gestionar"]
+    },
+    {
+        nombre: "verificarSolicitudPendiente",
+        invocar: () => verificarSolicitudPendiente("SOL-1"),
+        permisos: ["solicitudes.gestionar"]
     }
 ];
 
@@ -183,8 +189,8 @@ beforeEach(() => {
 });
 
 describe("permiso exigido por cada Server Action", () => {
-    it("cubre las 31 Server Actions del sistema", () => {
-        expect(tabla.length).toBe(31);
+    it("cubre las 32 Server Actions del sistema", () => {
+        expect(tabla.length).toBe(32);
     });
 
     for (const caso of tabla) {

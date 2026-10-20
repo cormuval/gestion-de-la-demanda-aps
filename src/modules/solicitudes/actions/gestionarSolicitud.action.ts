@@ -8,6 +8,7 @@ import { AuditLogger } from "@/shared/lib/logger";
 import { CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } from "@/modules/catalogos/utils/centroTipoSolicitud";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
+import { ERROR_SOLICITUD_NO_PENDIENTE } from "../types/gestion";
 // schemas
 import {
     ACCION_ESPERA_VALIDACION,
@@ -107,7 +108,7 @@ export async function gestionarSolicitud(input: GestionarSolicitudInput): Promis
         if (!solicitud) {
             return {
                 ok: false,
-                error: "La solicitud no esta pendiente de validacion o no pertenece a tu centro"
+                error: ERROR_SOLICITUD_NO_PENDIENTE
             } satisfies ResultadoAccion<never>;
         }
 
