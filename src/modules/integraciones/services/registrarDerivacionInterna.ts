@@ -67,6 +67,7 @@ export async function registrarDerivacionInterna(
                         id_cita: solicitud.id_solicitud,
                         solicitud_id: solicitud.id_solicitud,
                         rut_usuario: paciente.rut,
+                        rut_gestor: RUT_FUNCIONARIO_DI,
                         tipo_prestacion: "Agendar una hora con profesional",
                         profesional_id: cita.profesional_id,
                         prestacion_id: cita.prestacion_id,

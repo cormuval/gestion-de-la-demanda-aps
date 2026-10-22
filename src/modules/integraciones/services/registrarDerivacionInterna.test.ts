@@ -77,6 +77,7 @@ describe("registrarDerivacionInterna", () => {
                 id_cita: "ESP-a1b2c3",
                 solicitud_id: "ESP-a1b2c3",
                 rut_usuario: "12345678-9",
+                rut_gestor: "11111112-2",
                 estado_cita: "Sin llamadas",
                 priorizacion: 60,
                 priorizacion_clinica: "Media",
