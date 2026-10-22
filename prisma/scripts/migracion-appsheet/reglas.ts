@@ -228,6 +228,39 @@ export function aEntero(valor: string | null | undefined): number | null | "inva
     return /^\d+$/.test(limpio.trim()) ? Number(limpio.trim()) : "invalido";
 }
 
+// AppSheet guarda los DATETIME en hora de Chile y Prisma los lee como si fueran UTC; la app guarda
+// instantes reales. Se reinterpretan los componentes como hora de America/Santiago (con cambio de hora).
+const FORMATO_CHILE = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Santiago",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+});
+
+function desfaseChileMs(instante: number): number {
+    const partes = Object.fromEntries(FORMATO_CHILE.formatToParts(new Date(instante)).map((p) => [p.type, p.value]));
+    const comoUtc = Date.UTC(+partes.year, +partes.month - 1, +partes.day, +partes.hour, +partes.minute, +partes.second);
+    return comoUtc - (instante - (instante % 1000));
+}
+
+export function horaChileAInstante(valor: Date): Date;
+export function horaChileAInstante(valor: Date | null): Date | null;
+export function horaChileAInstante(valor: Date | null): Date | null {
+    if (valor === null) return null;
+    const pared = valor.getTime();
+    const desfase = desfaseChileMs(pared);
+    const candidato = pared - desfase;
+    if (desfaseChileMs(candidato) === desfase) return new Date(candidato);
+    // Cerca de un cambio de hora: se reintenta con el desfase del candidato.
+    const ajustado = pared - desfaseChileMs(candidato);
+    // Si tampoco calza, la hora no existe (salto de septiembre) y se corre hacia adelante.
+    return new Date(desfaseChileMs(ajustado) === desfaseChileMs(candidato) ? ajustado : candidato);
+}
+
 export function estadoFuncionario(valor: string | null): string | null {
     const limpio = vacioANull(valor);
     if (limpio === "1") return "Activo";
@@ -410,7 +443,7 @@ export function transformarSolicitud(s: SolicitudOrigen, cat: Catalogos, ref: Re
         advertencias,
         data: {
             id_solicitud: s.id_solicitud,
-            fecha_inicio: s.fecha_inicio,
+            fecha_inicio: horaChileAInstante(s.fecha_inicio),
             rut_orientador: funcionarioOpcional("solicitudes", clave, "rut_orientador", s.rut_orientador, ref, advertencias),
             rut_usuario,
             tipo_solicitud_id: tipo,
@@ -422,7 +455,7 @@ export function transformarSolicitud(s: SolicitudOrigen, cat: Catalogos, ref: Re
             rut_gestor: funcionarioOpcional("solicitudes", clave, "rut_gestor", s.rut_gestor, ref, advertencias),
             accion,
             razon_rechazo: vacioANull(s.razon_rechazo),
-            fecha_validacion: s.fecha_validacion,
+            fecha_validacion: horaChileAInstante(s.fecha_validacion),
             estado_solicitud: estado,
             centro_id: vacioANull(s.centro_id),
             observacion_rechazo: vacioANull(s.observacion_rechazo)
@@ -477,7 +510,7 @@ export function transformarCita(c: CitaOrigen, cat: Catalogos, ref: Referencias)
             priorizacion_clinica: vacioANull(c.priorizacion_clinica),
             priorizacion: c.priorizacion,
             centro_id: vacioANull(c.centro_id),
-            fecha_creacion: c.fecha_creacion,
+            fecha_creacion: horaChileAInstante(c.fecha_creacion),
             razon_rechazo: vacioANull(c.razon_rechazo)
         }
     };
@@ -504,8 +537,8 @@ export function transformarLlamada(l: LlamadaOrigen, ref: Referencias): Resultad
             rut_comunicador: funcionarioOpcional("llamadas", clave, "rut_comunicador", l.rut_comunicador, ref, advertencias),
             respuesta_usuario: respuesta,
             observacion: vacioANull(l.observacion),
-            hora_agendada: l.hora_agendada,
-            fecha_llamada: l.fecha_llamada,
+            hora_agendada: horaChileAInstante(l.hora_agendada),
+            fecha_llamada: horaChileAInstante(l.fecha_llamada),
             centro_id: vacioANull(l.centro_id)
         }
     };
