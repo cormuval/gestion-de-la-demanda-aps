@@ -2,22 +2,9 @@
 import { z } from "zod";
 
 // utils
-import { textoTruncado } from "../utils/normalizacion";
+import { fechaDia, textoTruncado } from "../utils/normalizacion";
 
 const idEntero = z.number().int();
-const PATRON_FECHA = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-// "YYYY-MM-DD" -> Date UTC a medianoche (la columna es DATE).
-const fechaDia = z.string().transform((texto, ctx) => {
-    const m = PATRON_FECHA.exec(texto.trim());
-    const fecha = m === null ? null : new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    if (m === null || fecha === null || fecha.getUTCMonth() !== +m[2] - 1 || fecha.getUTCDate() !== +m[3]) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Formato esperado: YYYY-MM-DD" });
-        return z.NEVER;
-    }
-    return fecha;
-});
-
 const citaSchema = z.object({
     profesional_id: idEntero,
     prestacion_id: idEntero,
