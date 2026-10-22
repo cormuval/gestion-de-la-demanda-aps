@@ -5,7 +5,9 @@ import type { ClienteIntegracion } from "../types/integraciones";
 
 const VARIABLE_POR_CLIENTE: Record<ClienteIntegracion, string> = {
     GI: "INTEGRACION_KEY_GI",
-    GAS: "INTEGRACION_KEY_GAS"
+    GAS: "INTEGRACION_KEY_GAS",
+    SAPU: "INTEGRACION_KEY_SAPU",
+    CONTRARREFERENCIA: "INTEGRACION_KEY_CONTRARREFERENCIA"
 };
 
 // Valida el header `api-key` contra la key del cliente. Variable ausente o vacia = rechazo.

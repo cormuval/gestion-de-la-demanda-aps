@@ -1,8 +1,19 @@
+// lib
+import { z } from "zod";
+
 // Texto vacio o ausente -> null; si no, el texto sin espacios en los bordes.
 export function vacioANull(valor: unknown): string | null {
     if (valor === null || valor === undefined) return null;
     const limpio = String(valor).trim();
     return limpio === "" ? null : limpio;
+}
+
+// Texto opcional: vacio -> null y recortado (si hay maximo) al largo de la columna para no perder el registro al insertar.
+export function textoTruncado(maximo?: number) {
+    return z
+        .unknown()
+        .transform((valor) => vacioANull(valor)?.slice(0, maximo) ?? null)
+        .pipe(z.string().nullable());
 }
 
 const FORMATO_CHILE = new Intl.DateTimeFormat("en-US", {
@@ -51,3 +62,26 @@ export function instanteDesdeHoraChile(texto: string): Date | null {
     // Si tampoco calza, la hora no existe (salto de septiembre) y se corre hacia adelante.
     return new Date(desfaseChileMs(ajustado) === desfaseChileMs(candidato) ? ajustado : candidato);
 }
+
+const PATRON_FECHA = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+// "YYYY-MM-DD" -> Date UTC a medianoche (la columna es DATE).
+export const fechaDia = z.string().transform((texto, ctx) => {
+    const m = PATRON_FECHA.exec(texto.trim());
+    const fecha = m === null ? null : new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    if (m === null || fecha === null || fecha.getUTCMonth() !== +m[2] - 1 || fecha.getUTCDate() !== +m[3]) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Formato esperado: YYYY-MM-DD" });
+        return z.NEVER;
+    }
+    return fecha;
+});
+
+// "YYYY-MM-DD HH:mm:ss" en hora de Chile -> instante real.
+export const fechaHoraChile = z.string().transform((texto, ctx) => {
+    const instante = instanteDesdeHoraChile(texto.trim());
+    if (instante === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Formato esperado: YYYY-MM-DD HH:mm:ss" });
+        return z.NEVER;
+    }
+    return instante;
+});
