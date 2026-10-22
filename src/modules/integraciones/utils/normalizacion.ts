@@ -1,8 +1,19 @@
+// lib
+import { z } from "zod";
+
 // Texto vacio o ausente -> null; si no, el texto sin espacios en los bordes.
 export function vacioANull(valor: unknown): string | null {
     if (valor === null || valor === undefined) return null;
     const limpio = String(valor).trim();
     return limpio === "" ? null : limpio;
+}
+
+// Texto opcional: vacio -> null y recortado (si hay maximo) al largo de la columna para no perder el registro al insertar.
+export function textoTruncado(maximo?: number) {
+    return z
+        .unknown()
+        .transform((valor) => vacioANull(valor)?.slice(0, maximo) ?? null)
+        .pipe(z.string().nullable());
 }
 
 const FORMATO_CHILE = new Intl.DateTimeFormat("en-US", {

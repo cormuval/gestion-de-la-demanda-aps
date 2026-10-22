@@ -2,18 +2,10 @@
 import { z } from "zod";
 
 // utils
-import { vacioANull } from "../utils/normalizacion";
+import { textoTruncado } from "../utils/normalizacion";
 
 const idEntero = z.number().int();
 const PATRON_FECHA = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-// Texto opcional: vacio -> null y recortado (si hay maximo) al largo de la columna para no perder la derivacion al insertar.
-function textoTruncado(maximo?: number) {
-    return z
-        .unknown()
-        .transform((valor) => vacioANull(valor)?.slice(0, maximo) ?? null)
-        .pipe(z.string().nullable());
-}
 
 // "YYYY-MM-DD" -> Date UTC a medianoche (la columna es DATE).
 const fechaDia = z.string().transform((texto, ctx) => {
