@@ -5,6 +5,7 @@ import {
     deduplicarUsuarios,
     estadoFuncionario,
     estadoSolicitud,
+    horaChileAInstante,
     nombreRolDestino,
     correoAlias,
     resolverPrestacion,
@@ -140,6 +141,20 @@ describe("reglas transversales", () => {
         expect(estadoSolicitud("Realizado")).toBe("Realizado");
     });
 
+    it("interpreta la fecha de AppSheet como hora de Chile y la convierte al instante real", () => {
+        // Prisma entrega el DATETIME naive con sus componentes en UTC.
+        expect(horaChileAInstante(new Date("2026-10-19T16:33:51Z"))?.toISOString()).toBe("2026-10-19T19:33:51.000Z");
+        expect(horaChileAInstante(new Date("2026-07-15T10:00:00Z"))?.toISOString()).toBe("2026-07-15T14:00:00.000Z");
+        expect(horaChileAInstante(null)).toBeNull();
+    });
+
+    it("resuelve los cambios de hora de Chile", () => {
+        // 05/04/2026: a las 00:00 (-03) vuelve a 23:00 (-04); 23:30 ocurre dos veces y se toma la primera.
+        expect(horaChileAInstante(new Date("2026-04-04T23:30:00Z"))?.toISOString()).toBe("2026-04-05T02:30:00.000Z");
+        // 06/09/2026: a las 00:00 (-04) salta a 01:00 (-03); 00:30 no existe y se corre a 01:30 (-03).
+        expect(horaChileAInstante(new Date("2026-09-06T00:30:00Z"))?.toISOString()).toBe("2026-09-06T04:30:00.000Z");
+    });
+
     it("mapea roles por nombre", () => {
         expect(nombreRolDestino("Some")).toBe("SOME");
         expect(nombreRolDestino("Vizualizador")).toBe("Visualizador");
@@ -197,6 +212,13 @@ describe("solicitudes", () => {
         expect(r.advertencias).toHaveLength(1);
     });
 
+    it("convierte fecha_inicio y fecha_validacion de hora de Chile al instante real", () => {
+        const r = transformarSolicitud({ ...solicitud, fecha_validacion: new Date("2025-03-01T12:00:00Z") }, catalogos, referencias);
+        if (!r.ok) throw new Error(r.rechazo.detalle);
+        expect(r.data.fecha_inicio.toISOString()).toBe("2025-03-01T13:00:00.000Z");
+        expect(r.data.fecha_validacion?.toISOString()).toBe("2025-03-01T15:00:00.000Z");
+    });
+
     it("rechaza si el paciente no existe (R5) o falta un obligatorio (R6)", () => {
         const sinPaciente = transformarSolicitud({ ...solicitud, rut_usuario: "1-9" }, catalogos, referencias);
         expect(!sinPaciente.ok && sinPaciente.rechazo.regla).toBe("R5 relacion inexistente");
@@ -213,6 +235,14 @@ describe("solicitudes", () => {
 });
 
 describe("citas", () => {
+    it("convierte fecha_creacion al instante real y deja la fecha estimada (DATE) sin cambios", () => {
+        const estimada = new Date("2025-04-10T00:00:00Z");
+        const r = transformarCita({ ...cita, fecha_estimada_atencion: estimada }, catalogos, referencias);
+        if (!r.ok) throw new Error(r.rechazo.detalle);
+        expect(r.data.fecha_creacion.toISOString()).toBe("2025-03-02T13:00:00.000Z");
+        expect(r.data.fecha_estimada_atencion).toBe(estimada);
+    });
+
     it("resuelve la prestacion por nombre y anula IDs vacios", () => {
         const r = transformarCita(cita, catalogos, referencias);
         if (!r.ok) throw new Error(r.rechazo.detalle);
@@ -244,6 +274,13 @@ describe("llamadas", () => {
     it("acepta llamadas de citas migradas", () => {
         const r = transformarLlamada(llamada, referencias);
         expect(r.ok && r.data.rut_comunicador).toBe("11121161-2");
+    });
+
+    it("convierte fecha_llamada y hora_agendada de hora de Chile al instante real", () => {
+        const r = transformarLlamada({ ...llamada, hora_agendada: new Date("2025-03-10T09:30:00Z") }, referencias);
+        if (!r.ok) throw new Error(r.rechazo.detalle);
+        expect(r.data.fecha_llamada?.toISOString()).toBe("2025-03-03T13:00:00.000Z");
+        expect(r.data.hora_agendada?.toISOString()).toBe("2025-03-10T12:30:00.000Z");
     });
 
     it("rechaza respuesta vacia y citas no migradas", () => {
