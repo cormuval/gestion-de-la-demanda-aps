@@ -198,6 +198,8 @@ En `informe-diario-2.0/back-end/informe_diario/derivacionInternasGD.js`:
   `crearSolicitudDI` por uno con `modo: "pendiente"`. Una función `enviarDerivacionGD(payload)` hace el
   `UrlFetchApp.fetch` (`muteHttpExceptions: true`) y deja en `console` el código y el error si no es 201.
 - `paciente.nombre` sale de `infoDerivacion.paciente.nombrePaciente` si existe.
+- Si una derivación validada no tiene `profesional_id` o `prestacion_id`, se envía como `pendiente` sin cita
+  (hoy quedaba una solicitud validada sin cita, que nadie veía).
 - `id_solicitud` y `descripcion` se arman igual que hoy.
 - `GD_API_URL` y `GD_API_KEY` se leen de `PropertiesService.getScriptProperties()`, no del código.
 - `conectarBD()` queda sin uso para derivaciones; no se borra en este cambio.
