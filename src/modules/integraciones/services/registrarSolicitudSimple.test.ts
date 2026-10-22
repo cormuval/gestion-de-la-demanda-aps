@@ -35,6 +35,8 @@ const datos = {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    tx.solicitud.create.mockReset();
+    tx.usuario.create.mockReset();
     tx.solicitud.findUnique.mockResolvedValue(null);
     tx.usuario.findUnique.mockResolvedValue(null);
     tx.tipoSolicitud.findUnique.mockResolvedValue({ id_tipo_solicitud: 1 });
@@ -99,16 +101,26 @@ describe("registrarSolicitudSimple", () => {
 
     it("P2002 al crear: DUPLICADO", async () => {
         tx.solicitud.create.mockRejectedValue(
-            new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" })
+            new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x", meta: { modelName: "Solicitud" } })
         );
         const r = await registrarSolicitudSimple(datos);
         expect(r).toEqual({ ok: false, codigo: "DUPLICADO", error: "La solicitud ya existe" });
+    });
+
+    it("P2002 de otro modelo (ej. Usuario concurrente): INTERNO para que el cliente reintente", async () => {
+        tx.usuario.create.mockRejectedValue(
+            new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x", meta: { modelName: "Usuario" } })
+        );
+        const r = await registrarSolicitudSimple(datos);
+        expect(r).toEqual({ ok: false, codigo: "INTERNO", error: "Error interno del servidor" });
+        expect(console.error).toHaveBeenCalled();
     });
 
     it("error generico: INTERNO con mensaje generico", async () => {
         tx.solicitud.create.mockRejectedValue(new Error("conexion perdida con db-host"));
         const r = await registrarSolicitudSimple(datos);
         expect(r).toEqual({ ok: false, codigo: "INTERNO", error: "Error interno del servidor" });
+        expect(console.error).toHaveBeenCalled();
     });
 });
 

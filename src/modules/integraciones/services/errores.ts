@@ -19,7 +19,12 @@ export function aResultado(error: unknown): ResultadoIntegracion {
     if (error instanceof ErrorIntegracion) {
         return { ok: false, codigo: error.codigo, error: error.message };
     }
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    // Solo un unique de Solicitud/Cita es un duplicado; el de otro modelo (ej. Usuario nuevo concurrente) es reintentable.
+    if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        (error.meta?.modelName === "Solicitud" || error.meta?.modelName === "Cita")
+    ) {
         return { ok: false, codigo: "DUPLICADO", error: "La solicitud ya existe" };
     }
     console.error("[integraciones] error inesperado:", error);
