@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 // utils
-import { instanteDesdeHoraChile, textoTruncado } from "../utils/normalizacion";
+import { fechaHoraChile, textoTruncado } from "../utils/normalizacion";
 
 export const MAX_LOTE_SAPU = 500;
 
@@ -10,16 +10,6 @@ export const MAX_LOTE_SAPU = 500;
 export const cargaSapuSchema = z.object({
     archivo: textoTruncado(150).optional().default(null),
     solicitudes: z.array(z.unknown()).min(1).max(MAX_LOTE_SAPU)
-});
-
-// "YYYY-MM-DD HH:mm:ss" en hora de Chile -> instante real.
-const fechaHoraChile = z.string().transform((texto, ctx) => {
-    const instante = instanteDesdeHoraChile(texto.trim());
-    if (instante === null) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Formato esperado: YYYY-MM-DD HH:mm:ss" });
-        return z.NEVER;
-    }
-    return instante;
 });
 
 export const filaSapuSchema = z.object({

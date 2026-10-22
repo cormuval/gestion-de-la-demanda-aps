@@ -113,6 +113,7 @@ describe("registrarContrarreferencia", () => {
         const r = await registrarContrarreferencia(validada);
         expect(r).toMatchObject({ ok: false, codigo: "DUPLICADO" });
         expect(tx.solicitud.create).not.toHaveBeenCalled();
+        expect(tx.cita.create).not.toHaveBeenCalled();
     });
 
     it("duplicado por descripcion con el mismo id", async () => {
@@ -120,6 +121,7 @@ describe("registrarContrarreferencia", () => {
         const r = await registrarContrarreferencia(validada);
         expect(r).toMatchObject({ ok: false, codigo: "DUPLICADO" });
         expect(tx.solicitud.create).not.toHaveBeenCalled();
+        expect(tx.cita.create).not.toHaveBeenCalled();
     });
 
     it("el id 43 no calza con 4321", async () => {
@@ -133,6 +135,8 @@ describe("registrarContrarreferencia", () => {
         tx.solicitud.findMany.mockResolvedValue([{ descripcion: "Registro Contrarreferencia ID: 43" }]);
         const r = await registrarContrarreferencia({ ...validada, contrarreferencia_id: 43 });
         expect(r).toMatchObject({ ok: false, codigo: "DUPLICADO" });
+        expect(tx.solicitud.create).not.toHaveBeenCalled();
+        expect(tx.cita.create).not.toHaveBeenCalled();
     });
 
     it("busca candidatos por descripcion del tipo 18", async () => {
@@ -186,6 +190,15 @@ describe("registrarContrarreferencia", () => {
     it("P2002 -> DUPLICADO", async () => {
         tx.solicitud.create.mockRejectedValue(
             new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x", meta: { modelName: "Solicitud" } })
+        );
+        const r = await registrarContrarreferencia(validada);
+        expect(r).toMatchObject({ ok: false, codigo: "DUPLICADO" });
+        expect(tx.cita.create).not.toHaveBeenCalled();
+    });
+
+    it("P2002 de Cita -> DUPLICADO", async () => {
+        tx.cita.create.mockRejectedValue(
+            new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x", meta: { modelName: "Cita" } })
         );
         const r = await registrarContrarreferencia(validada);
         expect(r).toMatchObject({ ok: false, codigo: "DUPLICADO" });

@@ -75,3 +75,13 @@ export const fechaDia = z.string().transform((texto, ctx) => {
     }
     return fecha;
 });
+
+// "YYYY-MM-DD HH:mm:ss" en hora de Chile -> instante real.
+export const fechaHoraChile = z.string().transform((texto, ctx) => {
+    const instante = instanteDesdeHoraChile(texto.trim());
+    if (instante === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Formato esperado: YYYY-MM-DD HH:mm:ss" });
+        return z.NEVER;
+    }
+    return instante;
+});

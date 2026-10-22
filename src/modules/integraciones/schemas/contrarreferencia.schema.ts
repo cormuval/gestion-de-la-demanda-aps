@@ -2,19 +2,9 @@
 import { z } from "zod";
 
 // utils
-import { fechaDia, instanteDesdeHoraChile, textoTruncado } from "../utils/normalizacion";
+import { fechaDia, fechaHoraChile, textoTruncado } from "../utils/normalizacion";
 
 const idEntero = z.number().int();
-
-// "YYYY-MM-DD HH:mm:ss" en hora de Chile -> instante real.
-const fechaHoraChile = z.string().transform((texto, ctx) => {
-    const instante = instanteDesdeHoraChile(texto.trim());
-    if (instante === null) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Formato esperado: YYYY-MM-DD HH:mm:ss" });
-        return z.NEVER;
-    }
-    return instante;
-});
 
 const citaSchema = z.object({
     id_cita: z.string().trim().min(1).max(50),
