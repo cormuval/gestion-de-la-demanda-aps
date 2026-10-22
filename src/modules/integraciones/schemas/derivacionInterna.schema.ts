@@ -47,9 +47,9 @@ export const derivacionInternaSchema = z
             motivo_id: idEntero.nullish().transform((valor) => valor ?? null),
             descripcion: textoTruncado(),
             centro_id: z
-                .union([z.number(), z.string()])
-                .transform((valor) => String(valor).trim())
-                .pipe(z.string().min(1))
+                .union([z.number(), z.string(), z.null()])
+                .transform((valor) => (valor === null ? null : String(valor).trim()))
+                .pipe(z.string().min(1).nullable())
         }),
         cita: citaSchema.nullish().transform((valor) => valor ?? null)
     })

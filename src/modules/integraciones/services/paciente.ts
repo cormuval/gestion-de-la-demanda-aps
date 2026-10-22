@@ -6,7 +6,7 @@ export type Tx = Prisma.TransactionClient;
 interface DatosPaciente {
     rut: string;
     nombre: string | null;
-    centro_id: string;
+    centro_id: string | null;
     telefono?: string | null;
     correo?: string | null;
 }

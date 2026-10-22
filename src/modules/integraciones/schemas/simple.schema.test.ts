@@ -50,8 +50,30 @@ describe("simpleSchema", () => {
         expect(r.data.correo).toBeNull();
     });
 
-    it("rechaza motivo_id como texto", () => {
-        expect(camposInvalidos({ ...cuerpoV22, motivo_id: "12" })).toContain("motivo_id");
+    it("acepta numeros como texto y los convierte", () => {
+        const r = simpleSchema.safeParse({ ...cuerpoV22, tipo_solicitud_id: " 3 ", motivo_id: "12", priorizacion_admin: "2.5" });
+        expect(r.success).toBe(true);
+        if (!r.success) return;
+        expect(r.data.tipo_solicitud_id).toBe(3);
+        expect(r.data.motivo_id).toBe(12);
+        expect(r.data.priorizacion_admin).toBe(2.5);
+    });
+
+    it("motivo_id y priorizacion_admin vacios o ausentes son null; disponibilidad vacia es null", () => {
+        const { motivo_id: _m, priorizacion_admin: _p, ...resto } = cuerpoV22;
+        const r = simpleSchema.safeParse({ ...resto, disponibilidad_llamada: " " });
+        expect(r.success).toBe(true);
+        if (!r.success) return;
+        expect(r.data.motivo_id).toBeNull();
+        expect(r.data.priorizacion_admin).toBeNull();
+        expect(r.data.disponibilidad_llamada).toBeNull();
+        const v = simpleSchema.safeParse({ ...cuerpoV22, motivo_id: "", priorizacion_admin: null });
+        expect(v.success && v.data.motivo_id === null && v.data.priorizacion_admin === null).toBe(true);
+    });
+
+    it("rechaza motivo_id y priorizacion_admin con texto no numerico", () => {
+        expect(camposInvalidos({ ...cuerpoV22, motivo_id: "abc" })).toContain("motivo_id");
+        expect(camposInvalidos({ ...cuerpoV22, priorizacion_admin: "alta" })).toContain("priorizacion_admin");
     });
 
     it("rechaza disponibilidad_llamada fuera de AM, PM, AM/PM", () => {
@@ -67,8 +89,9 @@ describe("simpleSchema", () => {
         expect(camposInvalidos({ ...cuerpoV22, id_solicitud: "x".repeat(51) })).toContain("id_solicitud");
     });
 
-    it("rechaza tipo_solicitud_id como texto y centro_id vacio", () => {
-        expect(camposInvalidos({ ...cuerpoV22, tipo_solicitud_id: "1" })).toContain("tipo_solicitud_id");
+    it("rechaza tipo_solicitud_id vacio o no numerico y centro_id vacio", () => {
+        expect(camposInvalidos({ ...cuerpoV22, tipo_solicitud_id: "" })).toContain("tipo_solicitud_id");
+        expect(camposInvalidos({ ...cuerpoV22, tipo_solicitud_id: "x1" })).toContain("tipo_solicitud_id");
         expect(camposInvalidos({ ...cuerpoV22, centro_id: " " })).toContain("centro_id");
     });
 });

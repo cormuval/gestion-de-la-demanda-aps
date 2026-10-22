@@ -104,6 +104,14 @@ describe("registrarDerivacionInterna", () => {
         expect(r).toEqual({ ok: true, data: { id_solicitud: "ESP-a1b2c3" } });
     });
 
+    it("pendiente con centro_id null crea paciente y solicitud sin centro", async () => {
+        const sinCentro: DerivacionInterna = { ...pendiente, solicitud: { ...pendiente.solicitud, centro_id: null } };
+        const r = await registrarDerivacionInterna(sinCentro, ahora);
+        expect(r.ok).toBe(true);
+        expect(tx.solicitud.create).toHaveBeenCalledWith({ data: expect.objectContaining({ centro_id: null }) });
+        expect(tx.usuario.create).toHaveBeenCalledWith({ data: expect.objectContaining({ centro_id: null }) });
+    });
+
     it("usa el nombre de la derivación al crear el paciente", async () => {
         await registrarDerivacionInterna(validada, ahora);
         expect(tx.usuario.create).toHaveBeenCalledWith({

@@ -12,6 +12,17 @@ function camposInvalidos(cuerpo: unknown): string[] {
 }
 
 describe("derivacionInternaSchema", () => {
+    it("acepta centro_id null", () => {
+        const r = derivacionInternaSchema.safeParse({
+            modo: "pendiente",
+            paciente: { rut: "1-9" },
+            solicitud: { ...solicitud, centro_id: null }
+        });
+        expect(r.success).toBe(true);
+        if (!r.success) return;
+        expect(r.data.solicitud.centro_id).toBeNull();
+    });
+
     it("acepta una derivacion validada con cita y entrega la fecha como UTC a medianoche", () => {
         const r = derivacionInternaSchema.safeParse({ modo: "validada", paciente: { rut: "12345678-9", nombre: "Ana" }, solicitud, cita });
         expect(r.success).toBe(true);
