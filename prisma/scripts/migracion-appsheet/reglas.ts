@@ -251,6 +251,8 @@ export function horaChileAInstante(valor: Date): Date;
 export function horaChileAInstante(valor: Date | null): Date | null;
 export function horaChileAInstante(valor: Date | null): Date | null {
     if (valor === null) return null;
+    // Años imposibles (p. ej. 0026-01-20, digitados mal en AppSheet) se copian tal cual, como en los ensayos.
+    if (valor.getUTCFullYear() < 1900) return valor;
     const pared = valor.getTime();
     const desfase = desfaseChileMs(pared);
     const candidato = pared - desfase;

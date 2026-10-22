@@ -148,6 +148,13 @@ describe("reglas transversales", () => {
         expect(horaChileAInstante(null)).toBeNull();
     });
 
+    it("deja sin convertir las fechas con año imposible (datos erróneos de AppSheet)", () => {
+        // 170 llamadas tienen hora_agendada como 0026-01-20: Date.UTC lee años < 100 como 19xx.
+        const erronea = new Date("0026-01-20T09:29:15Z");
+        expect(horaChileAInstante(erronea)).toBe(erronea);
+        expect(horaChileAInstante(new Date("0720-01-07T02:14:45Z"))?.toISOString()).toBe("0720-01-07T02:14:45.000Z");
+    });
+
     it("resuelve los cambios de hora de Chile", () => {
         // 05/04/2026: a las 00:00 (-03) vuelve a 23:00 (-04); 23:30 ocurre dos veces y se toma la primera.
         expect(horaChileAInstante(new Date("2026-04-04T23:30:00Z"))?.toISOString()).toBe("2026-04-05T02:30:00.000Z");
