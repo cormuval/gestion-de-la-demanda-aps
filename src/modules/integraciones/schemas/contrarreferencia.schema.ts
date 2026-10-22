@@ -2,6 +2,7 @@
 import { z } from "zod";
 
 // utils
+import { normalizarRut } from "@/modules/solicitudes/utils/rut";
 import { fechaDia, fechaHoraChile, textoTruncado } from "../utils/normalizacion";
 
 const idEntero = z.number().int();
@@ -20,7 +21,7 @@ export const contrarreferenciaSchema = z
         contrarreferencia_id: idEntero.positive(),
         modo: z.enum(["validada", "pendiente"]),
         paciente: z.object({
-            rut: z.string().trim().min(1).max(50),
+            rut: z.string().trim().transform(normalizarRut).pipe(z.string().min(1).max(50)),
             nombre: textoTruncado(50).optional().default(null),
             apellido: textoTruncado(50).optional().default(null),
             telefono: textoTruncado().optional().default(null)

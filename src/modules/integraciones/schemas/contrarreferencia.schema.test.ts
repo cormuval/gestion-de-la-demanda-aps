@@ -26,6 +26,11 @@ describe("contrarreferenciaSchema", () => {
         expect(r.cita?.fecha_estimada_atencion.toISOString()).toBe("2026-11-11T00:00:00.000Z");
     });
 
+    it("normaliza el RUT del paciente", () => {
+        expect(contrarreferenciaSchema.parse({ ...base, paciente: { rut: "12.345.678-k" } }).paciente.rut).toBe("12345678-K");
+        expect(contrarreferenciaSchema.parse({ ...base, paciente: { rut: " 12345678-5 " } }).paciente.rut).toBe("12345678-5");
+    });
+
     it("validada sin cita -> issue en cita", () => {
         const r = contrarreferenciaSchema.safeParse({ ...base, cita: undefined });
         expect(r.success).toBe(false);

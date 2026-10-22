@@ -2,6 +2,7 @@
 import { z } from "zod";
 
 // utils
+import { normalizarRut } from "@/modules/solicitudes/utils/rut";
 import { fechaHoraChile, textoTruncado } from "../utils/normalizacion";
 
 export const MAX_LOTE_SAPU = 500;
@@ -16,7 +17,7 @@ export const filaSapuSchema = z.object({
     id_solicitud: z.string().trim().min(1).max(50),
     fecha_inicio: fechaHoraChile,
     paciente: z.object({
-        rut: z.string().trim().min(1).max(50),
+        rut: z.string().trim().transform(normalizarRut).pipe(z.string().min(1).max(50)),
         nombre: textoTruncado(50).optional().default(null)
     }),
     motivo_id: z.number().int(),

@@ -33,6 +33,11 @@ describe("filaSapuSchema", () => {
         expect(r.centro_id).toBe("615");
     });
 
+    it("normaliza el RUT del paciente", () => {
+        expect(filaSapuSchema.parse({ ...fila, paciente: { rut: "12.345.678-k" } }).paciente.rut).toBe("12345678-K");
+        expect(filaSapuSchema.parse({ ...fila, paciente: { rut: " 12345678-5 " } }).paciente.rut).toBe("12345678-5");
+    });
+
     it("nombre en blanco → null; nombre largo recortado a 50", () => {
         expect(filaSapuSchema.parse({ ...fila, paciente: { rut: "1-9", nombre: "  " } }).paciente.nombre).toBeNull();
         expect(filaSapuSchema.parse({ ...fila, paciente: { rut: "1-9", nombre: "n".repeat(80) } }).paciente.nombre).toHaveLength(50);
