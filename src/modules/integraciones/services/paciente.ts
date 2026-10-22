@@ -6,6 +6,7 @@ export type Tx = Prisma.TransactionClient;
 interface DatosPaciente {
     rut: string;
     nombre: string | null;
+    apellido?: string | null;
     centro_id: string | null;
     telefono?: string | null;
     correo?: string | null;
@@ -34,7 +35,7 @@ export async function asegurarPaciente(
             data: {
                 rut: datos.rut,
                 nombre: datos.nombre ?? "Sin registro",
-                apellido: "",
+                apellido: datos.apellido ?? "",
                 centro_id: datos.centro_id,
                 telefono,
                 correo_contacto: correo

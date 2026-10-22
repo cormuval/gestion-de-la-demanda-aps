@@ -20,6 +20,14 @@ describe("autenticarIntegracion", () => {
         expect(autenticarIntegracion(pedido("k-gas"), "GAS")).toBe(true);
     });
 
+    it("acepta las keys de SAPU y CONTRARREFERENCIA y no las cruza", () => {
+        vi.stubEnv("INTEGRACION_KEY_SAPU", "k-sapu");
+        vi.stubEnv("INTEGRACION_KEY_CONTRARREFERENCIA", "k-cr");
+        expect(autenticarIntegracion(pedido("k-sapu"), "SAPU")).toBe(true);
+        expect(autenticarIntegracion(pedido("k-cr"), "CONTRARREFERENCIA")).toBe(true);
+        expect(autenticarIntegracion(pedido("k-sapu"), "CONTRARREFERENCIA")).toBe(false);
+    });
+
     it("rechaza key incorrecta o ausente", () => {
         vi.stubEnv("INTEGRACION_KEY_GI", "k-gi");
         expect(autenticarIntegracion(pedido("x"), "GI")).toBe(false);

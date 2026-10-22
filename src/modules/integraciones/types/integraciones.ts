@@ -1,4 +1,4 @@
-export type ClienteIntegracion = "GI" | "GAS";
+export type ClienteIntegracion = "GI" | "GAS" | "SAPU" | "CONTRARREFERENCIA";
 
 export type CodigoErrorIntegracion = "DUPLICADO" | "CATALOGO" | "INTERNO";
 
