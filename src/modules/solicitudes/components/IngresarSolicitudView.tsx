@@ -136,6 +136,7 @@ export function IngresarSolicitudView() {
     const [catalogos, setCatalogos] = useState<Catalogos>({ tiposSolicitud: [], motivos: [] });
     const [centros, setCentros] = useState<CentroOption[]>([]);
     const [solicitudForm, setSolicitudForm] = useState<SolicitudFormState>(emptySolicitudForm);
+    const [mantenerUsuario, setMantenerUsuario] = useState(false);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioFormState>(emptyUsuarioForm);
     const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
     const [idsVoucherCargando, setIdsVoucherCargando] = useState<Set<string>>(new Set());
@@ -181,14 +182,19 @@ export function IngresarSolicitudView() {
         }));
     }
 
+    function limpiarFormularioSolicitud() {
+        setSolicitudForm(emptySolicitudForm);
+    }
+
     function limpiarIngresoSolicitud() {
         setRutBusqueda("");
         setRutRevisado("");
         setPendientes(null);
         setUsuarioConfirmado(null);
-        setSolicitudForm(emptySolicitudForm);
+        limpiarFormularioSolicitud();
         setUsuarioForm(emptyUsuarioForm);
         setUsuarioModalMode(null);
+        setMantenerUsuario(false);
     }
 
     function openCrearUsuario() {
@@ -206,7 +212,8 @@ export function IngresarSolicitudView() {
         event.preventDefault();
         setPendientes(null);
         setUsuarioConfirmado(null);
-        setSolicitudForm(emptySolicitudForm);
+        limpiarFormularioSolicitud();
+        setMantenerUsuario(false);
         setLoadingPendientes(true);
         try {
             const [pendientesResult, usuarioResult] = await Promise.all([getPendientes(rutBusqueda), getUsuarioPorRut(rutBusqueda)]);
@@ -301,7 +308,22 @@ export function IngresarSolicitudView() {
             const { solicitud, voucher } = result.data;
             toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
-            limpiarIngresoSolicitud();
+            if (!mantenerUsuario) {
+                limpiarIngresoSolicitud();
+                return;
+            }
+
+            limpiarFormularioSolicitud();
+            try {
+                const actualizados = await getPendientes(rutRevisado);
+                if (actualizados.ok) {
+                    setPendientes(actualizados.data);
+                } else {
+                    toast.warning(actualizados.error);
+                }
+            } catch {
+                toast.warning("Error al actualizar pendientes");
+            }
         } catch {
             toast.error("Error al crear solicitud");
         } finally {
@@ -432,6 +454,16 @@ export function IngresarSolicitudView() {
                                 </div>
                             )}
                             <div className="lg:col-span-2">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        id="mantener-usuario"
+                                        type="checkbox"
+                                        checked={mantenerUsuario}
+                                        onChange={(event) => setMantenerUsuario(event.target.checked)}
+                                        className="h-4 w-4 rounded border-input"
+                                    />
+                                    <Label htmlFor="mantener-usuario">Mantener usuario para otra solicitud</Label>
+                                </div>
                                 <Button disabled={submittingSolicitud || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
                             </div>
                         </form>

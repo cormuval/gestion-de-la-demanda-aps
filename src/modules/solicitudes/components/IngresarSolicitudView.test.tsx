@@ -112,6 +112,169 @@ async function completarFormularioSolicitud(motivo = "10") {
     fireEvent.change(disponibilidad, { target: { value: "Solo AM" } });
 }
 
+function obtenerCamposSolicitud() {
+    const [tipoSolicitud, motivoSolicitud, disponibilidad] = screen.getAllByRole("combobox");
+    return {
+        tipoSolicitud,
+        motivoSolicitud,
+        disponibilidad,
+        descripcion: screen.getAllByRole("textbox").at(-1)!
+    };
+}
+
+const resultadoCreacionExitosa = {
+    ok: true as const,
+    data: {
+        solicitud: {
+            id_solicitud: "SOL-nueva",
+            estado_solicitud: "En Curso",
+            fecha_inicio: new Date("2026-07-03T12:00:00"),
+            centro_id: "650",
+            descripcion: null,
+            disponibilidad_llamada: "Solo AM",
+            priorizacion_admin: null,
+            ultimo_control: null,
+            accion: "En espera de validación",
+            usuario: {
+                rut: "12345678-5",
+                nombre: "Paciente",
+                apellido: "Demo",
+                nombre_social: null,
+                telefono: "+56911111111",
+                telefono_alternativo: "+56922222222"
+            },
+            tipoSolicitud: { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Atencion" },
+            motivo: { id_motivo: 11, nombre_motivo: "Otro motivo" }
+        },
+        voucher: {
+            id_solicitud: "SOL-nueva",
+            fecha_inicio: new Date("2026-07-03T12:00:00"),
+            rut: "12345678-5",
+            usuario: {
+                rut: "12345678-5",
+                nombre: "Paciente",
+                apellido: "Demo",
+                nombre_social: null,
+                telefono: "+56911111111",
+                telefono_alternativo: "+56922222222"
+            },
+            tipoSolicitud: { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Atencion" },
+            motivo: { id_motivo: 11, nombre_motivo: "Otro motivo" },
+            centro: "CESFAM",
+            disponibilidad_llamada: "Solo AM"
+        }
+    }
+};
+
+describe("IngresarSolicitudView mantener usuario", () => {
+    it("muestra el control desmarcado solo despues de confirmar al usuario y lo reinicia al buscar otro RUT", async () => {
+        render(<IngresarSolicitudView />);
+        expect(screen.queryByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+        const checkbox = await screen.findByRole("checkbox", { name: "Mantener usuario para otra solicitud" });
+        expect(checkbox).not.toBeChecked();
+
+        fireEvent.click(checkbox);
+        expect(checkbox).toBeChecked();
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "11.111.111-1" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+
+        await waitFor(() => expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeChecked());
+    });
+
+    it("reinicia paciente y formulario tras crear una solicitud sin mantenerlo", async () => {
+        vi.mocked(crearSolicitud).mockResolvedValue(resultadoCreacionExitosa as Awaited<ReturnType<typeof crearSolicitud>>);
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud("11");
+        fireEvent.change(obtenerCamposSolicitud().descripcion, { target: { value: "Descripcion de prueba" } });
+
+        fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
+
+        await screen.findByText("Voucher de solicitud");
+        expect(screen.getByPlaceholderText("RUT usuario")).toHaveValue("");
+        expect(screen.queryByText("Paciente Demo")).not.toBeInTheDocument();
+        expect(screen.queryByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Pendientes del paciente")).not.toBeInTheDocument();
+        expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    });
+
+    it("conserva al paciente, limpia el formulario y refresca sus pendientes al mantenerlo", async () => {
+        const pendientesActualizados = {
+            solicitudesPendientes: [{ ...solicitudDuplicada, id_solicitud: "SOL-nueva", motivo_id: 11, motivo: { nombre_motivo: "Otro motivo" } }],
+            citasPendientes: []
+        };
+        vi.mocked(getPendientes)
+            .mockResolvedValueOnce(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>)
+            .mockResolvedValueOnce({ ok: true, data: pendientesActualizados } as Awaited<ReturnType<typeof getPendientes>>);
+        vi.mocked(crearSolicitud).mockResolvedValue(resultadoCreacionExitosa as Awaited<ReturnType<typeof crearSolicitud>>);
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud("11");
+        fireEvent.change(obtenerCamposSolicitud().descripcion, { target: { value: "Descripcion de prueba" } });
+        fireEvent.click(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" }));
+
+        fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
+
+        await screen.findByText("Voucher de solicitud");
+        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).toBeChecked();
+        const [tipoSolicitud, disponibilidad] = screen.getAllByRole("combobox");
+        const descripcion = screen.getAllByRole("textbox").at(-1)!;
+        expect(tipoSolicitud).toHaveValue("");
+        expect(disponibilidad).toHaveValue("");
+        expect(descripcion).toHaveValue("");
+        expect(screen.getAllByRole("combobox")).toHaveLength(2);
+        expect(getPendientes).toHaveBeenLastCalledWith("12.345.678-5");
+        expect(await screen.findByTitle("SOL-nueva")).toBeInTheDocument();
+    });
+
+    it("conserva paciente, control y formulario cuando crear solicitud devuelve un error", async () => {
+        vi.mocked(crearSolicitud).mockResolvedValue({ ok: false, error: "Error de negocio" } as Awaited<ReturnType<typeof crearSolicitud>>);
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud("11");
+        fireEvent.change(obtenerCamposSolicitud().descripcion, { target: { value: "Descripcion de prueba" } });
+        fireEvent.click(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" }));
+
+        fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error de negocio"));
+        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).toBeChecked();
+        const { tipoSolicitud, motivoSolicitud, disponibilidad, descripcion } = obtenerCamposSolicitud();
+        expect(tipoSolicitud).toHaveValue("1");
+        expect(motivoSolicitud).toHaveValue("11");
+        expect(disponibilidad).toHaveValue("Solo AM");
+        expect(descripcion).toHaveValue("Descripcion de prueba");
+    });
+
+    it.each([
+        ["devuelve un error", () => Promise.resolve({ ok: false, error: "No fue posible actualizar pendientes" }), "No fue posible actualizar pendientes"],
+        ["lanza una excepcion", () => Promise.reject(new Error("detalle tecnico")), "Error al actualizar pendientes"]
+    ])("mantiene paciente y abre el voucher si el refresco de pendientes %s", async (_caso, refrescarPendientes, advertencia) => {
+        vi.mocked(getPendientes)
+            .mockResolvedValueOnce(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>)
+            .mockImplementationOnce(refrescarPendientes as typeof getPendientes);
+        vi.mocked(crearSolicitud).mockResolvedValue(resultadoCreacionExitosa as Awaited<ReturnType<typeof crearSolicitud>>);
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud("11");
+        fireEvent.click(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" }));
+
+        fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
+
+        expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
+        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).toBeChecked();
+        const [tipoSolicitud, disponibilidad] = screen.getAllByRole("combobox");
+        const descripcion = screen.getAllByRole("textbox").at(-1)!;
+        expect(tipoSolicitud).toHaveValue("");
+        expect(disponibilidad).toHaveValue("");
+        expect(descripcion).toHaveValue("");
+        expect(screen.getAllByRole("combobox")).toHaveLength(2);
+        await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(advertencia));
+    });
+});
+
 describe("IngresarSolicitudView duplicados", () => {
     it("muestra aviso y deshabilita guardar cuando tipo y motivo ya tienen solicitud en curso", async () => {
         await buscarRutConfirmado();
