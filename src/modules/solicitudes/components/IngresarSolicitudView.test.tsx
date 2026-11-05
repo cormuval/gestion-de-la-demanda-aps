@@ -8,6 +8,7 @@ vi.mock("@/modules/solicitudes/actions/getPendientes.action", () => ({ getPendie
 vi.mock("@/modules/solicitudes/actions/getUsuarioPorRut.action", () => ({ getUsuarioPorRut: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/crearSolicitud.action", () => ({ crearSolicitud: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/guardarUsuario.action", () => ({ actualizarUsuario: vi.fn(), crearUsuario: vi.fn() }));
+vi.mock("@/modules/solicitudes/actions/getVoucherSolicitud.action", () => ({ getVoucherSolicitud: vi.fn() }));
 
 // actions
 import { getCatalogos } from "@/modules/catalogos/actions/getCatalogos.action";
@@ -16,6 +17,7 @@ import { getCentros } from "@/modules/solicitudes/actions/getCentros.action";
 import { getPendientes } from "@/modules/solicitudes/actions/getPendientes.action";
 import { getUsuarioPorRut } from "@/modules/solicitudes/actions/getUsuarioPorRut.action";
 import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
+import { getVoucherSolicitud } from "@/modules/solicitudes/actions/getVoucherSolicitud.action";
 // components
 import { IngresarSolicitudView } from "./IngresarSolicitudView";
 // lib
@@ -57,6 +59,24 @@ const pendientesConDuplicado = {
 
 const pendientesExitosos = { ok: true as const, data: pendientesConDuplicado };
 const usuarioEncontrado = { ok: true as const, data: { usuario: usuarioConfirmado } };
+
+const voucherReimpreso = {
+    id_solicitud: "SOL-duplicada",
+    fecha_inicio: new Date("2026-07-02T12:00:00Z"),
+    rut: "12345678-5",
+    usuario: {
+        rut: "12345678-5",
+        nombre: "Paciente",
+        apellido: "Demo",
+        nombre_social: null,
+        telefono: "+56911111111",
+        telefono_alternativo: "+56922222222"
+    },
+    tipoSolicitud: { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Atencion" },
+    motivo: { id_motivo: 10, nombre_motivo: "Control" },
+    centro: "CESFAM",
+    disponibilidad_llamada: "Solo AM"
+};
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -201,6 +221,58 @@ describe("IngresarSolicitudView duplicados", () => {
         await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Solicitud creada: SOL-nueva"));
         expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
         expect(screen.getByText("SOL-nueva")).toBeInTheDocument();
+    });
+});
+
+describe("IngresarSolicitudView reimpresion de voucher", () => {
+    it("consulta el voucher de la solicitud pendiente y abre el comprobante", async () => {
+        vi.mocked(getVoucherSolicitud).mockResolvedValue({ ok: true, data: voucherReimpreso } as Awaited<ReturnType<typeof getVoucherSolicitud>>);
+
+        await buscarRutConfirmado();
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" }));
+
+        await waitFor(() => expect(getVoucherSolicitud).toHaveBeenCalledWith("SOL-duplicada"));
+        expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
+        expect(screen.getByText("SOL-duplicada")).toBeInTheDocument();
+    });
+
+    it("evita una segunda consulta mientras se esta reimprimiendo el voucher activo", async () => {
+        let resolver!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        vi.mocked(getVoucherSolicitud).mockReturnValueOnce(new Promise((resolve) => { resolver = resolve; }));
+
+        await buscarRutConfirmado();
+        const boton = screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" });
+        fireEvent.click(boton);
+
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-duplicada" })).toBeDisabled());
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-duplicada" }));
+
+        expect(getVoucherSolicitud).toHaveBeenCalledOnce();
+
+        resolver({ ok: true, data: voucherReimpreso } as Awaited<ReturnType<typeof getVoucherSolicitud>>);
+        await screen.findByText("Voucher de solicitud");
+    });
+
+    it("muestra el error de negocio y no abre el comprobante cuando no obtiene el voucher", async () => {
+        vi.mocked(getVoucherSolicitud).mockResolvedValue({ ok: false, error: "Solicitud no encontrada" } as Awaited<ReturnType<typeof getVoucherSolicitud>>);
+
+        await buscarRutConfirmado();
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Solicitud no encontrada"));
+        expect(screen.queryByText("Voucher de solicitud")).not.toBeInTheDocument();
+    });
+
+    it("muestra un error generico, conserva al paciente y libera la carga si la consulta falla", async () => {
+        vi.mocked(getVoucherSolicitud).mockRejectedValue(new Error("detalle sensible"));
+
+        await buscarRutConfirmado();
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al reimprimir voucher"));
+        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getByTitle("SOL-duplicada")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" })).not.toBeDisabled();
     });
 });
 

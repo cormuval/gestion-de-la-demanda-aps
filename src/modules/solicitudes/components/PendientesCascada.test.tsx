@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 // components
 import { ListaPendientes, PendientesCascada } from "./PendientesCascada";
 
@@ -55,5 +55,28 @@ describe("PendientesCascada", () => {
 
         expect(screen.getByText("Pendientes del paciente")).toBeInTheDocument();
         expect(screen.getByText("Solicitudes En Curso con sus citas pendientes anidadas.")).toBeInTheDocument();
+    });
+
+    it("reimprime cada solicitud por su ID y solo deshabilita la que esta cargando", () => {
+        const onReimprimirVoucher = vi.fn();
+        const segundaSolicitud = { ...solicitud, id_solicitud: "SOL-2" };
+
+        render(
+            <PendientesCascada
+                pendientes={{ solicitudesPendientes: [solicitud, segundaSolicitud], citasPendientes: [] }}
+                onReimprimirVoucher={onReimprimirVoucher}
+                idVoucherCargando="SOL-1"
+            />
+        );
+
+        const botonSolicitudUno = screen.getByRole("button", { name: "Reimprimiendo voucher SOL-1" });
+        const botonSolicitudDos = screen.getByRole("button", { name: "Reimprimir voucher SOL-2" });
+
+        expect(botonSolicitudUno).toBeDisabled();
+        expect(botonSolicitudDos).not.toBeDisabled();
+
+        fireEvent.click(botonSolicitudDos);
+
+        expect(onReimprimirVoucher).toHaveBeenCalledWith("SOL-2");
     });
 });

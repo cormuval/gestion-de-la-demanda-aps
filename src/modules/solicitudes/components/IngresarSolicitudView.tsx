@@ -10,6 +10,7 @@ import { getPendientes } from "@/modules/solicitudes/actions/getPendientes.actio
 import { getUsuarioPorRut } from "@/modules/solicitudes/actions/getUsuarioPorRut.action";
 import { actualizarUsuario, crearUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 import { crearSolicitud } from "@/modules/solicitudes/actions/crearSolicitud.action";
+import { getVoucherSolicitud } from "@/modules/solicitudes/actions/getVoucherSolicitud.action";
 // lib
 import { acortarId } from "@/shared/lib/acortarId";
 // schemas
@@ -137,6 +138,7 @@ export function IngresarSolicitudView() {
     const [solicitudForm, setSolicitudForm] = useState<SolicitudFormState>(emptySolicitudForm);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioFormState>(emptyUsuarioForm);
     const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
+    const [idVoucherCargando, setIdVoucherCargando] = useState<string | null>(null);
     const [usuarioModalMode, setUsuarioModalMode] = useState<"crear" | "editar" | null>(null);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
     const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
@@ -306,6 +308,25 @@ export function IngresarSolicitudView() {
         }
     }
 
+    async function onReimprimirVoucher(idSolicitud: string) {
+        if (idVoucherCargando) return;
+
+        setIdVoucherCargando(idSolicitud);
+        try {
+            const result = await getVoucherSolicitud(idSolicitud);
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+
+            setVoucherSolicitud(result.data);
+        } catch {
+            toast.error("Error al reimprimir voucher");
+        } finally {
+            setIdVoucherCargando(null);
+        }
+    }
+
     return (
         <div className="space-y-6">
             <div>
@@ -335,7 +356,13 @@ export function IngresarSolicitudView() {
                 </CardContent>
             </Card>
 
-            {pendientes && <PendientesCascada pendientes={pendientes} />}
+            {pendientes && (
+                <PendientesCascada
+                    pendientes={pendientes}
+                    onReimprimirVoucher={onReimprimirVoucher}
+                    idVoucherCargando={idVoucherCargando}
+                />
+            )}
 
             {usuarioConfirmado && (
                 <Card>
