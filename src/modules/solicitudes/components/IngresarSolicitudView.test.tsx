@@ -284,6 +284,34 @@ describe("IngresarSolicitudView mantener usuario", () => {
         expect(await screen.findByTitle("SOL-nueva")).toBeInTheDocument();
     });
 
+    it("mantiene bloqueada una segunda creacion hasta terminar el refresco de la primera", async () => {
+        let resolverRefresco!: (value: Awaited<ReturnType<typeof getPendientes>>) => void;
+        const refrescoPendiente = new Promise<Awaited<ReturnType<typeof getPendientes>>>((resolve) => {
+            resolverRefresco = resolve;
+        });
+        vi.mocked(getPendientes)
+            .mockResolvedValueOnce(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>)
+            .mockReturnValueOnce(refrescoPendiente);
+        vi.mocked(crearSolicitud).mockResolvedValue(resultadoCreacionExitosa as Awaited<ReturnType<typeof crearSolicitud>>);
+
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud("11");
+        fireEvent.click(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" }));
+        fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
+
+        expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
+        const botonBloqueado = screen.getByRole("button", { name: "Guardar solicitud" });
+        expect(botonBloqueado).toBeDisabled();
+        fireEvent.click(botonBloqueado);
+        expect(crearSolicitud).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            resolverRefresco(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>);
+        });
+
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).not.toBeDisabled();
+    });
+
     it("conserva paciente, control y formulario cuando crear solicitud devuelve un error", async () => {
         vi.mocked(crearSolicitud).mockResolvedValue({ ok: false, error: "Error de negocio" } as Awaited<ReturnType<typeof crearSolicitud>>);
         await buscarRutConfirmado();

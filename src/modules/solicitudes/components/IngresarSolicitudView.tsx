@@ -143,9 +143,11 @@ export function IngresarSolicitudView() {
     const idsVoucherEnVuelo = useRef<Set<string>>(new Set());
     const revisionActivaRef = useRef(0);
     const intencionVoucherRef = useRef(0);
+    const creacionEnVueloRef = useRef(false);
     const [usuarioModalMode, setUsuarioModalMode] = useState<"crear" | "editar" | null>(null);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
     const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
+    const [creacionEnVuelo, setCreacionEnVuelo] = useState(false);
     const [savingUsuario, setSavingUsuario] = useState(false);
 
     useEffect(() => {
@@ -297,10 +299,13 @@ export function IngresarSolicitudView() {
 
     async function onCrearSolicitud(event: React.FormEvent) {
         event.preventDefault();
+        if (creacionEnVueloRef.current) return;
         if (!usuarioConfirmado) {
             toast.error("Debes completar la revision previa y confirmar el usuario");
             return;
         }
+        creacionEnVueloRef.current = true;
+        setCreacionEnVuelo(true);
         const revision = revisionActivaRef.current;
         intencionVoucherRef.current += 1;
         setVoucherSolicitud(null);
@@ -355,6 +360,8 @@ export function IngresarSolicitudView() {
         } catch {
             toast.error("Error al crear solicitud");
         } finally {
+            creacionEnVueloRef.current = false;
+            setCreacionEnVuelo(false);
             setSubmittingSolicitud(false);
         }
     }
@@ -497,7 +504,7 @@ export function IngresarSolicitudView() {
                                     />
                                     <Label htmlFor="mantener-usuario">Mantener usuario para otra solicitud</Label>
                                 </div>
-                                <Button disabled={submittingSolicitud || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
+                                <Button disabled={creacionEnVuelo || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
                             </div>
                         </form>
                     </CardContent>
