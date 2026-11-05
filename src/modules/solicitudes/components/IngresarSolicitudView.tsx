@@ -208,6 +208,7 @@ export function IngresarSolicitudView() {
         if (rut === rutRevisado) return;
 
         revisionActivaRef.current += 1;
+        setLoadingPendientes(false);
         limpiarRevisionUsuario();
     }
 

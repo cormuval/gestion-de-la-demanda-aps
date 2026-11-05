@@ -350,6 +350,34 @@ describe("IngresarSolicitudView mantener usuario", () => {
         expect(screen.queryByTitle("SOL-duplicada")).not.toBeInTheDocument();
         expect(toast.warning).not.toHaveBeenCalled();
     });
+
+    it("libera Buscar al cambiar el RUT durante una busqueda obsoleta", async () => {
+        let resolverPendientesA!: (value: Awaited<ReturnType<typeof getPendientes>>) => void;
+        const pendientesA = new Promise<Awaited<ReturnType<typeof getPendientes>>>((resolve) => {
+            resolverPendientesA = resolve;
+        });
+        vi.mocked(getPendientes)
+            .mockReturnValueOnce(pendientesA)
+            .mockResolvedValueOnce({ ok: true, data: { solicitudesPendientes: [], citasPendientes: [] } } as Awaited<ReturnType<typeof getPendientes>>);
+        vi.mocked(getUsuarioPorRut)
+            .mockResolvedValueOnce(usuarioEncontrado as Awaited<ReturnType<typeof getUsuarioPorRut>>)
+            .mockResolvedValueOnce({ ok: true, data: { usuario: usuarioConfirmadoB } } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+        render(<IngresarSolicitudView />);
+
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+        fireEvent.click(screen.getByRole("button", { name: "Buscar pendientes" }));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Buscando..." })).toBeDisabled());
+
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "11.111.111-1" } });
+        expect(screen.getByRole("button", { name: "Buscar pendientes" })).not.toBeDisabled();
+        fireEvent.click(screen.getByRole("button", { name: "Buscar pendientes" }));
+        await screen.findByText(/Paciente B/);
+
+        resolverPendientesA(pendientesExitosos as Awaited<ReturnType<typeof getPendientes>>);
+
+        await waitFor(() => expect(screen.getByRole("button", { name: "Buscar pendientes" })).not.toBeDisabled());
+        expect(screen.getByText(/Paciente B/)).toBeInTheDocument();
+    });
 });
 
 describe("IngresarSolicitudView duplicados", () => {
