@@ -187,7 +187,6 @@ describe("IngresarSolicitudView duplicados", () => {
                     },
                     tipoSolicitud: { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Atencion" },
                     motivo: { id_motivo: 10, nombre_motivo: "Control" },
-                    profesional: "Orientador",
                     centro: "CESFAM",
                     disponibilidad_llamada: "Solo AM"
                 }

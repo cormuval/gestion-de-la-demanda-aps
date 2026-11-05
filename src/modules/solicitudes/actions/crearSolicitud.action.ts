@@ -10,6 +10,7 @@ import { type CentroTipoSolicitudColumna, getColumnaTipoSolicitudPorCentro } fro
 import { crearSolicitudSchema, CrearSolicitudInput } from "../schemas/solicitud.schema";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
+import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // utils
 import { calcularEdad } from "../utils/priorizacion";
 import { normalizarRut } from "../utils/rut";
@@ -39,24 +40,7 @@ interface SolicitudCreada {
 
 interface CrearSolicitudOk {
     solicitud: SolicitudCreada;
-    voucher: {
-        id_solicitud: string;
-        fecha_inicio: Date;
-        rut: string;
-        usuario: {
-            rut: string;
-            nombre: string;
-            apellido: string;
-            nombre_social: string | null;
-            telefono: string | null;
-            telefono_alternativo: string | null;
-        };
-        tipoSolicitud: { id_tipo_solicitud: number; nombre_tipo_solicitud: string };
-        motivo: { id_motivo: number; nombre_motivo: string } | null;
-        profesional: string;
-        centro: string;
-        disponibilidad_llamada: string | null;
-    };
+    voucher: VoucherSolicitud;
 }
 
 async function getCentroFuncionario(rutFuncionario: string, centroSesion: string | null): Promise<string | null> {
@@ -226,7 +210,6 @@ export async function crearSolicitud(input: CrearSolicitudInput): Promise<Result
                 usuario: solicitud.usuario,
                 tipoSolicitud: solicitud.tipoSolicitud,
                 motivo: solicitud.motivo,
-                profesional: user.nombre,
                 centro: nombreCentro ?? centroId,
                 disponibilidad_llamada: solicitud.disponibilidad_llamada
             }
