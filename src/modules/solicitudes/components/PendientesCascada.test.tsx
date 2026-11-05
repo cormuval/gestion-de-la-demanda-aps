@@ -65,7 +65,7 @@ describe("PendientesCascada", () => {
             <PendientesCascada
                 pendientes={{ solicitudesPendientes: [solicitud, segundaSolicitud], citasPendientes: [] }}
                 onReimprimirVoucher={onReimprimirVoucher}
-                idVoucherCargando="SOL-1"
+                idsVoucherCargando={new Set(["SOL-1"])}
             />
         );
 

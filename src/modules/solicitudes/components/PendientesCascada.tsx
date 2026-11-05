@@ -130,11 +130,11 @@ export function ListaPendientes<S extends SolicitudCascada, C extends CitaCascad
 export function PendientesCascada({
     pendientes,
     onReimprimirVoucher,
-    idVoucherCargando = null
+    idsVoucherCargando
 }: {
     pendientes: PendientesCascadaData;
     onReimprimirVoucher?: (idSolicitud: string) => void;
-    idVoucherCargando?: string | null;
+    idsVoucherCargando?: ReadonlySet<string>;
 }) {
     const { solicitudesPendientes, citasPendientes } = pendientes;
 
@@ -160,7 +160,7 @@ export function PendientesCascada({
                     solicitudes={solicitudesPendientes}
                     citas={citasPendientes}
                     accionesSolicitud={onReimprimirVoucher ? (solicitud) => {
-                        const cargando = idVoucherCargando === solicitud.id_solicitud;
+                        const cargando = idsVoucherCargando?.has(solicitud.id_solicitud) ?? false;
                         const etiqueta = cargando ? "Reimprimiendo voucher" : "Reimprimir voucher";
 
                         return (

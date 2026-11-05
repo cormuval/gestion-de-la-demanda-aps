@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Pencil, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
@@ -138,7 +138,8 @@ export function IngresarSolicitudView() {
     const [solicitudForm, setSolicitudForm] = useState<SolicitudFormState>(emptySolicitudForm);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioFormState>(emptyUsuarioForm);
     const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
-    const [idVoucherCargando, setIdVoucherCargando] = useState<string | null>(null);
+    const [idsVoucherCargando, setIdsVoucherCargando] = useState<Set<string>>(new Set());
+    const idsVoucherEnVuelo = useRef<Set<string>>(new Set());
     const [usuarioModalMode, setUsuarioModalMode] = useState<"crear" | "editar" | null>(null);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
     const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
@@ -309,9 +310,10 @@ export function IngresarSolicitudView() {
     }
 
     async function onReimprimirVoucher(idSolicitud: string) {
-        if (idVoucherCargando) return;
+        if (idsVoucherEnVuelo.current.has(idSolicitud)) return;
 
-        setIdVoucherCargando(idSolicitud);
+        idsVoucherEnVuelo.current.add(idSolicitud);
+        setIdsVoucherCargando((current) => new Set(current).add(idSolicitud));
         try {
             const result = await getVoucherSolicitud(idSolicitud);
             if (!result.ok) {
@@ -323,7 +325,12 @@ export function IngresarSolicitudView() {
         } catch {
             toast.error("Error al reimprimir voucher");
         } finally {
-            setIdVoucherCargando(null);
+            idsVoucherEnVuelo.current.delete(idSolicitud);
+            setIdsVoucherCargando((current) => {
+                const next = new Set(current);
+                next.delete(idSolicitud);
+                return next;
+            });
         }
     }
 
@@ -360,7 +367,7 @@ export function IngresarSolicitudView() {
                 <PendientesCascada
                     pendientes={pendientes}
                     onReimprimirVoucher={onReimprimirVoucher}
-                    idVoucherCargando={idVoucherCargando}
+                    idsVoucherCargando={idsVoucherCargando}
                 />
             )}
 

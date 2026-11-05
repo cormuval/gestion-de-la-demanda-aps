@@ -80,6 +80,7 @@ const voucherReimpreso = {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getVoucherSolicitud).mockReset();
     vi.mocked(getCatalogos).mockResolvedValue({
         tiposSolicitud: [{ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Atencion" }],
         motivos: [
@@ -261,6 +262,38 @@ describe("IngresarSolicitudView reimpresion de voucher", () => {
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Solicitud no encontrada"));
         expect(screen.queryByText("Voucher de solicitud")).not.toBeInTheDocument();
+        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getByTitle("SOL-duplicada")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" })).not.toBeDisabled();
+    });
+
+    it("permite reimprimir otra solicitud mientras conserva la carga de la primera", async () => {
+        const solicitudOtra = { ...solicitudDuplicada, id_solicitud: "SOL-otra" };
+        vi.mocked(getPendientes).mockResolvedValue({
+            ok: true,
+            data: { solicitudesPendientes: [solicitudDuplicada, solicitudOtra], citasPendientes: [] }
+        } as Awaited<ReturnType<typeof getPendientes>>);
+        let resolverPrimero!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        let resolverSegundo!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        vi.mocked(getVoucherSolicitud)
+            .mockReturnValueOnce(new Promise((resolve) => { resolverPrimero = resolve; }))
+            .mockReturnValueOnce(new Promise((resolve) => { resolverSegundo = resolve; }));
+
+        await buscarRutConfirmado();
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" }));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-duplicada" })).toBeDisabled());
+
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-otra" }));
+        await waitFor(() => expect(getVoucherSolicitud).toHaveBeenNthCalledWith(2, "SOL-otra"));
+        expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-duplicada" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-otra" })).toBeDisabled();
+
+        resolverPrimero({ ok: false, error: "No disponible" } as Awaited<ReturnType<typeof getVoucherSolicitud>>);
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" })).not.toBeDisabled());
+        expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-otra" })).toBeDisabled();
+
+        resolverSegundo({ ok: false, error: "No disponible" } as Awaited<ReturnType<typeof getVoucherSolicitud>>);
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-otra" })).not.toBeDisabled());
     });
 
     it("muestra un error generico, conserva al paciente y libera la carga si la consulta falla", async () => {
