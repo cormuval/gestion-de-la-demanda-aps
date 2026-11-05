@@ -40,6 +40,12 @@ const usuarioConfirmado = {
     priorizacion_administrativa: null
 };
 
+const usuarioConfirmadoB = {
+    ...usuarioConfirmado,
+    rut: "11111111-1",
+    nombre: "Paciente B"
+};
+
 const solicitudDuplicada = {
     id_solicitud: "SOL-duplicada",
     fecha_inicio: new Date("2026-07-02T12:00:00Z"),
@@ -168,6 +174,9 @@ const resultadoCreacionExitosa = {
 
 describe("IngresarSolicitudView mantener usuario", () => {
     it("muestra el control desmarcado solo despues de confirmar al usuario y lo reinicia al buscar otro RUT", async () => {
+        vi.mocked(getUsuarioPorRut)
+            .mockResolvedValueOnce(usuarioEncontrado as Awaited<ReturnType<typeof getUsuarioPorRut>>)
+            .mockResolvedValueOnce({ ok: true, data: { usuario: usuarioConfirmadoB } } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
         render(<IngresarSolicitudView />);
         expect(screen.queryByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeInTheDocument();
 
@@ -179,9 +188,16 @@ describe("IngresarSolicitudView mantener usuario", () => {
         fireEvent.click(checkbox);
         expect(checkbox).toBeChecked();
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "11.111.111-1" } });
+
+        expect(screen.getByPlaceholderText("RUT usuario")).toHaveValue("11.111.111-1");
+        expect(screen.queryByText("Paciente Demo")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Guardar solicitud" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeInTheDocument();
+
         fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
 
-        await waitFor(() => expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeChecked());
+        await screen.findByText(/Paciente B/);
+        expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeChecked();
     });
 
     it("reinicia paciente y formulario tras crear una solicitud sin mantenerlo", async () => {
@@ -198,6 +214,18 @@ describe("IngresarSolicitudView mantener usuario", () => {
         expect(screen.queryByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeInTheDocument();
         expect(screen.queryByText("Pendientes del paciente")).not.toBeInTheDocument();
         expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+        await screen.findByText("Paciente Demo");
+        const [tipoSolicitud] = screen.getAllByRole("combobox");
+        const descripcion = screen.getAllByRole("textbox").at(-1)!;
+        expect(tipoSolicitud).toHaveValue("");
+        fireEvent.change(tipoSolicitud, { target: { value: "1" } });
+        const [, motivoSolicitud, disponibilidad] = screen.getAllByRole("combobox");
+        expect(motivoSolicitud).toHaveValue("");
+        expect(disponibilidad).toHaveValue("");
+        expect(descripcion).toHaveValue("");
     });
 
     it("conserva al paciente, limpia el formulario y refresca sus pendientes al mantenerlo", async () => {
@@ -258,6 +286,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         vi.mocked(crearSolicitud).mockResolvedValue(resultadoCreacionExitosa as Awaited<ReturnType<typeof crearSolicitud>>);
         await buscarRutConfirmado();
         await completarFormularioSolicitud("11");
+        fireEvent.change(obtenerCamposSolicitud().descripcion, { target: { value: "Descripcion de prueba" } });
         fireEvent.click(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" }));
 
         fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
@@ -271,7 +300,55 @@ describe("IngresarSolicitudView mantener usuario", () => {
         expect(disponibilidad).toHaveValue("");
         expect(descripcion).toHaveValue("");
         expect(screen.getAllByRole("combobox")).toHaveLength(2);
+        fireEvent.change(tipoSolicitud, { target: { value: "1" } });
+        const [, motivoSolicitud, disponibilidadConMotivo] = screen.getAllByRole("combobox");
+        expect(motivoSolicitud).toHaveValue("");
+        expect(disponibilidadConMotivo).toHaveValue("");
         await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(advertencia));
+    });
+
+    it.each([
+        ["resuelve con pendientes de A", (resolve: (value: Awaited<ReturnType<typeof getPendientes>>) => void, _reject: (reason?: unknown) => void) => resolve({ ok: true, data: pendientesConDuplicado } as Awaited<ReturnType<typeof getPendientes>>)],
+        ["devuelve un error de A", (resolve: (value: Awaited<ReturnType<typeof getPendientes>>) => void, _reject: (reason?: unknown) => void) => resolve({ ok: false, error: "Pendientes de A no disponibles" } as Awaited<ReturnType<typeof getPendientes>>)],
+        ["lanza un error de A", (_resolve: (value: Awaited<ReturnType<typeof getPendientes>>) => void, reject: (reason?: unknown) => void) => reject(new Error("detalle tecnico A"))]
+    ])("descarta el refresco obsoleto cuando %s y el flujo activo ya es B", async (_caso, completarRefrescoA) => {
+        let resolverRefrescoA!: (value: Awaited<ReturnType<typeof getPendientes>>) => void;
+        let rechazarRefrescoA!: (reason?: unknown) => void;
+        const refrescoA = new Promise<Awaited<ReturnType<typeof getPendientes>>>((resolve, reject) => {
+            resolverRefrescoA = resolve;
+            rechazarRefrescoA = reject;
+        });
+        const pendientesB = {
+            solicitudesPendientes: [{ ...solicitudDuplicada, id_solicitud: "SOL-B" }],
+            citasPendientes: []
+        };
+        vi.mocked(getPendientes)
+            .mockResolvedValueOnce(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>)
+            .mockReturnValueOnce(refrescoA)
+            .mockResolvedValueOnce({ ok: true, data: pendientesB } as Awaited<ReturnType<typeof getPendientes>>);
+        vi.mocked(getUsuarioPorRut)
+            .mockResolvedValueOnce(usuarioEncontrado as Awaited<ReturnType<typeof getUsuarioPorRut>>)
+            .mockResolvedValueOnce({ ok: true, data: { usuario: usuarioConfirmadoB } } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+        vi.mocked(crearSolicitud).mockResolvedValue(resultadoCreacionExitosa as Awaited<ReturnType<typeof crearSolicitud>>);
+
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud("11");
+        fireEvent.click(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" }));
+        fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
+        await screen.findByText("Voucher de solicitud");
+        await waitFor(() => expect(getPendientes).toHaveBeenCalledTimes(2));
+
+        fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "11.111.111-1" } });
+        fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+        await screen.findByText(/Paciente B/);
+        expect(await screen.findByTitle("SOL-B")).toBeInTheDocument();
+
+        completarRefrescoA(resolverRefrescoA, rechazarRefrescoA);
+
+        await waitFor(() => expect(screen.getByText(/Paciente B/)).toBeInTheDocument());
+        expect(screen.getByTitle("SOL-B")).toBeInTheDocument();
+        expect(screen.queryByTitle("SOL-duplicada")).not.toBeInTheDocument();
+        expect(toast.warning).not.toHaveBeenCalled();
     });
 });
 

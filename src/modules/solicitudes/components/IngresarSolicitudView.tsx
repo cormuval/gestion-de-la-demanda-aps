@@ -141,6 +141,7 @@ export function IngresarSolicitudView() {
     const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
     const [idsVoucherCargando, setIdsVoucherCargando] = useState<Set<string>>(new Set());
     const idsVoucherEnVuelo = useRef<Set<string>>(new Set());
+    const revisionActivaRef = useRef(0);
     const [usuarioModalMode, setUsuarioModalMode] = useState<"crear" | "editar" | null>(null);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
     const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
@@ -186,8 +187,7 @@ export function IngresarSolicitudView() {
         setSolicitudForm(emptySolicitudForm);
     }
 
-    function limpiarIngresoSolicitud() {
-        setRutBusqueda("");
+    function limpiarRevisionUsuario() {
         setRutRevisado("");
         setPendientes(null);
         setUsuarioConfirmado(null);
@@ -195,6 +195,20 @@ export function IngresarSolicitudView() {
         setUsuarioForm(emptyUsuarioForm);
         setUsuarioModalMode(null);
         setMantenerUsuario(false);
+    }
+
+    function limpiarIngresoSolicitud() {
+        revisionActivaRef.current += 1;
+        setRutBusqueda("");
+        limpiarRevisionUsuario();
+    }
+
+    function actualizarRutBusqueda(rut: string) {
+        setRutBusqueda(rut);
+        if (rut === rutRevisado) return;
+
+        revisionActivaRef.current += 1;
+        limpiarRevisionUsuario();
     }
 
     function openCrearUsuario() {
@@ -210,13 +224,12 @@ export function IngresarSolicitudView() {
 
     async function buscarPendientes(event: React.FormEvent) {
         event.preventDefault();
-        setPendientes(null);
-        setUsuarioConfirmado(null);
-        limpiarFormularioSolicitud();
-        setMantenerUsuario(false);
+        const revision = ++revisionActivaRef.current;
+        limpiarRevisionUsuario();
         setLoadingPendientes(true);
         try {
             const [pendientesResult, usuarioResult] = await Promise.all([getPendientes(rutBusqueda), getUsuarioPorRut(rutBusqueda)]);
+            if (revision !== revisionActivaRef.current) return;
             if (!pendientesResult.ok) {
                 toast.error(pendientesResult.error);
                 return;
@@ -236,9 +249,10 @@ export function IngresarSolicitudView() {
                 toast.warning("No se encontro el RUT en usuarios. Crea el usuario antes de ingresar la solicitud.");
             }
         } catch {
+            if (revision !== revisionActivaRef.current) return;
             toast.error("Error al buscar pendientes");
         } finally {
-            setLoadingPendientes(false);
+            if (revision === revisionActivaRef.current) setLoadingPendientes(false);
         }
     }
 
@@ -281,6 +295,7 @@ export function IngresarSolicitudView() {
             toast.error("Debes completar la revision previa y confirmar el usuario");
             return;
         }
+        const revision = revisionActivaRef.current;
         setSubmittingSolicitud(true);
         try {
             if (!isDisponibilidadLlamada(solicitudForm.disponibilidad_llamada)) {
@@ -295,16 +310,18 @@ export function IngresarSolicitudView() {
                 descripcion: solicitudForm.descripcion
             });
             if (!result.ok) {
+                if (revision !== revisionActivaRef.current) return;
                 toast.error(result.error);
                 try {
                     const actualizados = await getPendientes(usuarioConfirmado.rut);
-                    if (actualizados.ok) setPendientes(actualizados.data);
+                    if (revision === revisionActivaRef.current && actualizados.ok) setPendientes(actualizados.data);
                 } catch {
                     // El toast original es el mensaje importante para el usuario.
                 }
                 return;
             }
 
+            if (revision !== revisionActivaRef.current) return;
             const { solicitud, voucher } = result.data;
             toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
@@ -316,12 +333,14 @@ export function IngresarSolicitudView() {
             limpiarFormularioSolicitud();
             try {
                 const actualizados = await getPendientes(rutRevisado);
+                if (revision !== revisionActivaRef.current) return;
                 if (actualizados.ok) {
                     setPendientes(actualizados.data);
                 } else {
                     toast.warning(actualizados.error);
                 }
             } catch {
+                if (revision !== revisionActivaRef.current) return;
                 toast.warning("Error al actualizar pendientes");
             }
         } catch {
@@ -372,7 +391,7 @@ export function IngresarSolicitudView() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <form className="flex flex-col gap-3 sm:flex-row" onSubmit={buscarPendientes}>
-                        <Input placeholder="RUT usuario" value={rutBusqueda} onChange={(e) => setRutBusqueda(e.target.value)} required />
+                        <Input placeholder="RUT usuario" value={rutBusqueda} onChange={(e) => actualizarRutBusqueda(e.target.value)} required />
                         <Button disabled={loadingPendientes}>
                             <Search size={16} />
                             {loadingPendientes ? "Buscando..." : "Buscar pendientes"}
@@ -460,7 +479,7 @@ export function IngresarSolicitudView() {
                                         type="checkbox"
                                         checked={mantenerUsuario}
                                         onChange={(event) => setMantenerUsuario(event.target.checked)}
-                                        className="h-4 w-4 rounded border-input"
+                                        className="size-4 rounded border-input"
                                     />
                                     <Label htmlFor="mantener-usuario">Mantener usuario para otra solicitud</Label>
                                 </div>
