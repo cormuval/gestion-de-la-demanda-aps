@@ -1,11 +1,15 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
+import { Printer } from "lucide-react";
 // actions
 import { getHistorialPaciente } from "../actions/getHistorialPaciente.action";
+import { getVoucherSolicitud } from "@/modules/solicitudes/actions/getVoucherSolicitud.action";
 // types
 import type { CitaHistorial, HistorialPaciente, SolicitudHistorial } from "../types/historial";
+import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // components
+import { VoucherSolicitudModal } from "@/modules/solicitudes/components/VoucherSolicitudModal";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -13,6 +17,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { CodigoId } from "@/shared/components/ui/codigo-id";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+// lib
+import { toast } from "sonner";
 
 const ERROR_GENERICO = "No fue posible cargar el historial";
 
@@ -94,13 +100,19 @@ function CitaItem({ cita, expandida, onToggle }: { cita: CitaHistorial; expandid
 function SolicitudItem({
     solicitud,
     citasExpandidas,
-    onToggleCita
+    onToggleCita,
+    onReimprimirVoucher,
+    idVoucherCargando
 }: {
     solicitud: SolicitudHistorial;
     citasExpandidas: Set<string>;
     onToggleCita: (idCita: string) => void;
+    onReimprimirVoucher: (idSolicitud: string) => void;
+    idVoucherCargando: string | null;
 }) {
     const idTitulo = `solicitud-titulo-${solicitud.id_solicitud}`;
+    const reimprimiendoVoucher = idVoucherCargando === solicitud.id_solicitud;
+    const etiquetaVoucher = reimprimiendoVoucher ? "Reimprimiendo voucher" : "Reimprimir voucher";
 
     return (
         <Card data-testid={`solicitud-${solicitud.id_solicitud}`} aria-labelledby={idTitulo}>
@@ -130,6 +142,19 @@ function SolicitudItem({
                 {solicitud.estado_solicitud === "Rechazado" && solicitud.razon_rechazo && (
                     <p className="text-sm text-muted-foreground">Razón de rechazo: <span>{solicitud.razon_rechazo}</span></p>
                 )}
+                {solicitud.estado_solicitud === "En Curso" && (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={idVoucherCargando !== null}
+                        onClick={() => onReimprimirVoucher(solicitud.id_solicitud)}
+                        aria-label={`${etiquetaVoucher} ${solicitud.id_solicitud}`}
+                    >
+                        <Printer data-icon="inline-start" />
+                        {etiquetaVoucher}
+                    </Button>
+                )}
 
                 <div className="flex flex-col gap-3 border-l-2 border-muted pl-3">
                     {solicitud.citas.length === 0 ? (
@@ -156,9 +181,12 @@ export function HistorialPacienteView() {
     const [error, setError] = useState<string | null>(null);
     const [historial, setHistorial] = useState<HistorialPaciente | null>(null);
     const [citasExpandidas, setCitasExpandidas] = useState<Set<string>>(new Set());
+    const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
+    const [idVoucherCargando, setIdVoucherCargando] = useState<string | null>(null);
     // Contador de la ultima busqueda disparada: si una respuesta llega cuando ya no es la mas
     // reciente (se lanzo otra busqueda despues), se descarta en vez de pisar el resultado vigente.
     const idUltimaBusqueda = useRef(0);
+    const idVoucherEnVuelo = useRef<string | null>(null);
 
     function toggleCita(idCita: string) {
         setCitasExpandidas((previo) => {
@@ -195,6 +223,27 @@ export function HistorialPacienteView() {
             setError(ERROR_GENERICO);
         } finally {
             if (idBusqueda === idUltimaBusqueda.current) setCargando(false);
+        }
+    }
+
+    async function reimprimirVoucher(idSolicitud: string) {
+        if (idVoucherEnVuelo.current) return;
+
+        idVoucherEnVuelo.current = idSolicitud;
+        setIdVoucherCargando(idSolicitud);
+        try {
+            const resultado = await getVoucherSolicitud(idSolicitud);
+            if (!resultado.ok) {
+                toast.error(resultado.error);
+                return;
+            }
+
+            setVoucherSolicitud(resultado.data);
+        } catch {
+            toast.error("Error al reimprimir voucher");
+        } finally {
+            idVoucherEnVuelo.current = null;
+            setIdVoucherCargando(null);
         }
     }
 
@@ -259,11 +308,15 @@ export function HistorialPacienteView() {
                                 solicitud={solicitud}
                                 citasExpandidas={citasExpandidas}
                                 onToggleCita={toggleCita}
+                                onReimprimirVoucher={reimprimirVoucher}
+                                idVoucherCargando={idVoucherCargando}
                             />
                         ))}
                     </div>
                 </>
             )}
+
+            {voucherSolicitud && <VoucherSolicitudModal voucher={voucherSolicitud} onClose={() => setVoucherSolicitud(null)} />}
         </div>
     );
 }
