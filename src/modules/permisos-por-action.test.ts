@@ -60,6 +60,7 @@ import { getPendientes } from "./solicitudes/actions/getPendientes.action";
 import { getRevisionCatalogos } from "./solicitudes/actions/getRevisionCatalogos.action";
 import { getSolicitudes } from "./solicitudes/actions/getSolicitudes.action";
 import { getUsuarioPorRut } from "./solicitudes/actions/getUsuarioPorRut.action";
+import { getVoucherSolicitud } from "./solicitudes/actions/getVoucherSolicitud.action";
 import { actualizarUsuario, crearUsuario } from "./solicitudes/actions/guardarUsuario.action";
 import { verificarSolicitudPendiente } from "./solicitudes/actions/verificarSolicitudPendiente.action";
 
@@ -173,6 +174,11 @@ const tabla: CasoPermiso[] = [
     },
     { nombre: "getUsuarioPorRut", invocar: () => getUsuarioPorRut("11111111-1"), permisos: ["solicitudes.ver"] },
     {
+        nombre: "getVoucherSolicitud",
+        invocar: () => getVoucherSolicitud("SOL-1"),
+        permisos: ["solicitudes.ver", "historial.ver"]
+    },
+    {
         nombre: "crearUsuario",
         invocar: () => crearUsuario({} as never),
         permisos: ["solicitudes.crear", "solicitudes.gestionar"]
@@ -195,8 +201,8 @@ beforeEach(() => {
 });
 
 describe("permiso exigido por cada Server Action", () => {
-    it("cubre las 33 Server Actions del sistema", () => {
-        expect(tabla.length).toBe(33);
+    it("cubre las 34 Server Actions del sistema", () => {
+        expect(tabla.length).toBe(34);
     });
 
     for (const caso of tabla) {
