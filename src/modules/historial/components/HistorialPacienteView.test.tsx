@@ -26,6 +26,10 @@ function buscar() {
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 }
 
+function obtenerVoucherVisible(): HTMLElement {
+    return screen.getByText("Voucher de solicitud").closest(".fixed") as HTMLElement;
+}
+
 const SOLICITUD_EN_CURSO = {
     id_solicitud: "SOL-1",
     fecha_inicio: new Date("2026-01-10T12:00:00Z"),
@@ -393,6 +397,50 @@ describe("HistorialPacienteView", () => {
         await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-4" })).not.toBeDisabled());
     });
 
+    it("conserva el voucher de la reimpresion mas reciente si las respuestas llegan invertidas", async () => {
+        const voucherMasReciente = { ...VOUCHER_EN_CURSO, id_solicitud: "SOL-4" };
+        let resolverPrimera!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        let resolverSegunda!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_CON_DOS_SOLICITUDES_EN_CURSO });
+        vi.mocked(getVoucherSolicitud)
+            .mockReturnValueOnce(new Promise((resolve) => { resolverPrimera = resolve; }))
+            .mockReturnValueOnce(new Promise((resolve) => { resolverSegunda = resolve; }));
+
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        await screen.findByText("Juana Perez");
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-1" }));
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-4" }));
+
+        await act(async () => {
+            resolverSegunda({ ok: true, data: voucherMasReciente });
+        });
+        expect(within(obtenerVoucherVisible()).getByText("SOL-4")).toBeInTheDocument();
+
+        await act(async () => {
+            resolverPrimera({ ok: true, data: VOUCHER_EN_CURSO });
+        });
+        expect(within(obtenerVoucherVisible()).getByText("SOL-4")).toBeInTheDocument();
+        expect(within(obtenerVoucherVisible()).queryByText("SOL-1")).not.toBeInTheDocument();
+    });
+
+    it("invalida y cierra el voucher activo al editar el RUT", async () => {
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_COMPLETO });
+        vi.mocked(getVoucherSolicitud).mockResolvedValue({ ok: true, data: VOUCHER_EN_CURSO });
+
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        await screen.findByText("Juana Perez");
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-1" }));
+        await screen.findByText("Voucher de solicitud");
+
+        escribirRut("22222222-2");
+
+        expect(screen.queryByText("Voucher de solicitud")).not.toBeInTheDocument();
+    });
+
     it("descarta un voucher resuelto despues de iniciar una nueva busqueda", async () => {
         const historialPacienteB: HistorialPaciente = {
             paciente: { rut: "22222222-2", nombre: "Paciente B" },
@@ -422,6 +470,7 @@ describe("HistorialPacienteView", () => {
 
         expect(screen.queryByText("Voucher de solicitud")).not.toBeInTheDocument();
         expect(screen.getByText("Paciente B")).toBeInTheDocument();
+        expect(toast.error).not.toHaveBeenCalled();
     });
 
     it("abre el voucher con la fecha original y restablece el boton al terminar", async () => {

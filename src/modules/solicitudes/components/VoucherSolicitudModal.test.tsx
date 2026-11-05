@@ -40,6 +40,19 @@ describe("VoucherSolicitudModal", () => {
         expect(screen.getByText("Motivo:")).toBeInTheDocument();
         expect(screen.getByText("Disponibilidad:")).toBeInTheDocument();
         expect(screen.getByText("Telefonos:")).toBeInTheDocument();
+        expect(screen.getByText("SOL-2026-001")).toBeInTheDocument();
+        expect(screen.getByText("03-07-2026")).toBeInTheDocument();
+        expect(screen.getByText(/^12:00 p\./)).toHaveTextContent("12:00 p. m.");
+        expect(screen.getByText("12345678-5")).toBeInTheDocument();
+        expect(screen.getByText("CESFAM")).toBeInTheDocument();
+        expect(screen.getByText("Atencion")).toBeInTheDocument();
+        expect(screen.getByText("Control")).toBeInTheDocument();
+        expect(screen.getByText("Solo AM")).toBeInTheDocument();
+        expect(screen.getByText("+56911111111 / +56922222222")).toBeInTheDocument();
+        expect(screen.getByRole("img", { name: "Corporacion Municipal Valparaiso" })).toHaveAttribute(
+            "src",
+            "/assets/CALUGA_LOGOS_2025.png"
+        );
         expect(screen.queryByText("Profesional:")).not.toBeInTheDocument();
     });
 

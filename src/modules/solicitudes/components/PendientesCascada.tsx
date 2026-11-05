@@ -130,11 +130,13 @@ export function ListaPendientes<S extends SolicitudCascada, C extends CitaCascad
 export function PendientesCascada({
     pendientes,
     onReimprimirVoucher,
-    idsVoucherCargando
+    idsVoucherCargando,
+    reimpresionDeshabilitada = false
 }: {
     pendientes: PendientesCascadaData;
     onReimprimirVoucher?: (idSolicitud: string) => void;
     idsVoucherCargando?: ReadonlySet<string>;
+    reimpresionDeshabilitada?: boolean;
 }) {
     const { solicitudesPendientes, citasPendientes } = pendientes;
 
@@ -168,7 +170,7 @@ export function PendientesCascada({
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                disabled={cargando}
+                                disabled={cargando || reimpresionDeshabilitada}
                                 onClick={() => onReimprimirVoucher(solicitud.id_solicitud)}
                                 aria-label={`${etiqueta} ${solicitud.id_solicitud}`}
                             >

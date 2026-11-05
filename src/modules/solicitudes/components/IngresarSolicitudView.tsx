@@ -142,6 +142,7 @@ export function IngresarSolicitudView() {
     const [idsVoucherCargando, setIdsVoucherCargando] = useState<Set<string>>(new Set());
     const idsVoucherEnVuelo = useRef<Set<string>>(new Set());
     const revisionActivaRef = useRef(0);
+    const intencionVoucherRef = useRef(0);
     const [usuarioModalMode, setUsuarioModalMode] = useState<"crear" | "editar" | null>(null);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
     const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
@@ -208,6 +209,8 @@ export function IngresarSolicitudView() {
         if (rut === rutRevisado) return;
 
         revisionActivaRef.current += 1;
+        intencionVoucherRef.current += 1;
+        setVoucherSolicitud(null);
         setLoadingPendientes(false);
         limpiarRevisionUsuario();
     }
@@ -226,6 +229,8 @@ export function IngresarSolicitudView() {
     async function buscarPendientes(event: React.FormEvent) {
         event.preventDefault();
         const revision = ++revisionActivaRef.current;
+        intencionVoucherRef.current += 1;
+        setVoucherSolicitud(null);
         limpiarRevisionUsuario();
         setLoadingPendientes(true);
         try {
@@ -297,6 +302,8 @@ export function IngresarSolicitudView() {
             return;
         }
         const revision = revisionActivaRef.current;
+        intencionVoucherRef.current += 1;
+        setVoucherSolicitud(null);
         setSubmittingSolicitud(true);
         try {
             if (!isDisponibilidadLlamada(solicitudForm.disponibilidad_llamada)) {
@@ -310,6 +317,7 @@ export function IngresarSolicitudView() {
                 motivo_id: requiereMotivo ? Number(solicitudForm.motivo_id) : null,
                 descripcion: solicitudForm.descripcion
             });
+            setSubmittingSolicitud(false);
             if (!result.ok) {
                 if (revision !== revisionActivaRef.current) return;
                 toast.error(result.error);
@@ -322,8 +330,8 @@ export function IngresarSolicitudView() {
                 return;
             }
 
-            if (revision !== revisionActivaRef.current) return;
             const { solicitud, voucher } = result.data;
+            intencionVoucherRef.current += 1;
             toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
             if (!mantenerUsuario) {
@@ -352,12 +360,15 @@ export function IngresarSolicitudView() {
     }
 
     async function onReimprimirVoucher(idSolicitud: string) {
-        if (idsVoucherEnVuelo.current.has(idSolicitud)) return;
+        if (submittingSolicitud || idsVoucherEnVuelo.current.has(idSolicitud)) return;
 
+        const intencion = ++intencionVoucherRef.current;
+        const revision = revisionActivaRef.current;
         idsVoucherEnVuelo.current.add(idSolicitud);
         setIdsVoucherCargando((current) => new Set(current).add(idSolicitud));
         try {
             const result = await getVoucherSolicitud(idSolicitud);
+            if (intencion !== intencionVoucherRef.current || revision !== revisionActivaRef.current) return;
             if (!result.ok) {
                 toast.error(result.error);
                 return;
@@ -365,6 +376,7 @@ export function IngresarSolicitudView() {
 
             setVoucherSolicitud(result.data);
         } catch {
+            if (intencion !== intencionVoucherRef.current || revision !== revisionActivaRef.current) return;
             toast.error("Error al reimprimir voucher");
         } finally {
             idsVoucherEnVuelo.current.delete(idSolicitud);
@@ -392,8 +404,8 @@ export function IngresarSolicitudView() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <form className="flex flex-col gap-3 sm:flex-row" onSubmit={buscarPendientes}>
-                        <Input placeholder="RUT usuario" value={rutBusqueda} onChange={(e) => actualizarRutBusqueda(e.target.value)} required />
-                        <Button disabled={loadingPendientes}>
+                        <Input placeholder="RUT usuario" value={rutBusqueda} onChange={(e) => actualizarRutBusqueda(e.target.value)} disabled={submittingSolicitud} required />
+                        <Button disabled={loadingPendientes || submittingSolicitud}>
                             <Search size={16} />
                             {loadingPendientes ? "Buscando..." : "Buscar pendientes"}
                         </Button>
@@ -410,6 +422,7 @@ export function IngresarSolicitudView() {
                     pendientes={pendientes}
                     onReimprimirVoucher={onReimprimirVoucher}
                     idsVoucherCargando={idsVoucherCargando}
+                    reimpresionDeshabilitada={submittingSolicitud}
                 />
             )}
 

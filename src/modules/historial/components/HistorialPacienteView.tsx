@@ -187,6 +187,7 @@ export function HistorialPacienteView() {
     // reciente (se lanzo otra busqueda despues), se descarta en vez de pisar el resultado vigente.
     const idUltimaBusqueda = useRef(0);
     const idsVoucherEnVuelo = useRef<Set<string>>(new Set());
+    const intencionVoucherRef = useRef(0);
 
     function toggleCita(idCita: string) {
         setCitasExpandidas((previo) => {
@@ -203,6 +204,7 @@ export function HistorialPacienteView() {
     async function buscar(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const idBusqueda = ++idUltimaBusqueda.current;
+        intencionVoucherRef.current += 1;
         setCargando(true);
         setError(null);
         setHistorial(null);
@@ -233,11 +235,12 @@ export function HistorialPacienteView() {
         const idBusqueda = idUltimaBusqueda.current;
         if (idsVoucherEnVuelo.current.has(idSolicitud)) return;
 
+        const intencion = ++intencionVoucherRef.current;
         idsVoucherEnVuelo.current.add(idSolicitud);
         setIdsVoucherCargando((actuales) => new Set(actuales).add(idSolicitud));
         try {
             const resultado = await getVoucherSolicitud(idSolicitud);
-            if (idBusqueda !== idUltimaBusqueda.current) return;
+            if (idBusqueda !== idUltimaBusqueda.current || intencion !== intencionVoucherRef.current) return;
             if (!resultado.ok) {
                 toast.error(resultado.error);
                 return;
@@ -245,7 +248,7 @@ export function HistorialPacienteView() {
 
             setVoucherSolicitud(resultado.data);
         } catch {
-            if (idBusqueda !== idUltimaBusqueda.current) return;
+            if (idBusqueda !== idUltimaBusqueda.current || intencion !== intencionVoucherRef.current) return;
             toast.error("Error al reimprimir voucher");
         } finally {
             if (idBusqueda !== idUltimaBusqueda.current) return;
@@ -279,7 +282,11 @@ export function HistorialPacienteView() {
                             <Input
                                 id="rut-historial"
                                 value={rut}
-                                onChange={(e) => setRut(e.target.value)}
+                                onChange={(e) => {
+                                    setRut(e.target.value);
+                                    intencionVoucherRef.current += 1;
+                                    setVoucherSolicitud(null);
+                                }}
                                 placeholder="12.345.678-5"
                             />
                         </div>
