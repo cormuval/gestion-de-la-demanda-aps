@@ -14,6 +14,8 @@ import { HistorialPacienteView } from "./HistorialPacienteView";
 
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getHistorialPaciente).mockReset();
+    vi.mocked(getVoucherSolicitud).mockReset();
 });
 
 function escribirRut(valor: string) {
@@ -109,9 +111,21 @@ const SOLICITUD_RECHAZADA = {
     citas: []
 };
 
+const SOLICITUD_EN_CURSO_DOS = {
+    ...SOLICITUD_EN_CURSO,
+    id_solicitud: "SOL-4",
+    tipo: "Tipo D",
+    motivo: "Motivo D"
+};
+
 const HISTORIAL_COMPLETO: HistorialPaciente = {
     paciente: { rut: "12345678-5", nombre: "Juana Perez" },
     solicitudes: [SOLICITUD_EN_CURSO, SOLICITUD_REALIZADA, SOLICITUD_RECHAZADA]
+};
+
+const HISTORIAL_CON_DOS_SOLICITUDES_EN_CURSO: HistorialPaciente = {
+    paciente: { rut: "12345678-5", nombre: "Juana Perez" },
+    solicitudes: [SOLICITUD_EN_CURSO, SOLICITUD_EN_CURSO_DOS]
 };
 
 const VOUCHER_EN_CURSO: VoucherSolicitud = {
@@ -344,6 +358,70 @@ describe("HistorialPacienteView", () => {
 
         resolver({ ok: true, data: VOUCHER_EN_CURSO });
         await screen.findByText("Voucher de solicitud");
+    });
+
+    it("permite reimprimir otra solicitud mientras conserva la carga de la primera", async () => {
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_CON_DOS_SOLICITUDES_EN_CURSO });
+        let resolverPrimera!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        let resolverSegunda!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        vi.mocked(getVoucherSolicitud)
+            .mockReturnValueOnce(new Promise((resolve) => { resolverPrimera = resolve; }))
+            .mockReturnValueOnce(new Promise((resolve) => { resolverSegunda = resolve; }));
+
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        await screen.findByText("Juana Perez");
+
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-1" }));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-1" })).toBeDisabled());
+        expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-4" })).not.toBeDisabled();
+
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-4" }));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-4" })).toBeDisabled());
+        expect(getVoucherSolicitud).toHaveBeenNthCalledWith(2, "SOL-4");
+
+        await act(async () => {
+            resolverPrimera({ ok: false, error: "No disponible" });
+        });
+        expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-1" })).not.toBeDisabled();
+        expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-4" })).toBeDisabled();
+
+        await act(async () => {
+            resolverSegunda({ ok: false, error: "No disponible" });
+        });
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-4" })).not.toBeDisabled());
+    });
+
+    it("descarta un voucher resuelto despues de iniciar una nueva busqueda", async () => {
+        const historialPacienteB: HistorialPaciente = {
+            paciente: { rut: "22222222-2", nombre: "Paciente B" },
+            solicitudes: [SOLICITUD_REALIZADA]
+        };
+        let resolverVoucherA!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
+        vi.mocked(getHistorialPaciente)
+            .mockResolvedValueOnce({ ok: true, data: HISTORIAL_COMPLETO })
+            .mockResolvedValueOnce({ ok: true, data: historialPacienteB });
+        vi.mocked(getVoucherSolicitud).mockReturnValueOnce(new Promise((resolve) => { resolverVoucherA = resolve; }));
+
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        await screen.findByText("Juana Perez");
+        fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-1" }));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Reimprimiendo voucher SOL-1" })).toBeDisabled());
+
+        escribirRut("22222222-2");
+        buscar();
+        expect(await screen.findByText("Paciente B")).toBeInTheDocument();
+
+        await act(async () => {
+            resolverVoucherA({ ok: true, data: VOUCHER_EN_CURSO });
+            await Promise.resolve();
+        });
+
+        expect(screen.queryByText("Voucher de solicitud")).not.toBeInTheDocument();
+        expect(screen.getByText("Paciente B")).toBeInTheDocument();
     });
 
     it("abre el voucher con la fecha original y restablece el boton al terminar", async () => {

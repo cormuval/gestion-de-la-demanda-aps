@@ -102,16 +102,16 @@ function SolicitudItem({
     citasExpandidas,
     onToggleCita,
     onReimprimirVoucher,
-    idVoucherCargando
+    idsVoucherCargando
 }: {
     solicitud: SolicitudHistorial;
     citasExpandidas: Set<string>;
     onToggleCita: (idCita: string) => void;
     onReimprimirVoucher: (idSolicitud: string) => void;
-    idVoucherCargando: string | null;
+    idsVoucherCargando: Set<string>;
 }) {
     const idTitulo = `solicitud-titulo-${solicitud.id_solicitud}`;
-    const reimprimiendoVoucher = idVoucherCargando === solicitud.id_solicitud;
+    const reimprimiendoVoucher = idsVoucherCargando.has(solicitud.id_solicitud);
     const etiquetaVoucher = reimprimiendoVoucher ? "Reimprimiendo voucher" : "Reimprimir voucher";
 
     return (
@@ -147,7 +147,7 @@ function SolicitudItem({
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={idVoucherCargando !== null}
+                        disabled={reimprimiendoVoucher}
                         onClick={() => onReimprimirVoucher(solicitud.id_solicitud)}
                         aria-label={`${etiquetaVoucher} ${solicitud.id_solicitud}`}
                     >
@@ -182,11 +182,11 @@ export function HistorialPacienteView() {
     const [historial, setHistorial] = useState<HistorialPaciente | null>(null);
     const [citasExpandidas, setCitasExpandidas] = useState<Set<string>>(new Set());
     const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
-    const [idVoucherCargando, setIdVoucherCargando] = useState<string | null>(null);
+    const [idsVoucherCargando, setIdsVoucherCargando] = useState<Set<string>>(new Set());
     // Contador de la ultima busqueda disparada: si una respuesta llega cuando ya no es la mas
     // reciente (se lanzo otra busqueda despues), se descarta en vez de pisar el resultado vigente.
     const idUltimaBusqueda = useRef(0);
-    const idVoucherEnVuelo = useRef<string | null>(null);
+    const idsVoucherEnVuelo = useRef<Set<string>>(new Set());
 
     function toggleCita(idCita: string) {
         setCitasExpandidas((previo) => {
@@ -207,6 +207,9 @@ export function HistorialPacienteView() {
         setError(null);
         setHistorial(null);
         setCitasExpandidas(new Set());
+        setVoucherSolicitud(null);
+        idsVoucherEnVuelo.current.clear();
+        setIdsVoucherCargando(new Set());
 
         try {
             const resultado = await getHistorialPaciente(rut);
@@ -227,12 +230,14 @@ export function HistorialPacienteView() {
     }
 
     async function reimprimirVoucher(idSolicitud: string) {
-        if (idVoucherEnVuelo.current) return;
+        const idBusqueda = idUltimaBusqueda.current;
+        if (idsVoucherEnVuelo.current.has(idSolicitud)) return;
 
-        idVoucherEnVuelo.current = idSolicitud;
-        setIdVoucherCargando(idSolicitud);
+        idsVoucherEnVuelo.current.add(idSolicitud);
+        setIdsVoucherCargando((actuales) => new Set(actuales).add(idSolicitud));
         try {
             const resultado = await getVoucherSolicitud(idSolicitud);
+            if (idBusqueda !== idUltimaBusqueda.current) return;
             if (!resultado.ok) {
                 toast.error(resultado.error);
                 return;
@@ -240,10 +245,16 @@ export function HistorialPacienteView() {
 
             setVoucherSolicitud(resultado.data);
         } catch {
+            if (idBusqueda !== idUltimaBusqueda.current) return;
             toast.error("Error al reimprimir voucher");
         } finally {
-            idVoucherEnVuelo.current = null;
-            setIdVoucherCargando(null);
+            if (idBusqueda !== idUltimaBusqueda.current) return;
+            idsVoucherEnVuelo.current.delete(idSolicitud);
+            setIdsVoucherCargando((actuales) => {
+                const siguientes = new Set(actuales);
+                siguientes.delete(idSolicitud);
+                return siguientes;
+            });
         }
     }
 
@@ -309,7 +320,7 @@ export function HistorialPacienteView() {
                                 citasExpandidas={citasExpandidas}
                                 onToggleCita={toggleCita}
                                 onReimprimirVoucher={reimprimirVoucher}
-                                idVoucherCargando={idVoucherCargando}
+                                idsVoucherCargando={idsVoucherCargando}
                             />
                         ))}
                     </div>
