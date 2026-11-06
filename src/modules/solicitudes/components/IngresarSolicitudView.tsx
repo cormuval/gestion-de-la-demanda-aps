@@ -504,7 +504,7 @@ export function IngresarSolicitudView() {
                                     />
                                     <Label htmlFor="mantener-usuario">Mantener usuario para otra solicitud</Label>
                                 </div>
-                                <Button disabled={creacionEnVuelo || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
+                                <Button className="mt-4" disabled={creacionEnVuelo || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
                             </div>
                         </form>
                     </CardContent>
