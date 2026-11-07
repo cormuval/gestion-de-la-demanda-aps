@@ -325,7 +325,7 @@ Tres tests impiden que el sistema se degrade silenciosamente. **No relajarlos.**
 | Test | Que garantiza |
 | --- | --- |
 | `src/app/paginas-protegidas.test.ts` | Toda pagina del grupo `(app)` llama a `requirePermisoPagina`, y ninguna es componente cliente |
-| `src/modules/permisos-por-action.test.ts` | Inventario explicito de las 31 Server Actions y el permiso exacto que exige cada una |
+| `src/modules/permisos-por-action.test.ts` | Inventario explicito de las 34 Server Actions y el permiso exacto que exige cada una |
 | `src/config/navegacion.test.ts` | Los items del menu usan permisos del catalogo y apuntan a paginas que existen |
 
 Mas `src/config/permisos.test.ts` (formato e integridad del catalogo) y

@@ -81,7 +81,7 @@ interface CasoPermiso {
 }
 
 // La tabla es la especificacion: se derivo leyendo el guard (primera linea de cada
-// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 33
+// export) en src/modules/*/actions/*.action.ts, no de memoria. Hoy sistema tiene 34
 // Server Actions repartidas en catalogos, comunicador, historial, configuracion y solicitudes.
 const tabla: CasoPermiso[] = [
     // catalogos

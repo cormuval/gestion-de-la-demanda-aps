@@ -48,6 +48,7 @@ const usuarioConfirmadoB = {
 
 const solicitudDuplicada = {
     id_solicitud: "SOL-duplicada",
+    centro_id: "650",
     fecha_inicio: new Date("2026-07-02T12:00:00Z"),
     descripcion: null,
     estado_solicitud: "En Curso",
@@ -100,7 +101,7 @@ beforeEach(() => {
 });
 
 async function buscarRutConfirmado() {
-    render(<IngresarSolicitudView />);
+    render(<IngresarSolicitudView centroActivoId="650" />);
 
     fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
     fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
@@ -204,7 +205,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         vi.mocked(getUsuarioPorRut)
             .mockResolvedValueOnce(usuarioEncontrado as Awaited<ReturnType<typeof getUsuarioPorRut>>)
             .mockResolvedValueOnce({ ok: true, data: { usuario: usuarioConfirmadoB } } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
-        render(<IngresarSolicitudView />);
+        render(<IngresarSolicitudView centroActivoId="650" />);
         expect(screen.queryByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeInTheDocument();
 
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
@@ -262,7 +263,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         };
         vi.mocked(getPendientes)
             .mockResolvedValueOnce(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>)
-            .mockResolvedValueOnce({ ok: true, data: pendientesActualizados } as Awaited<ReturnType<typeof getPendientes>>);
+            .mockResolvedValueOnce({ ok: true, data: pendientesActualizados } as unknown as Awaited<ReturnType<typeof getPendientes>>);
         vi.mocked(crearSolicitud).mockResolvedValue(resultadoCreacionExitosa as Awaited<ReturnType<typeof crearSolicitud>>);
         await buscarRutConfirmado();
         await completarFormularioSolicitud("11");
@@ -363,7 +364,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
     });
 
     it.each([
-        ["resuelve con pendientes de A", (resolve: (value: Awaited<ReturnType<typeof getPendientes>>) => void, _reject: (reason?: unknown) => void) => resolve({ ok: true, data: pendientesConDuplicado } as Awaited<ReturnType<typeof getPendientes>>)],
+        ["resuelve con pendientes de A", (resolve: (value: Awaited<ReturnType<typeof getPendientes>>) => void, _reject: (reason?: unknown) => void) => resolve({ ok: true, data: pendientesConDuplicado } as unknown as Awaited<ReturnType<typeof getPendientes>>)],
         ["devuelve un error de A", (resolve: (value: Awaited<ReturnType<typeof getPendientes>>) => void, _reject: (reason?: unknown) => void) => resolve({ ok: false, error: "Pendientes de A no disponibles" } as Awaited<ReturnType<typeof getPendientes>>)],
         ["lanza un error de A", (_resolve: (value: Awaited<ReturnType<typeof getPendientes>>) => void, reject: (reason?: unknown) => void) => reject(new Error("detalle tecnico A"))]
     ])("descarta el refresco obsoleto cuando %s y el flujo activo ya es B", async (_caso, completarRefrescoA) => {
@@ -380,7 +381,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         vi.mocked(getPendientes)
             .mockResolvedValueOnce(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>)
             .mockReturnValueOnce(refrescoA)
-            .mockResolvedValueOnce({ ok: true, data: pendientesB } as Awaited<ReturnType<typeof getPendientes>>);
+            .mockResolvedValueOnce({ ok: true, data: pendientesB } as unknown as Awaited<ReturnType<typeof getPendientes>>);
         vi.mocked(getUsuarioPorRut)
             .mockResolvedValueOnce(usuarioEncontrado as Awaited<ReturnType<typeof getUsuarioPorRut>>)
             .mockResolvedValueOnce({ ok: true, data: { usuario: usuarioConfirmadoB } } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
@@ -417,7 +418,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         vi.mocked(getUsuarioPorRut)
             .mockResolvedValueOnce(usuarioEncontrado as Awaited<ReturnType<typeof getUsuarioPorRut>>)
             .mockResolvedValueOnce({ ok: true, data: { usuario: usuarioConfirmadoB } } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
-        render(<IngresarSolicitudView />);
+        render(<IngresarSolicitudView centroActivoId="650" />);
 
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
         fireEvent.click(screen.getByRole("button", { name: "Buscar pendientes" }));
@@ -428,7 +429,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         fireEvent.click(screen.getByRole("button", { name: "Buscar pendientes" }));
         await screen.findByText(/Paciente B/);
 
-        resolverPendientesA(pendientesExitosos as Awaited<ReturnType<typeof getPendientes>>);
+        resolverPendientesA(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>);
 
         await waitFor(() => expect(screen.getByRole("button", { name: "Buscar pendientes" })).not.toBeDisabled());
         expect(screen.getByText(/Paciente B/)).toBeInTheDocument();
@@ -549,6 +550,26 @@ describe("IngresarSolicitudView duplicados", () => {
 });
 
 describe("IngresarSolicitudView reimpresion de voucher", () => {
+    it("usa el centro activo y conserva los pendientes de otros centros sin reimpresion", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true, data: { usuario: { ...usuarioConfirmado, centro_id: "999" } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+        vi.mocked(getPendientes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudesPendientes: [solicitudDuplicada, { ...solicitudDuplicada, id_solicitud: "SOL-otro-centro", centro_id: "999" }],
+                citasPendientes: []
+            }
+        } as unknown as Awaited<ReturnType<typeof getPendientes>>);
+
+        await buscarRutConfirmado();
+
+        expect(screen.getByTitle("SOL-otro-centro")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Reimprimir voucher SOL-otro-centro" })).not.toBeInTheDocument();
+        expect(getVoucherSolicitud).not.toHaveBeenCalled();
+    });
+
     it("consulta el voucher de la solicitud pendiente y abre el comprobante", async () => {
         vi.mocked(getVoucherSolicitud).mockResolvedValue({ ok: true, data: voucherReimpreso } as Awaited<ReturnType<typeof getVoucherSolicitud>>);
 
@@ -595,7 +616,7 @@ describe("IngresarSolicitudView reimpresion de voucher", () => {
         vi.mocked(getPendientes).mockResolvedValue({
             ok: true,
             data: { solicitudesPendientes: [solicitudDuplicada, solicitudOtra], citasPendientes: [] }
-        } as Awaited<ReturnType<typeof getPendientes>>);
+        } as unknown as Awaited<ReturnType<typeof getPendientes>>);
         let resolverPrimero!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
         let resolverSegundo!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
         vi.mocked(getVoucherSolicitud)
@@ -625,7 +646,7 @@ describe("IngresarSolicitudView reimpresion de voucher", () => {
         vi.mocked(getPendientes).mockResolvedValue({
             ok: true,
             data: { solicitudesPendientes: [solicitudDuplicada, solicitudOtra], citasPendientes: [] }
-        } as Awaited<ReturnType<typeof getPendientes>>);
+        } as unknown as Awaited<ReturnType<typeof getPendientes>>);
         let resolverPrimera!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
         let resolverSegunda!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;
         vi.mocked(getVoucherSolicitud)
@@ -685,7 +706,7 @@ describe("IngresarSolicitudView errores esperados de consulta", () => {
     it("oculta el detalle tecnico cuando falla la busqueda de pendientes", async () => {
         vi.mocked(getPendientes).mockRejectedValue(new Error("detalle sensible"));
 
-        render(<IngresarSolicitudView />);
+        render(<IngresarSolicitudView centroActivoId="650" />);
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
         fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
 
@@ -696,7 +717,7 @@ describe("IngresarSolicitudView errores esperados de consulta", () => {
     it("muestra un solo error de pendientes sin confirmar al usuario ni dejar estado parcial", async () => {
         vi.mocked(getPendientes).mockResolvedValue({ ok: false, error: "rutUsuario es requerido" } as Awaited<ReturnType<typeof getPendientes>>);
 
-        render(<IngresarSolicitudView />);
+        render(<IngresarSolicitudView centroActivoId="650" />);
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
         fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
 
@@ -709,7 +730,7 @@ describe("IngresarSolicitudView errores esperados de consulta", () => {
     it("muestra un solo error de usuario sin confirmar al usuario ni dejar estado parcial", async () => {
         vi.mocked(getUsuarioPorRut).mockResolvedValue({ ok: false, error: "RUT invalido" } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
 
-        render(<IngresarSolicitudView />);
+        render(<IngresarSolicitudView centroActivoId="650" />);
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
         fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
 

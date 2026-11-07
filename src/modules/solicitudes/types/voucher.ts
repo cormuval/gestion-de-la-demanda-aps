@@ -4,9 +4,6 @@ export interface VoucherSolicitud {
     rut: string;
     usuario: {
         rut: string;
-        nombre: string;
-        apellido: string;
-        nombre_social: string | null;
         telefono: string | null;
         telefono_alternativo: string | null;
     };

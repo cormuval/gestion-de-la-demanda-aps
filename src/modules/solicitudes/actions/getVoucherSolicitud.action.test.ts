@@ -21,9 +21,6 @@ const solicitudEnCurso = {
     disponibilidad_llamada: "Solo AM",
     usuario: {
         rut: "12.345.678-5",
-        nombre: "Ana",
-        apellido: "Paciente",
-        nombre_social: null,
         telefono: "+56911111111",
         telefono_alternativo: "+56922222222"
     },
@@ -110,9 +107,6 @@ describe("getVoucherSolicitud", () => {
                 usuario: {
                     select: {
                         rut: true,
-                        nombre: true,
-                        apellido: true,
-                        nombre_social: true,
                         telefono: true,
                         telefono_alternativo: true
                     }

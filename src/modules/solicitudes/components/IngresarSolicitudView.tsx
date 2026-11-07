@@ -21,6 +21,7 @@ import { VoucherSolicitudModal } from "@/modules/solicitudes/components/VoucherS
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
@@ -128,7 +129,7 @@ function toUsuarioForm(rut: string, usuario?: UsuarioConfirmado | null): Usuario
     };
 }
 
-export function IngresarSolicitudView() {
+export function IngresarSolicitudView({ centroActivoId }: { centroActivoId: string | null }) {
     const [rutBusqueda, setRutBusqueda] = useState("");
     const [rutRevisado, setRutRevisado] = useState("");
     const [pendientes, setPendientes] = useState<Pendientes | null>(null);
@@ -427,6 +428,7 @@ export function IngresarSolicitudView() {
             {pendientes && (
                 <PendientesCascada
                     pendientes={pendientes}
+                    centroActivoId={centroActivoId}
                     onReimprimirVoucher={onReimprimirVoucher}
                     idsVoucherCargando={idsVoucherCargando}
                     reimpresionDeshabilitada={submittingSolicitud}
@@ -495,12 +497,10 @@ export function IngresarSolicitudView() {
                             )}
                             <div className="lg:col-span-2">
                                 <div className="flex items-center gap-2">
-                                    <input
+                                    <Checkbox
                                         id="mantener-usuario"
-                                        type="checkbox"
                                         checked={mantenerUsuario}
-                                        onChange={(event) => setMantenerUsuario(event.target.checked)}
-                                        className="size-4 rounded border-input"
+                                        onCheckedChange={(checked) => setMantenerUsuario(checked === true)}
                                     />
                                     <Label htmlFor="mantener-usuario">Mantener usuario para otra solicitud</Label>
                                 </div>

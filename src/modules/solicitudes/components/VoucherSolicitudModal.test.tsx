@@ -11,9 +11,6 @@ const voucher: VoucherSolicitud = {
     rut: "12345678-5",
     usuario: {
         rut: "12345678-5",
-        nombre: "Paciente",
-        apellido: "Demo",
-        nombre_social: null,
         telefono: "+56911111111",
         telefono_alternativo: "+56922222222"
     },

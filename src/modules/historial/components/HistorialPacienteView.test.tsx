@@ -138,9 +138,6 @@ const VOUCHER_EN_CURSO: VoucherSolicitud = {
     rut: "12345678-5",
     usuario: {
         rut: "12345678-5",
-        nombre: "Juana",
-        apellido: "Perez",
-        nombre_social: null,
         telefono: "912345678",
         telefono_alternativo: null
     },

@@ -57,9 +57,6 @@ export async function getVoucherSolicitud(idSolicitud: string): Promise<Resultad
             usuario: {
                 select: {
                     rut: true,
-                    nombre: true,
-                    apellido: true,
-                    nombre_social: true,
                     telefono: true,
                     telefono_alternativo: true
                 }

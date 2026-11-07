@@ -11,7 +11,7 @@ import { CodigoId } from "@/shared/components/ui/codigo-id";
 import type { CitaCascada, SolicitudCascada } from "../types/pendientes";
 
 interface PendientesCascadaData {
-    solicitudesPendientes: SolicitudCascada[];
+    solicitudesPendientes: (SolicitudCascada & { centro_id: string | null })[];
     citasPendientes: CitaCascada[];
 }
 
@@ -129,11 +129,13 @@ export function ListaPendientes<S extends SolicitudCascada, C extends CitaCascad
 
 export function PendientesCascada({
     pendientes,
+    centroActivoId,
     onReimprimirVoucher,
     idsVoucherCargando,
     reimpresionDeshabilitada = false
 }: {
     pendientes: PendientesCascadaData;
+    centroActivoId: string | null;
     onReimprimirVoucher?: (idSolicitud: string) => void;
     idsVoucherCargando?: ReadonlySet<string>;
     reimpresionDeshabilitada?: boolean;
@@ -162,6 +164,8 @@ export function PendientesCascada({
                     solicitudes={solicitudesPendientes}
                     citas={citasPendientes}
                     accionesSolicitud={onReimprimirVoucher ? (solicitud) => {
+                        if (!centroActivoId || solicitud.centro_id !== centroActivoId) return undefined;
+
                         const cargando = idsVoucherCargando?.has(solicitud.id_solicitud) ?? false;
                         const etiqueta = cargando ? "Reimprimiendo voucher" : "Reimprimir voucher";
 
