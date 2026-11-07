@@ -1,0 +1,53 @@
+name: CI
+
+# Verifica cada PR contra main antes de fusionarlo: lint, tipos, tests y build.
+# Corre en un runner de GitHub (no en el servidor de produccion) y no despliega;
+# el deploy ocurre al fusionar, con el push a main (deploy.yml).
+
+on:
+    pull_request:
+        branches: [main]
+
+concurrency:
+    group: ci-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    verificar:
+        runs-on: ubuntu-latest
+        env:
+            # Valores ficticios: ni los tests ni el build se conectan a la base ni a Google.
+            DATABASE_URL: "mysql://ci:ci@localhost:3306/ci"
+            AUTH_SECRET: "ci-secret-no-usar-en-produccion"
+            AUTH_GOOGLE_ID: "ci"
+            AUTH_GOOGLE_SECRET: "ci"
+            AUTH_URL: "http://localhost:3000/api/auth"
+            AUTH_TRUST_HOST: "true"
+            NEXT_TELEMETRY_DISABLED: "1"
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Configurar Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Instalar dependencias
+              run: npm ci
+
+            - name: Generar Prisma Client
+              run: npm run db:generate
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Verificar tipos
+              run: npx tsc --noEmit
+
+            - name: Tests
+              run: npm test
+
+            - name: Build
+              run: npm run build
