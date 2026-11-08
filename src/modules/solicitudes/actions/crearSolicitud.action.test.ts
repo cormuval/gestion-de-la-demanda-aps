@@ -107,6 +107,7 @@ describe("crearSolicitud", () => {
         if (result.ok) {
             expect(result.data.solicitud.id_solicitud).toBe("SOL-x");
             expect(result.data.voucher.id_solicitud).toBe("SOL-x");
+            expect(result.data.voucher).not.toHaveProperty("profesional");
         }
         expect(mocks.tx.solicitud.create).toHaveBeenCalledTimes(1);
         const arg = mocks.tx.solicitud.create.mock.calls[0][0];

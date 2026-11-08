@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 // components
 import { ListaPendientes, PendientesCascada } from "./PendientesCascada";
 
 const solicitud = {
     id_solicitud: "SOL-1",
+    centro_id: "650",
     fecha_inicio: new Date("2026-09-01T00:00:00"),
     descripcion: "Control pendiente",
     estado_solicitud: "En Curso",
@@ -51,9 +52,63 @@ describe("ListaPendientes", () => {
 
 describe("PendientesCascada", () => {
     it("mantiene el wrapper Card para Ingresar", () => {
-        render(<PendientesCascada pendientes={{ solicitudesPendientes: [solicitud], citasPendientes: [cita] }} />);
+        render(<PendientesCascada centroActivoId="650" pendientes={{ solicitudesPendientes: [solicitud], citasPendientes: [cita] }} />);
 
         expect(screen.getByText("Pendientes del paciente")).toBeInTheDocument();
         expect(screen.getByText("Solicitudes En Curso con sus citas pendientes anidadas.")).toBeInTheDocument();
+    });
+
+    it("reimprime cada solicitud por su ID y solo deshabilita la que esta cargando", () => {
+        const onReimprimirVoucher = vi.fn();
+        const segundaSolicitud = { ...solicitud, id_solicitud: "SOL-2" };
+
+        render(
+            <PendientesCascada
+                centroActivoId="650"
+                pendientes={{ solicitudesPendientes: [solicitud, segundaSolicitud], citasPendientes: [] }}
+                onReimprimirVoucher={onReimprimirVoucher}
+                idsVoucherCargando={new Set(["SOL-1"])}
+            />
+        );
+
+        const botonSolicitudUno = screen.getByRole("button", { name: "Reimprimiendo voucher SOL-1" });
+        const botonSolicitudDos = screen.getByRole("button", { name: "Reimprimir voucher SOL-2" });
+
+        expect(botonSolicitudUno).toBeDisabled();
+        expect(botonSolicitudDos).not.toBeDisabled();
+
+        fireEvent.click(botonSolicitudDos);
+
+        expect(onReimprimirVoucher).toHaveBeenCalledWith("SOL-2");
+    });
+
+    it("conserva pendientes de otros centros sin ofrecer reimpresion", () => {
+        render(
+            <PendientesCascada
+                centroActivoId="650"
+                pendientes={{
+                    solicitudesPendientes: [solicitud, { ...solicitud, id_solicitud: "SOL-otro-centro", centro_id: "999" }],
+                    citasPendientes: []
+                }}
+                onReimprimirVoucher={vi.fn()}
+            />
+        );
+
+        expect(screen.getByTitle("SOL-otro-centro")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-1" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Reimprimir voucher SOL-otro-centro" })).not.toBeInTheDocument();
+    });
+
+    it("no ofrece reimpresion sin un centro activo aunque la solicitud tampoco tenga centro", () => {
+        render(
+            <PendientesCascada
+                centroActivoId={null}
+                pendientes={{ solicitudesPendientes: [{ ...solicitud, centro_id: null }], citasPendientes: [] }}
+                onReimprimirVoucher={vi.fn()}
+            />
+        );
+
+        expect(screen.getByTitle("SOL-1")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Reimprimir voucher/ })).not.toBeInTheDocument();
     });
 });

@@ -15,6 +15,7 @@ docker-data
 # se regeneran localmente con `npx skills add` (ver AGENTS.md).
 .claude/
 .superpowers/
+.worktrees/
 .playwright-cli/
 
 # Reportes de la migracion desde AppSheet (contienen RUT de pacientes)

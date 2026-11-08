@@ -9,6 +9,6 @@ import { IngresarSolicitudView } from "@/modules/solicitudes/components/Ingresar
 export const metadata: Metadata = { title: tituloPagina("/solicitudes/crear") };
 
 export default async function IngresarSolicitudPage() {
-    await requirePermisoPagina("solicitudes.ver");
-    return <IngresarSolicitudView />;
+    const user = await requirePermisoPagina("solicitudes.ver");
+    return <IngresarSolicitudView centroActivoId={user.centro_id} />;
 }

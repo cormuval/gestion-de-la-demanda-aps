@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Pencil, Plus, Printer, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Pencil, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 // actions
 import { getCatalogos } from "@/modules/catalogos/actions/getCatalogos.action";
@@ -10,30 +10,31 @@ import { getPendientes } from "@/modules/solicitudes/actions/getPendientes.actio
 import { getUsuarioPorRut } from "@/modules/solicitudes/actions/getUsuarioPorRut.action";
 import { actualizarUsuario, crearUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 import { crearSolicitud } from "@/modules/solicitudes/actions/crearSolicitud.action";
+import { getVoucherSolicitud } from "@/modules/solicitudes/actions/getVoucherSolicitud.action";
 // lib
 import { acortarId } from "@/shared/lib/acortarId";
 // schemas
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
 import { PendientesCascada } from "@/modules/solicitudes/components/PendientesCascada";
+import { VoucherSolicitudModal } from "@/modules/solicitudes/components/VoucherSolicitudModal";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 // types
 import type { Catalogos } from "@/modules/catalogos/types/catalogos";
+import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // utils
 import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada } from "@/modules/solicitudes/utils/duplicados";
 
 type ResultadoUsuarioEncontrado = Extract<Awaited<ReturnType<typeof getUsuarioPorRut>>, { ok: true }>;
 type UsuarioConfirmado = NonNullable<ResultadoUsuarioEncontrado["data"]["usuario"]>;
 type Pendientes = Extract<Awaited<ReturnType<typeof getPendientes>>, { ok: true }>["data"];
-type CrearSolicitudResult = Awaited<ReturnType<typeof crearSolicitud>>;
-type VoucherSolicitud = Extract<CrearSolicitudResult, { ok: true }>["data"]["voucher"];
-
 type SolicitudFormState = {
     tipo_solicitud_id: string;
     motivo_id: string;
@@ -128,7 +129,7 @@ function toUsuarioForm(rut: string, usuario?: UsuarioConfirmado | null): Usuario
     };
 }
 
-export function IngresarSolicitudView() {
+export function IngresarSolicitudView({ centroActivoId }: { centroActivoId: string | null }) {
     const [rutBusqueda, setRutBusqueda] = useState("");
     const [rutRevisado, setRutRevisado] = useState("");
     const [pendientes, setPendientes] = useState<Pendientes | null>(null);
@@ -136,11 +137,18 @@ export function IngresarSolicitudView() {
     const [catalogos, setCatalogos] = useState<Catalogos>({ tiposSolicitud: [], motivos: [] });
     const [centros, setCentros] = useState<CentroOption[]>([]);
     const [solicitudForm, setSolicitudForm] = useState<SolicitudFormState>(emptySolicitudForm);
+    const [mantenerUsuario, setMantenerUsuario] = useState(false);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioFormState>(emptyUsuarioForm);
     const [voucherSolicitud, setVoucherSolicitud] = useState<VoucherSolicitud | null>(null);
+    const [idsVoucherCargando, setIdsVoucherCargando] = useState<Set<string>>(new Set());
+    const idsVoucherEnVuelo = useRef<Set<string>>(new Set());
+    const revisionActivaRef = useRef(0);
+    const intencionVoucherRef = useRef(0);
+    const creacionEnVueloRef = useRef(false);
     const [usuarioModalMode, setUsuarioModalMode] = useState<"crear" | "editar" | null>(null);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
     const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
+    const [creacionEnVuelo, setCreacionEnVuelo] = useState(false);
     const [savingUsuario, setSavingUsuario] = useState(false);
 
     useEffect(() => {
@@ -179,14 +187,35 @@ export function IngresarSolicitudView() {
         }));
     }
 
-    function limpiarIngresoSolicitud() {
-        setRutBusqueda("");
+    function limpiarFormularioSolicitud() {
+        setSolicitudForm(emptySolicitudForm);
+    }
+
+    function limpiarRevisionUsuario() {
         setRutRevisado("");
         setPendientes(null);
         setUsuarioConfirmado(null);
-        setSolicitudForm(emptySolicitudForm);
+        limpiarFormularioSolicitud();
         setUsuarioForm(emptyUsuarioForm);
         setUsuarioModalMode(null);
+        setMantenerUsuario(false);
+    }
+
+    function limpiarIngresoSolicitud() {
+        revisionActivaRef.current += 1;
+        setRutBusqueda("");
+        limpiarRevisionUsuario();
+    }
+
+    function actualizarRutBusqueda(rut: string) {
+        setRutBusqueda(rut);
+        if (rut === rutRevisado) return;
+
+        revisionActivaRef.current += 1;
+        intencionVoucherRef.current += 1;
+        setVoucherSolicitud(null);
+        setLoadingPendientes(false);
+        limpiarRevisionUsuario();
     }
 
     function openCrearUsuario() {
@@ -202,12 +231,14 @@ export function IngresarSolicitudView() {
 
     async function buscarPendientes(event: React.FormEvent) {
         event.preventDefault();
-        setPendientes(null);
-        setUsuarioConfirmado(null);
-        setSolicitudForm(emptySolicitudForm);
+        const revision = ++revisionActivaRef.current;
+        intencionVoucherRef.current += 1;
+        setVoucherSolicitud(null);
+        limpiarRevisionUsuario();
         setLoadingPendientes(true);
         try {
             const [pendientesResult, usuarioResult] = await Promise.all([getPendientes(rutBusqueda), getUsuarioPorRut(rutBusqueda)]);
+            if (revision !== revisionActivaRef.current) return;
             if (!pendientesResult.ok) {
                 toast.error(pendientesResult.error);
                 return;
@@ -227,9 +258,10 @@ export function IngresarSolicitudView() {
                 toast.warning("No se encontro el RUT en usuarios. Crea el usuario antes de ingresar la solicitud.");
             }
         } catch {
+            if (revision !== revisionActivaRef.current) return;
             toast.error("Error al buscar pendientes");
         } finally {
-            setLoadingPendientes(false);
+            if (revision === revisionActivaRef.current) setLoadingPendientes(false);
         }
     }
 
@@ -268,10 +300,16 @@ export function IngresarSolicitudView() {
 
     async function onCrearSolicitud(event: React.FormEvent) {
         event.preventDefault();
+        if (creacionEnVueloRef.current) return;
         if (!usuarioConfirmado) {
             toast.error("Debes completar la revision previa y confirmar el usuario");
             return;
         }
+        creacionEnVueloRef.current = true;
+        setCreacionEnVuelo(true);
+        const revision = revisionActivaRef.current;
+        intencionVoucherRef.current += 1;
+        setVoucherSolicitud(null);
         setSubmittingSolicitud(true);
         try {
             if (!isDisponibilidadLlamada(solicitudForm.disponibilidad_llamada)) {
@@ -285,11 +323,13 @@ export function IngresarSolicitudView() {
                 motivo_id: requiereMotivo ? Number(solicitudForm.motivo_id) : null,
                 descripcion: solicitudForm.descripcion
             });
+            setSubmittingSolicitud(false);
             if (!result.ok) {
+                if (revision !== revisionActivaRef.current) return;
                 toast.error(result.error);
                 try {
                     const actualizados = await getPendientes(usuarioConfirmado.rut);
-                    if (actualizados.ok) setPendientes(actualizados.data);
+                    if (revision === revisionActivaRef.current && actualizados.ok) setPendientes(actualizados.data);
                 } catch {
                     // El toast original es el mensaje importante para el usuario.
                 }
@@ -297,13 +337,62 @@ export function IngresarSolicitudView() {
             }
 
             const { solicitud, voucher } = result.data;
+            intencionVoucherRef.current += 1;
             toast.success(`Solicitud creada: ${acortarId(solicitud.id_solicitud)}`);
             setVoucherSolicitud(voucher);
-            limpiarIngresoSolicitud();
+            if (!mantenerUsuario) {
+                limpiarIngresoSolicitud();
+                return;
+            }
+
+            limpiarFormularioSolicitud();
+            try {
+                const actualizados = await getPendientes(rutRevisado);
+                if (revision !== revisionActivaRef.current) return;
+                if (actualizados.ok) {
+                    setPendientes(actualizados.data);
+                } else {
+                    toast.warning(actualizados.error);
+                }
+            } catch {
+                if (revision !== revisionActivaRef.current) return;
+                toast.warning("Error al actualizar pendientes");
+            }
         } catch {
             toast.error("Error al crear solicitud");
         } finally {
+            creacionEnVueloRef.current = false;
+            setCreacionEnVuelo(false);
             setSubmittingSolicitud(false);
+        }
+    }
+
+    async function onReimprimirVoucher(idSolicitud: string) {
+        if (submittingSolicitud || idsVoucherEnVuelo.current.has(idSolicitud)) return;
+
+        const intencion = ++intencionVoucherRef.current;
+        const revision = revisionActivaRef.current;
+        idsVoucherEnVuelo.current.add(idSolicitud);
+        setIdsVoucherCargando((current) => new Set(current).add(idSolicitud));
+        try {
+            const result = await getVoucherSolicitud(idSolicitud);
+            if (intencion !== intencionVoucherRef.current || revision !== revisionActivaRef.current) return;
+            if (!result.ok) {
+                toast.error(result.error);
+                return;
+            }
+
+            setVoucherSolicitud(result.data);
+        } catch {
+            if (intencion !== intencionVoucherRef.current || revision !== revisionActivaRef.current) return;
+            toast.error("Error al reimprimir voucher");
+        } finally {
+            idsVoucherEnVuelo.current.delete(idSolicitud);
+            setIdsVoucherCargando((current) => {
+                const next = new Set(current);
+                next.delete(idSolicitud);
+                return next;
+            });
         }
     }
 
@@ -323,8 +412,8 @@ export function IngresarSolicitudView() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <form className="flex flex-col gap-3 sm:flex-row" onSubmit={buscarPendientes}>
-                        <Input placeholder="RUT usuario" value={rutBusqueda} onChange={(e) => setRutBusqueda(e.target.value)} required />
-                        <Button disabled={loadingPendientes}>
+                        <Input placeholder="RUT usuario" value={rutBusqueda} onChange={(e) => actualizarRutBusqueda(e.target.value)} disabled={submittingSolicitud} required />
+                        <Button disabled={loadingPendientes || submittingSolicitud}>
                             <Search size={16} />
                             {loadingPendientes ? "Buscando..." : "Buscar pendientes"}
                         </Button>
@@ -336,7 +425,15 @@ export function IngresarSolicitudView() {
                 </CardContent>
             </Card>
 
-            {pendientes && <PendientesCascada pendientes={pendientes} />}
+            {pendientes && (
+                <PendientesCascada
+                    pendientes={pendientes}
+                    centroActivoId={centroActivoId}
+                    onReimprimirVoucher={onReimprimirVoucher}
+                    idsVoucherCargando={idsVoucherCargando}
+                    reimpresionDeshabilitada={submittingSolicitud}
+                />
+            )}
 
             {usuarioConfirmado && (
                 <Card>
@@ -399,7 +496,15 @@ export function IngresarSolicitudView() {
                                 </div>
                             )}
                             <div className="lg:col-span-2">
-                                <Button disabled={submittingSolicitud || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        id="mantener-usuario"
+                                        checked={mantenerUsuario}
+                                        onCheckedChange={(checked) => setMantenerUsuario(checked === true)}
+                                    />
+                                    <Label htmlFor="mantener-usuario">Mantener usuario para otra solicitud</Label>
+                                </div>
+                                <Button className="mt-4" disabled={creacionEnVuelo || Boolean(solicitudDuplicada)}>{submittingSolicitud ? "Guardando..." : "Guardar solicitud"}</Button>
                             </div>
                         </form>
                     </CardContent>
@@ -483,110 +588,6 @@ function UsuarioStatus({
                 <Pencil size={16} />
                 Editar usuario
             </Button>
-        </div>
-    );
-}
-
-function VoucherSolicitudModal({ voucher, onClose }: { voucher: VoucherSolicitud; onClose: () => void }) {
-    const fecha = new Date(voucher.fecha_inicio);
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-sm rounded-md border bg-background shadow-lg">
-                <div className="no-print flex items-center justify-between border-b p-4">
-                    <div>
-                        <h2 className="text-lg font-semibold">Voucher de solicitud</h2>
-                        <p className="text-sm text-muted-foreground">Listo para imprimir.</p>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-                        <X size={18} />
-                    </Button>
-                </div>
-
-                <div className="voucher-print-area mx-auto bg-white p-4 text-black">
-                    <div className="text-center">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/assets/CALUGA_LOGOS_2025.png" alt="Corporacion Municipal Valparaiso" className="mx-auto mb-3 max-h-14 max-w-full object-contain" />
-                        <p className="text-sm font-bold">COMPROBANTE DE SOLICITUD</p>
-                        <p className="text-xs">{voucher.centro || "Centro no informado"}</p>
-                    </div>
-
-                    <div className="my-3 border-t border-dashed border-black" />
-                    <VoucherLine label="Solicitud" value={voucher.id_solicitud} />
-                    <VoucherLine label="Fecha" value={fecha.toLocaleDateString("es-CL")} />
-                    <VoucherLine label="Hora" value={fecha.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} />
-                    <VoucherLine label="RUT" value={voucher.rut} />
-                    <VoucherLine label="Tipo" value={voucher.tipoSolicitud.nombre_tipo_solicitud} />
-                    <VoucherLine label="Motivo" value={voucher.motivo?.nombre_motivo || "Sin motivo"} />
-                    {voucher.disponibilidad_llamada && <VoucherLine label="Disponibilidad" value={voucher.disponibilidad_llamada} />}
-                    {(voucher.usuario.telefono || voucher.usuario.telefono_alternativo) && (
-                        <VoucherLine label="Telefonos" value={[voucher.usuario.telefono, voucher.usuario.telefono_alternativo].filter(Boolean).join(" / ")} />
-                    )}
-                    <div className="my-3 border-t border-dashed border-black" />
-                    <p className="text-center text-[11px]">Conserve este comprobante.</p>
-                    <p className="mt-2 text-center text-[11px]">
-                        Esta solicitud sera revisada y gestionada por un profesional de salud para otorgar la prestacion adecuada a su solicitud.
-                    </p>
-                </div>
-
-                <div className="no-print flex justify-end gap-2 border-t p-4">
-                    <Button type="button" variant="outline" onClick={onClose}>
-                        Cerrar
-                    </Button>
-                    <Button type="button" onClick={() => window.print()}>
-                        <Printer size={16} />
-                        Imprimir
-                    </Button>
-                </div>
-
-                <style>{`
-                    .voucher-print-area {
-                        width: 80mm;
-                        max-width: 100%;
-                        font-family: Arial, sans-serif;
-                        font-size: 12px;
-                        line-height: 1.35;
-                    }
-
-                    @media print {
-                        @page {
-                            size: 80mm auto;
-                            margin: 4mm;
-                        }
-
-                        body * {
-                            visibility: hidden;
-                        }
-
-                        .voucher-print-area,
-                        .voucher-print-area * {
-                            visibility: visible;
-                        }
-
-                        .voucher-print-area {
-                            position: absolute;
-                            top: 0;
-                            left: 0;
-                            width: 72mm;
-                            max-width: 72mm;
-                            padding: 0;
-                        }
-
-                        .no-print {
-                            display: none !important;
-                        }
-                    }
-                `}</style>
-            </div>
-        </div>
-    );
-}
-
-function VoucherLine({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="mb-1">
-            <span className="font-bold">{label}: </span>
-            <span>{value}</span>
         </div>
     );
 }

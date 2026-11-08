@@ -1,16 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Printer } from "lucide-react";
 // components
 import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
 // types
 import type { CitaCascada, SolicitudCascada } from "../types/pendientes";
 
 interface PendientesCascadaData {
-    solicitudesPendientes: SolicitudCascada[];
+    solicitudesPendientes: (SolicitudCascada & { centro_id: string | null })[];
     citasPendientes: CitaCascada[];
 }
 
@@ -126,7 +127,19 @@ export function ListaPendientes<S extends SolicitudCascada, C extends CitaCascad
     );
 }
 
-export function PendientesCascada({ pendientes }: { pendientes: PendientesCascadaData }) {
+export function PendientesCascada({
+    pendientes,
+    centroActivoId,
+    onReimprimirVoucher,
+    idsVoucherCargando,
+    reimpresionDeshabilitada = false
+}: {
+    pendientes: PendientesCascadaData;
+    centroActivoId: string | null;
+    onReimprimirVoucher?: (idSolicitud: string) => void;
+    idsVoucherCargando?: ReadonlySet<string>;
+    reimpresionDeshabilitada?: boolean;
+}) {
     const { solicitudesPendientes, citasPendientes } = pendientes;
 
     if (solicitudesPendientes.length === 0 && citasPendientes.length === 0) {
@@ -147,7 +160,30 @@ export function PendientesCascada({ pendientes }: { pendientes: PendientesCascad
                 <CardDescription>Solicitudes En Curso con sus citas pendientes anidadas.</CardDescription>
             </CardHeader>
             <CardContent>
-                <ListaPendientes solicitudes={solicitudesPendientes} citas={citasPendientes} />
+                <ListaPendientes
+                    solicitudes={solicitudesPendientes}
+                    citas={citasPendientes}
+                    accionesSolicitud={onReimprimirVoucher ? (solicitud) => {
+                        if (!centroActivoId || solicitud.centro_id !== centroActivoId) return undefined;
+
+                        const cargando = idsVoucherCargando?.has(solicitud.id_solicitud) ?? false;
+                        const etiqueta = cargando ? "Reimprimiendo voucher" : "Reimprimir voucher";
+
+                        return (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={cargando || reimpresionDeshabilitada}
+                                onClick={() => onReimprimirVoucher(solicitud.id_solicitud)}
+                                aria-label={`${etiqueta} ${solicitud.id_solicitud}`}
+                            >
+                                <Printer data-icon="inline-start" />
+                                {etiqueta}
+                            </Button>
+                        );
+                    } : undefined}
+                />
             </CardContent>
         </Card>
     );

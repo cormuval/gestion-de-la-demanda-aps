@@ -14,3 +14,10 @@ Object.defineProperty(window, "matchMedia", {
         dispatchEvent: vi.fn()
     }))
 });
+
+// jsdom no implementa ResizeObserver; Radix lo usa para medir controles de formulario.
+vi.stubGlobal("ResizeObserver", class {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+});
