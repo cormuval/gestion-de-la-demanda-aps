@@ -46,6 +46,7 @@ export function ComunicadorView() {
     const [contacto, setContacto] = useState<{ telefonos: string; correo: string }>({ telefonos: "", correo: "" });
     const [citaHistorial, setCitaHistorial] = useState<CitaFila | null>(null);
     const [citaOtras, setCitaOtras] = useState<CitaFila | null>(null);
+    const [citaSiguienteId, setCitaSiguienteId] = useState<string | null>(null);
 
     useEffect(() => {
         getFiltrosComunicador().then(setOpciones).catch(() => toast.error("Error al cargar filtros"));
@@ -59,6 +60,22 @@ export function ComunicadorView() {
     const cargasNormalesEnCursoRef = useRef(0);
     // Cita cuya vigencia se esta verificando; ignora pulsaciones repetidas en "Llamar".
     const verificandoRef = useRef<string | null>(null);
+    // Candidatos ordenados para destacar la cita siguiente tras registrar una llamada.
+    const candidatosSiguienteRef = useRef<string[] | null>(null);
+
+    function prepararCitaSiguiente(idCitaActual: string) {
+        const filasActuales = data?.filas ?? [];
+        const idx = filasActuales.findIndex((f) => f.id_cita === idCitaActual);
+        if (idx < 0) {
+            candidatosSiguienteRef.current = null;
+            return;
+        }
+        const candidatos = filasActuales.slice(idx + 1).map((f) => f.id_cita);
+        if (idx > 0) {
+            candidatos.push(filasActuales[idx - 1].id_cita);
+        }
+        candidatosSiguienteRef.current = candidatos;
+    }
 
     const cargar = useCallback(async (opciones?: { silencioso?: boolean }) => {
         // La recarga silenciosa (refresco automatico) no muestra carga ni errores: si falla, conserva la cola.
@@ -96,6 +113,12 @@ export function ComunicadorView() {
                 return;
             }
             setData(r.data);
+            if (!silencioso && candidatosSiguienteRef.current !== null) {
+                const idsNuevos = new Set(r.data.filas.map((f) => f.id_cita));
+                const siguiente = candidatosSiguienteRef.current.find((id) => idsNuevos.has(id)) ?? null;
+                setCitaSiguienteId(siguiente);
+                candidatosSiguienteRef.current = null;
+            }
             // Una recarga silenciosa exitosa usa la misma consulta que fallo antes: si tuvo exito, el
             // reintento funciono y ya no corresponde avisar que se muestra la ultima cola cargada.
             if (silencioso) setErrorCola(null);
@@ -172,16 +195,20 @@ export function ComunicadorView() {
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
                     <div className="space-y-1.5">
                         <CardTitle>Citaciones pendientes</CardTitle>
-                        <CardDescription>Ordenadas por estado (No contesta 2 → 1 → aviso → sin llamadas) y prioridad.</CardDescription>
+                        <CardDescription>Ordenadas de mayor a menor prioridad.</CardDescription>
                     </div>
                     <PanelFiltros
                         descripcion="Filtra por temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector."
                         activos={contarFiltrosActivos(aplicados, [], FILTROS_INICIALES)}
                         onAplicar={() => {
+                            candidatosSiguienteRef.current = null;
+                            setCitaSiguienteId(null);
                             setPagina(1);
                             setAplicados(filtrosUI);
                         }}
                         onLimpiar={() => {
+                            candidatosSiguienteRef.current = null;
+                            setCitaSiguienteId(null);
                             setFiltrosUI(FILTROS_INICIALES);
                             setPagina(1);
                             setAplicados(FILTROS_INICIALES);
@@ -210,7 +237,12 @@ export function ComunicadorView() {
                             total={data.total}
                             pagina={data.pagina}
                             porPagina={data.porPagina}
-                            onPagina={setPagina}
+                            citaSiguienteId={citaSiguienteId}
+                            onPagina={(nuevaPagina) => {
+                                candidatosSiguienteRef.current = null;
+                                setCitaSiguienteId(null);
+                                setPagina(nuevaPagina);
+                            }}
                             onGestionar={abrirGestion}
                             renderAcciones={(cita) => (
                                 <CitaAccionesMenu
@@ -233,10 +265,12 @@ export function ComunicadorView() {
                     onCerrar={() => setCitaSel(null)}
                     onRegistrado={(mensaje) => {
                         toast.success(mensaje);
+                        prepararCitaSiguiente(citaSel.id_cita);
                         setCitaSel(null);
                         void cargar();
                     }}
                     onCitaCerrada={() => {
+                        prepararCitaSiguiente(citaSel.id_cita);
                         setCitaSel(null);
                         void cargar();
                     }}
