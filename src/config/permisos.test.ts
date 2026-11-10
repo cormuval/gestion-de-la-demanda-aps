@@ -21,6 +21,10 @@ describe("catalogo de permisos", () => {
         expect(CLAVES_PERMISOS).toContain("historial.ver");
     });
 
+    it("declara some.todos_centros con etiqueta y modulo SOME", () => {
+        expect(PERMISOS["some.todos_centros"]).toEqual({ modulo: "SOME", etiqueta: "Ver todos los centros en SOME" });
+    });
+
     it("esPermiso reconoce claves validas y rechaza el resto", () => {
         expect(esPermiso("solicitudes.ver")).toBe(true);
         expect(esPermiso("solicitudes.inventado")).toBe(false);
