@@ -5,6 +5,8 @@ import { AlertTriangle } from "lucide-react";
 // lib
 import { cn } from "@/shared/lib/utils";
 // components
+import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
+import { EncabezadoOrdenable } from "@/shared/components/tablas/encabezado-ordenable";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
@@ -13,6 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { resolverPrioridadCita, SIMBOLOGIA_PRIORIDAD } from "../utils/prioridadCita";
 // types
 import type { CitaFila } from "../actions/getCitasPendientes.action";
+import type { OrdenPagina } from "@/shared/lib/ordenPagina";
+import type { ColumnaCita } from "../utils/ordenCitas";
 
 export function CitasPendientesTabla({
     filas,
@@ -20,6 +24,8 @@ export function CitasPendientesTabla({
     pagina,
     porPagina,
     citaSiguienteId,
+    orden,
+    onOrden,
     onPagina,
     onGestionar,
     renderAcciones
@@ -29,6 +35,8 @@ export function CitasPendientesTabla({
     pagina: number;
     porPagina: number;
     citaSiguienteId?: string | null;
+    orden: OrdenPagina<ColumnaCita> | null;
+    onOrden: (orden: OrdenPagina<ColumnaCita> | null) => void;
     onPagina: (p: number) => void;
     onGestionar: (cita: CitaFila) => void;
     renderAcciones?: (cita: CitaFila) => React.ReactNode;
@@ -66,11 +74,11 @@ export function CitasPendientesTabla({
                 <Table>
                     <TableHeader className="bg-muted text-muted-foreground">
                         <TableRow>
-                            <TableHead className="whitespace-nowrap">ID / Fecha Estimada</TableHead>
+                            <EncabezadoOrdenable columna="fecha" orden={orden} onOrden={onOrden} className="whitespace-nowrap">ID / Fecha Estimada</EncabezadoOrdenable>
                             <TableHead>Paciente</TableHead>
                             <TableHead>Prestación</TableHead>
                             <TableHead className="whitespace-nowrap">Priorización / Disponibilidad</TableHead>
-                            <TableHead className="whitespace-nowrap">Estado</TableHead>
+                            <EncabezadoOrdenable columna="estado" orden={orden} onOrden={onOrden} className="whitespace-nowrap">Estado</EncabezadoOrdenable>
                             <TableHead className="whitespace-nowrap">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -105,9 +113,7 @@ export function CitasPendientesTabla({
                                             </div>
                                         </TableCell>
                                         <TableCell className="py-1.5">
-                                            <div className="line-clamp-1 leading-tight" title={c.nombre_usuario || undefined}>
-                                                {c.nombre_usuario || "—"}
-                                            </div>
+                                            <NombrePaciente nombreLegal={c.nombre_usuario} nombreSocial={c.nombre_social} className="leading-tight" />
                                             <div className="text-xs leading-tight text-muted-foreground whitespace-nowrap">{c.rut_usuario}</div>
                                         </TableCell>
                                         <TableCell className="py-1.5">

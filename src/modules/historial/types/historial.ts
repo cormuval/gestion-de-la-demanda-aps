@@ -15,6 +15,7 @@ export interface CitaHistorial {
     cerrada: boolean;
     fecha_cierre: Date | null;
     fecha_estimada_atencion: Date | null;
+    hora_agendada: Date | null;
     observacion: string | null;
     llamadas: LlamadaHistorial[];
 }
@@ -35,6 +36,6 @@ export interface SolicitudHistorial {
 }
 
 export interface HistorialPaciente {
-    paciente: { rut: string; nombre: string } | null;
+    paciente: { rut: string; nombre: string; nombre_social: string | null } | null;
     solicitudes: SolicitudHistorial[];
 }

@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // types
+import type { OrdenPagina } from "@/shared/lib/ordenPagina";
+import type { ColumnaCita } from "../utils/ordenCitas";
 import { ESTADO_CITA } from "@/modules/comunicador/types/comunicador";
 import type { CitaFila } from "../actions/getCitasPendientes.action";
 import { CitasPendientesTabla } from "./CitasPendientesTabla";
@@ -13,6 +16,7 @@ const cita: CitaFila = {
     disponibilidad: "Lunes AM",
     rut_usuario: "22.222.222-2",
     nombre_usuario: "Paciente Demo",
+    nombre_social: "Social Demo",
     profesion: "Medicina",
     prestacion: "Consulta medica",
     fecha_estimada_atencion: new Date("2026-10-10T00:00:00"),
@@ -30,6 +34,7 @@ const citaSinPrioridad: CitaFila = {
     disponibilidad: null,
     rut_usuario: "33.333.333-3",
     nombre_usuario: "Segundo Paciente",
+    nombre_social: null,
     profesion: "Odontología",
     prestacion: "Control dental",
     tiene_llamada_hoy: false
@@ -41,6 +46,8 @@ describe("CitasPendientesTabla", () => {
         const onPagina = vi.fn();
         const { container } = render(
             <CitasPendientesTabla
+                orden={null}
+                onOrden={vi.fn()}
                 filas={[cita, citaSinPrioridad]}
                 total={2}
                 pagina={1}
@@ -58,6 +65,7 @@ describe("CitasPendientesTabla", () => {
 
         // Paciente: nombre y RUT
         expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getByText("Nombre social: Social Demo")).toBeVisible();
         expect(screen.getByText("22.222.222-2")).toBeInTheDocument();
 
         // Simbologia de prioridad
@@ -87,6 +95,8 @@ describe("CitasPendientesTabla", () => {
 
         const { container } = render(
             <CitasPendientesTabla
+                orden={null}
+                onOrden={vi.fn()}
                 filas={[cita, citaSinPrioridad]}
                 total={2}
                 pagina={1}
@@ -118,6 +128,8 @@ describe("CitasPendientesTabla", () => {
 
         render(
             <CitasPendientesTabla
+                orden={null}
+                onOrden={vi.fn()}
                 filas={[citaPuntaje60Media]}
                 total={1}
                 pagina={1}
@@ -136,7 +148,53 @@ describe("CitasPendientesTabla", () => {
         expect(contenedorAcciones).not.toHaveClass("flex-wrap");
         expect(contenedorAcciones).toHaveClass("whitespace-nowrap");
 
-        expect(screen.getByText("Paciente Demo")).toHaveClass("line-clamp-1");
+        expect(screen.getByText("Nombre social: Social Demo")).not.toHaveClass("line-clamp-1");
         expect(screen.getByText("Consulta medica")).toHaveClass("line-clamp-1");
+    });
+});
+
+describe("CitasPendientesTabla encabezados controlados", () => {
+    it("cicla solo fecha y estado y respeta las filas recibidas sin volver a ordenarlas", () => {
+        function TablaControlada() {
+            const [orden, setOrden] = useState<OrdenPagina<ColumnaCita> | null>(null);
+            const filas = [
+                { ...citaSinPrioridad, fecha_estimada_atencion: new Date("2027-01-01"), estado_cita: "Sin llamadas" },
+                { ...cita, fecha_estimada_atencion: new Date("2026-01-01"), estado_cita: "No contesta (1)" }
+            ];
+            return <CitasPendientesTabla filas={filas} total={2} pagina={1} porPagina={100}
+                orden={orden} onOrden={setOrden} onPagina={vi.fn()} onGestionar={vi.fn()} />;
+        }
+        render(<TablaControlada />);
+        const fecha = screen.getByRole("columnheader", { name: "ID / Fecha Estimada" });
+        const estado = screen.getByRole("columnheader", { name: "Estado" });
+        expect(within(screen.getByRole("columnheader", { name: "Paciente" })).queryByRole("button")).toBeNull();
+        expect(within(screen.getByRole("columnheader", { name: "Priorización / Disponibilidad" })).queryByRole("button")).toBeNull();
+        for (const esperado of ["ascending", "descending", "none"]) {
+            fireEvent.click(within(fecha).getByRole("button"));
+            expect(fecha).toHaveAttribute("aria-sort", esperado);
+        }
+        fireEvent.click(within(estado).getByRole("button"));
+        expect(estado).toHaveAttribute("aria-sort", "ascending");
+        fireEvent.click(within(estado).getByRole("button"));
+        expect(estado).toHaveAttribute("aria-sort", "descending");
+        fireEvent.click(within(fecha).getByRole("button"));
+        expect(fecha).toHaveAttribute("aria-sort", "ascending");
+        expect(estado).toHaveAttribute("aria-sort", "none");
+        const filas = screen.getAllByRole("row").slice(1);
+        expect(filas[0]).toHaveTextContent("Segundo Paciente");
+        expect(filas[1]).toHaveTextContent("Paciente Demo");
+        expect(filas[1]).toHaveClass("bg-primary/15");
+    });
+
+    it("no conserva scroll ni foco en otra fila cuando desaparece la cita siguiente", () => {
+        const scrollSpy = vi.fn();
+        Element.prototype.scrollIntoView = scrollSpy;
+        const props = { total: 2, pagina: 1, porPagina: 100, orden: null, onOrden: vi.fn(), onPagina: vi.fn(), onGestionar: vi.fn() };
+        const { rerender, container } = render(<CitasPendientesTabla {...props} filas={[cita, citaSinPrioridad]} citaSiguienteId={cita.id_cita} />);
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+        rerender(<CitasPendientesTabla {...props} filas={[citaSinPrioridad]} citaSiguienteId={cita.id_cita} />);
+        expect(container.querySelector('[data-cita-siguiente="true"]')).toBeNull();
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+        expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Llamar" }));
     });
 });

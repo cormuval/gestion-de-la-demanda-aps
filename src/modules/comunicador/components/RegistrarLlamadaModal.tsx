@@ -5,6 +5,7 @@ import { useState } from "react";
 import { registrarLlamada } from "../actions/registrarLlamada.action";
 import type { CitaFila } from "../actions/getCitasPendientes.action";
 // components
+import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -77,7 +78,10 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onReg
             <div className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-lg border bg-card p-5">
                 <div>
                     <h2 className="text-lg font-semibold">Registrar llamada</h2>
-                    <p className="text-sm text-muted-foreground">Cita {acortarId(cita.id_cita)} · {cita.nombre_usuario}</p>
+                    <p className="text-sm text-muted-foreground">
+                        Cita {acortarId(cita.id_cita)}
+                        <NombrePaciente nombreLegal={cita.nombre_usuario} nombreSocial={cita.nombre_social} />
+                    </p>
                     <p className="mt-1 text-sm">Teléfonos: {telefonos}</p>
                     <p className="text-sm">Correo: {correo}</p>
                 </div>

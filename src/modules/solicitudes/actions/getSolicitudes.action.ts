@@ -1,14 +1,19 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
+// lib
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 import { debeRegistrarBusqueda } from "@/shared/lib/auditoriaBusquedas";
+import { escaparTextoLike } from "@/shared/lib/busquedaTexto";
+// schemas
+import { solicitudFiltrosSchema } from "../schemas/solicitudFiltros.schema";
+import { ACCION_ESPERA_VALIDACION } from "../schemas/revision.schema";
 // types
 import type { ResultadoAccion } from "@/shared/types/resultado";
-import { SolicitudFiltros } from "../schemas/solicitud.schema";
-import { ACCION_ESPERA_VALIDACION } from "../schemas/revision.schema";
+import type { SolicitudFiltros } from "../schemas/solicitud.schema";
+import type { SolicitudFiltrosValidados } from "../schemas/solicitudFiltros.schema";
 // utils
 import { normalizarRut } from "../utils/rut";
 
@@ -26,12 +31,13 @@ async function getCentroFuncionario(rutFuncionario: string, centroSesion: string
     return funcionario?.centro_id ?? null;
 }
 
-function buildWhere(filtros: SolicitudFiltros, centroId: string): Prisma.SolicitudWhereInput {
+function buildWhere(filtros: SolicitudFiltrosValidados, centroId: string): Prisma.SolicitudWhereInput {
     const where: Prisma.SolicitudWhereInput = {
         accion: ACCION_ESPERA_VALIDACION,
         estado_solicitud: "En Curso",
         centro_id: centroId
     };
+    if (filtros.texto) where.descripcion = { contains: escaparTextoLike(filtros.texto, "\\") };
     if (filtros.rut) where.rut_usuario = normalizarRut(filtros.rut);
     if (filtros.tipoSolicitudId) where.tipo_solicitud_id = Number(filtros.tipoSolicitudId);
     if (filtros.motivoId) where.motivo_id = Number(filtros.motivoId);
@@ -49,17 +55,18 @@ function buildWhere(filtros: SolicitudFiltros, centroId: string): Prisma.Solicit
     return where;
 }
 
-function hasEdadFilter(filtros: SolicitudFiltros): boolean {
+function hasEdadFilter(filtros: SolicitudFiltrosValidados): boolean {
     return Boolean(filtros.edadDesde || filtros.edadHasta);
 }
 
-function buildRawWhere(filtros: SolicitudFiltros, centroId: string) {
+function buildRawWhere(filtros: SolicitudFiltrosValidados, centroId: string): Prisma.Sql {
     const clauses: Prisma.Sql[] = [
         Prisma.sql`s.accion = ${ACCION_ESPERA_VALIDACION}`,
         Prisma.sql`s.estado_solicitud = ${"En Curso"}`,
         Prisma.sql`s.centro_id = ${centroId}`
     ];
 
+    if (filtros.texto) clauses.push(Prisma.sql`s.descripcion LIKE ${`%${escaparTextoLike(filtros.texto, "!")}%`} ESCAPE '!'`);
     if (filtros.rut) clauses.push(Prisma.sql`s.rut_usuario = ${normalizarRut(filtros.rut)}`);
     if (filtros.tipoSolicitudId) clauses.push(Prisma.sql`s.tipo_solicitud_id = ${Number(filtros.tipoSolicitudId)}`);
     if (filtros.motivoId) clauses.push(Prisma.sql`s.motivo_id = ${Number(filtros.motivoId)}`);
@@ -75,14 +82,19 @@ function buildRawWhere(filtros: SolicitudFiltros, centroId: string) {
 
 export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
     const user = await requirePermiso("solicitudes.ver", "solicitudes.gestionar");
+    const validacion = solicitudFiltrosSchema.safeParse(filtros);
+    if (!validacion.success) {
+        return { ok: false, error: "Filtros invalidos. Revisa los valores; el texto admite hasta 200 caracteres." } satisfies ResultadoAccion<never>;
+    }
+    const filtrosValidados = validacion.data;
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
     if (!centroId) return { ok: false, error: ERROR_CENTRO } satisfies ResultadoAccion<never>;
-    const page = Math.max(1, Number(filtros.page ?? 1));
-    const where = buildWhere(filtros, centroId);
+    const page = filtrosValidados.page;
+    const where = buildWhere(filtrosValidados, centroId);
 
-    if (hasEdadFilter(filtros)) {
-        const rawWhere = buildRawWhere(filtros, centroId);
+    if (hasEdadFilter(filtrosValidados)) {
+        const rawWhere = buildRawWhere(filtrosValidados, centroId);
         const offset = (page - 1) * PAGE_SIZE;
         const [ids, countRows] = await Promise.all([
             prisma.$queryRaw<{ id_solicitud: string }[]>`
@@ -112,7 +124,7 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
             .filter((solicitud): solicitud is NonNullable<typeof solicitud> => Boolean(solicitud));
         const total = Number(countRows[0]?.total ?? 0);
 
-        const details = `Filtros: ${JSON.stringify(filtros)}`;
+        const details = `Filtros: ${JSON.stringify(filtrosValidados)}`;
         if (debeRegistrarBusqueda(`${user.rut}|${centroId}|LISTADO_SOLICITUDES|${details}`)) {
             await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
                 details
@@ -134,7 +146,7 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}) {
         prisma.solicitud.count({ where })
     ]);
 
-    const details = `Filtros: ${JSON.stringify(filtros)}`;
+    const details = `Filtros: ${JSON.stringify(filtrosValidados)}`;
     if (debeRegistrarBusqueda(`${user.rut}|${centroId}|LISTADO_SOLICITUDES|${details}`)) {
         await AuditLogger.logDataAccess("SEARCH", true, { id: user.email, name: user.nombre, rut: user.rut }, "LISTADO_SOLICITUDES", {
             details

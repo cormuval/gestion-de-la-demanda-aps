@@ -18,6 +18,7 @@ export const crearSolicitudSchema = z.object({
 export type CrearSolicitudInput = z.infer<typeof crearSolicitudSchema>;
 
 export interface SolicitudFiltros {
+    texto?: string;
     rut?: string;
     estado?: string;
     tipoSolicitudId?: string;

@@ -117,6 +117,16 @@ describe("getVoucherSolicitud", () => {
         });
     });
 
+    it("excluye nombres del usuario en la reimpresion", async () => {
+        vi.mocked(prisma.solicitud.findFirst).mockResolvedValueOnce(solicitudEnCurso as never);
+        const resultado = await getVoucherSolicitud("SOL-1");
+        expect(resultado.ok).toBe(true);
+        if (!resultado.ok) return;
+        expect(resultado.data.usuario).not.toHaveProperty("nombre");
+        expect(resultado.data.usuario).not.toHaveProperty("apellido");
+        expect(resultado.data.usuario).not.toHaveProperty("nombre_social");
+    });
+
     it("informa que una solicitud cerrada del centro activo no se puede reimprimir", async () => {
         vi.mocked(prisma.solicitud.findFirst).mockResolvedValueOnce(null);
         vi.mocked(prisma.solicitud.findUnique).mockResolvedValueOnce({

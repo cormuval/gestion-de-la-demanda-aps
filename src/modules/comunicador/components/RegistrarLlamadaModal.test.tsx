@@ -15,6 +15,7 @@ const cita = {
     disponibilidad: null,
     rut_usuario: "11.111.111-1",
     nombre_usuario: "Paciente de prueba",
+    nombre_social: "Social de prueba",
     profesion: null,
     prestacion: null,
     fecha_estimada_atencion: null,
@@ -47,6 +48,8 @@ describe("RegistrarLlamadaModal", () => {
             />
         );
 
+        expect(screen.getByText("Paciente de prueba")).toBeVisible();
+        expect(screen.getByText("Nombre social: Social de prueba")).toBeVisible();
         expect(screen.getByText("11.111.111-1")).toBeInTheDocument();
         expect(screen.getByText("No contesta (1)")).toBeInTheDocument();
         expect(screen.getByText("Médico")).toBeInTheDocument();

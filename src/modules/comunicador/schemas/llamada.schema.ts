@@ -1,4 +1,6 @@
 import { z } from "zod";
+// lib
+import { textoBusquedaSchema } from "@/shared/lib/busquedaTexto";
 // types
 import { RESPUESTAS_LLAMADA, RESPUESTA_LLAMADA } from "../types/comunicador";
 
@@ -19,6 +21,7 @@ export type RegistrarLlamadaInput = z.input<typeof registrarLlamadaSchema>;
 export type RegistrarLlamadaData = z.output<typeof registrarLlamadaSchema>;
 
 export const citasFiltrosSchema = z.object({
+    texto: textoBusquedaSchema,
     temporalidad: z.string().trim().optional(),
     estado: z.string().trim().optional(),
     profesional_id: z.coerce.number().int().positive().optional(),

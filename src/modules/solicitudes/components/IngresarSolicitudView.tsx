@@ -16,6 +16,7 @@ import { acortarId } from "@/shared/lib/acortarId";
 // schemas
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
+import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
 import { PendientesCascada } from "@/modules/solicitudes/components/PendientesCascada";
 import { VoucherSolicitudModal } from "@/modules/solicitudes/components/VoucherSolicitudModal";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
@@ -451,7 +452,7 @@ export function IngresarSolicitudView({ centroActivoId }: { centroActivoId: stri
                                 <Input value={usuarioConfirmado.rut} disabled />
                             </Field>
                             <Field label="Usuario">
-                                <Input value={`${usuarioConfirmado.nombre} ${usuarioConfirmado.apellido}`} disabled />
+                                <NombrePaciente nombreLegal={`${usuarioConfirmado.nombre} ${usuarioConfirmado.apellido}`} nombreSocial={usuarioConfirmado.nombre_social} />
                             </Field>
                             <Field label="Tipo solicitud">
                                 <Select value={solicitudForm.tipo_solicitud_id} onChange={(e) => updateSolicitudField("tipo_solicitud_id", e.target.value)} required>
@@ -574,18 +575,11 @@ function UsuarioStatus({
                 <span>
                     <strong>RUT:</strong> {usuario.rut}
                 </span>
-                <span>
-                    <strong>Nombre:</strong> {usuario.nombre} {usuario.apellido}
-                </span>
+                <NombrePaciente nombreLegal={`${usuario.nombre} ${usuario.apellido}`} nombreSocial={usuario.nombre_social} />
                 {edad === null ? (
                     <span className="font-medium text-blue-700">Falta fecha de nacimiento</span>
                 ) : (
                     <span><strong>Edad:</strong> {edad} años</span>
-                )}
-                {usuario.nombre_social && (
-                    <span className="font-medium text-blue-700">
-                        <strong>Nombre social:</strong> {usuario.nombre_social}
-                    </span>
                 )}
                 <span>
                     <strong>Telefono:</strong> {usuario.telefono || "-"}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { toast } from "sonner";
 // actions
@@ -25,6 +25,11 @@ import { PanelFiltros, contarFiltrosActivos } from "@/shared/components/filtros/
 // hooks
 import { useUsuarioEdit } from "@/modules/comunicador/hooks/useUsuarioEdit";
 import { useRefrescoAutomatico } from "@/shared/hooks/useRefrescoAutomatico";
+// utils
+import { ordenarCitas } from "@/modules/comunicador/utils/ordenCitas";
+// types
+import type { ColumnaCita } from "@/modules/comunicador/utils/ordenCitas";
+import type { OrdenPagina } from "@/shared/lib/ordenPagina";
 
 type Opciones = Awaited<ReturnType<typeof getFiltrosComunicador>>;
 
@@ -47,6 +52,8 @@ export function ComunicadorView() {
     const [citaHistorial, setCitaHistorial] = useState<CitaFila | null>(null);
     const [citaOtras, setCitaOtras] = useState<CitaFila | null>(null);
     const [citaSiguienteId, setCitaSiguienteId] = useState<string | null>(null);
+    const [orden, setOrden] = useState<OrdenPagina<ColumnaCita> | null>(null);
+    const filasVisibles = useMemo(() => ordenarCitas(data?.filas ?? [], orden), [data, orden]);
 
     useEffect(() => {
         getFiltrosComunicador().then(setOpciones).catch(() => toast.error("Error al cargar filtros"));
@@ -63,8 +70,14 @@ export function ComunicadorView() {
     // Candidatos ordenados para destacar la cita siguiente tras registrar una llamada.
     const candidatosSiguienteRef = useRef<string[] | null>(null);
 
+    // Un nuevo criterio, página, filtros u orden deja sin sentido la continuidad capturada.
+    function limpiarCandidatos() {
+        candidatosSiguienteRef.current = null;
+        setCitaSiguienteId(null);
+    }
+
     function prepararCitaSiguiente(idCitaActual: string) {
-        const filasActuales = data?.filas ?? [];
+        const filasActuales = filasVisibles;
         const idx = filasActuales.findIndex((f) => f.id_cita === idCitaActual);
         if (idx < 0) {
             candidatosSiguienteRef.current = null;
@@ -102,6 +115,7 @@ export function ComunicadorView() {
                 fechaHasta: aplicados.fechaHasta || undefined,
                 rut: aplicados.rut || undefined,
                 sector: aplicados.sector || undefined,
+                texto: aplicados.texto || undefined,
                 pagina
             });
             if (!esVigente()) return;
@@ -195,21 +209,21 @@ export function ComunicadorView() {
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
                     <div className="space-y-1.5">
                         <CardTitle>Citaciones pendientes</CardTitle>
-                        <CardDescription>Ordenadas de mayor a menor prioridad.</CardDescription>
+                        <CardDescription>{orden ? "Orden manual de esta página" : "Ordenadas de mayor a menor prioridad."}</CardDescription>
                     </div>
                     <PanelFiltros
-                        descripcion="Filtra por temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector."
+                        descripcion="Filtra por observación clínica, temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector."
+                        etiquetaAplicar="Buscar"
                         activos={contarFiltrosActivos(aplicados, [], FILTROS_INICIALES)}
                         activosDetalle={detalleFiltrosActivos(aplicados, opciones)}
                         onAplicar={() => {
-                            candidatosSiguienteRef.current = null;
-                            setCitaSiguienteId(null);
+                            limpiarCandidatos();
                             setPagina(1);
-                            setAplicados(filtrosUI);
+                            setAplicados({ ...filtrosUI });
                         }}
                         onLimpiar={() => {
-                            candidatosSiguienteRef.current = null;
-                            setCitaSiguienteId(null);
+                            limpiarCandidatos();
+                            setOrden(null);
                             setFiltrosUI(FILTROS_INICIALES);
                             setPagina(1);
                             setAplicados(FILTROS_INICIALES);
@@ -234,14 +248,18 @@ export function ComunicadorView() {
                     {!data && cargando && <TablaSkeleton columnas={6} etiqueta="Cargando citaciones..." />}
                     {data && (
                         <CitasPendientesTabla
-                            filas={data.filas}
+                            filas={filasVisibles}
                             total={data.total}
                             pagina={data.pagina}
                             porPagina={data.porPagina}
                             citaSiguienteId={citaSiguienteId}
+                            orden={orden}
+                            onOrden={(nuevoOrden) => {
+                                limpiarCandidatos();
+                                setOrden(nuevoOrden);
+                            }}
                             onPagina={(nuevaPagina) => {
-                                candidatosSiguienteRef.current = null;
-                                setCitaSiguienteId(null);
+                                limpiarCandidatos();
                                 setPagina(nuevaPagina);
                             }}
                             onGestionar={abrirGestion}

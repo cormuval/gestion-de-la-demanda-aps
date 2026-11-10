@@ -46,3 +46,20 @@ describe("citasFiltrosSchema", () => {
         expect(r.prestacion).toBe("Control Niño Sano");
     });
 });
+
+// Detecta que Comunicador descarte el texto o acepte entradas que no puede buscar.
+describe("texto de busqueda de citas", () => {
+    it("normaliza espacios y aplica vacio por defecto", () => {
+        expect(citasFiltrosSchema.parse({}).texto).toBe("");
+        expect(citasFiltrosSchema.parse({ texto: "  observacion  " }).texto).toBe("observacion");
+        expect(citasFiltrosSchema.parse({ texto: "   " }).texto).toBe("");
+    });
+
+    it.each([null, 12, {}, "a".repeat(201)])("rechaza texto invalido %s", (texto) => {
+        expect(citasFiltrosSchema.safeParse({ texto }).success).toBe(false);
+    });
+
+    it("acepta el limite de 200 caracteres", () => {
+        expect(citasFiltrosSchema.parse({ texto: "a".repeat(200) }).texto).toHaveLength(200);
+    });
+});

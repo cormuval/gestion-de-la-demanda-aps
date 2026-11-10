@@ -66,6 +66,7 @@ const SOLICITUD_REALIZADA = {
             cerrada: true,
             fecha_cierre: new Date("2026-01-20T12:00:00Z"),
             fecha_estimada_atencion: null,
+            hora_agendada: null,
             observacion: null,
             llamadas: [
                 {
@@ -94,6 +95,7 @@ const SOLICITUD_REALIZADA = {
             cerrada: true,
             fecha_cierre: null,
             fecha_estimada_atencion: null,
+            hora_agendada: null,
             observacion: null,
             llamadas: []
         }
@@ -123,12 +125,12 @@ const SOLICITUD_EN_CURSO_DOS = {
 };
 
 const HISTORIAL_COMPLETO: HistorialPaciente = {
-    paciente: { rut: "12345678-5", nombre: "Juana Perez" },
+    paciente: { rut: "12345678-5", nombre: "Juana Perez", nombre_social: "Social Perez" },
     solicitudes: [SOLICITUD_EN_CURSO, SOLICITUD_REALIZADA, SOLICITUD_RECHAZADA]
 };
 
 const HISTORIAL_CON_DOS_SOLICITUDES_EN_CURSO: HistorialPaciente = {
-    paciente: { rut: "12345678-5", nombre: "Juana Perez" },
+    paciente: { rut: "12345678-5", nombre: "Juana Perez", nombre_social: "Social Perez" },
     solicitudes: [SOLICITUD_EN_CURSO, SOLICITUD_EN_CURSO_DOS]
 };
 
@@ -157,6 +159,7 @@ describe("HistorialPacienteView", () => {
 
         await waitFor(() => expect(getHistorialPaciente).toHaveBeenCalledWith("12345678-5"));
         expect(await screen.findByText("Juana Perez")).toBeInTheDocument();
+        expect(screen.getByText("Nombre social: Social Perez")).toBeVisible();
         expect(screen.getByText("3 solicitudes · 1 en curso · 1 realizadas · 1 rechazadas")).toBeInTheDocument();
     });
 
@@ -183,6 +186,42 @@ describe("HistorialPacienteView", () => {
         // misma solicitud, que si tiene fecha de cierre).
         const tarjetaCita2 = screen.getByTestId("cita-CITA-2");
         expect(within(tarjetaCita2).getByText("—")).toBeInTheDocument();
+    });
+
+    it("muestra agenda de la cita aceptada con las llamadas plegadas", async () => {
+        const historial = structuredClone(HISTORIAL_COMPLETO);
+        historial.solicitudes[1].citas[0].hora_agendada = new Date("2026-07-01T13:30:00Z");
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: historial });
+
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        const boton = await screen.findByRole("button", { name: "Ver llamadas (2)" });
+
+        expect(boton).toHaveAttribute("aria-expanded", "false");
+        const cita = within(screen.getByTestId("cita-CITA-1"));
+        expect(cita.getByText("Fecha y hora agendadas")).toBeVisible();
+        expect(cita.getByText("01-07-2026, 09:30")).toBeVisible();
+        expect(cita.queryByText("Fecha y hora no registradas")).not.toBeInTheDocument();
+    });
+
+    it("informa falta de agenda solo para citas actualmente aceptadas", async () => {
+        const historial = structuredClone(HISTORIAL_COMPLETO);
+        const cita = historial.solicitudes[1].citas[0];
+        cita.estado_cita = "Cita Rechazada";
+        cita.hora_agendada = new Date("2026-07-01T13:30:00Z");
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: historial });
+
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        await screen.findByText("Juana Perez");
+
+        expect(within(screen.getByTestId("cita-CITA-2")).getByText("Fecha y hora no registradas")).toBeVisible();
+        const rechazada = within(screen.getByTestId("cita-CITA-1"));
+        expect(rechazada.queryByText("Fecha y hora agendadas")).not.toBeInTheDocument();
+        expect(rechazada.queryByText("01-07-2026, 09:30")).not.toBeInTheDocument();
+        expect(rechazada.queryByText("Fecha y hora no registradas")).not.toBeInTheDocument();
     });
 
     it("despliega las llamadas de una cita", async () => {
@@ -261,11 +300,11 @@ describe("HistorialPacienteView", () => {
 
     it("ignora la respuesta de una busqueda anterior si llega despues de una mas reciente", async () => {
         const pacienteA: HistorialPaciente = {
-            paciente: { rut: "11111111-1", nombre: "Paciente A" },
+            paciente: { rut: "11111111-1", nombre: "Paciente A", nombre_social: null },
             solicitudes: [SOLICITUD_EN_CURSO]
         };
         const pacienteB: HistorialPaciente = {
-            paciente: { rut: "22222222-2", nombre: "Paciente B" },
+            paciente: { rut: "22222222-2", nombre: "Paciente B", nombre_social: null },
             solicitudes: [SOLICITUD_REALIZADA]
         };
 
@@ -440,7 +479,7 @@ describe("HistorialPacienteView", () => {
 
     it("descarta un voucher resuelto despues de iniciar una nueva busqueda", async () => {
         const historialPacienteB: HistorialPaciente = {
-            paciente: { rut: "22222222-2", nombre: "Paciente B" },
+            paciente: { rut: "22222222-2", nombre: "Paciente B", nombre_social: null },
             solicitudes: [SOLICITUD_REALIZADA]
         };
         let resolverVoucherA!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;

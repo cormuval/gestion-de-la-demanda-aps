@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const estadoMocks = vi.hoisted(() => ({ usuarioEditOpen: false }));
+const estadoMocks = vi.hoisted(() => ({ usuarioEditOpen: false, tablaReal: false }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock("../actions/getCitasPendientes.action", () => ({ getCitasPendientes: vi.fn() }));
@@ -12,42 +12,31 @@ vi.mock("@/modules/solicitudes/actions/getCentros.action", () => ({ getCentros: 
 vi.mock("@/modules/comunicador/hooks/useUsuarioEdit", () => ({
     useUsuarioEdit: () => ({ open: estadoMocks.usuarioEditOpen, form: {}, saving: false, abrir: vi.fn(), cerrar: vi.fn(), onChange: vi.fn(), onSubmit: vi.fn() })
 }));
-vi.mock("./CitasFiltros", async (importOriginal) => {
-    const real = await importOriginal<typeof import("./CitasFiltros")>();
+vi.mock("./CitasPendientesTabla", async (importOriginal) => {
+    const { CitasPendientesTabla: TablaReal } = await importOriginal<typeof import("./CitasPendientesTabla")>();
     return {
-        ...real,
-        CitasFiltros: ({ valor, onCambio }: { valor: Record<string, string>; onCambio: (v: Record<string, string>) => void }) => (
-            <input aria-label="RUT filtro" value={valor.rut} onChange={(e) => onCambio({ ...valor, rut: e.target.value })} />
-        )
+        CitasPendientesTabla: (props: React.ComponentProps<typeof TablaReal>) => {
+            if (estadoMocks.tablaReal) return <TablaReal {...props} />;
+            return <TablaSimplificada {...props} />;
+        }
     };
 });
-vi.mock("./CitasPendientesTabla", () => ({
-    CitasPendientesTabla: ({ filas, total, citaSiguienteId, onPagina, onGestionar, renderAcciones }: {
-        filas: { id_cita: string }[];
-        total: number;
-        citaSiguienteId?: string | null;
-        onPagina: (pagina: number) => void;
-        onGestionar: (cita: { id_cita: string }) => void;
-        renderAcciones: (cita: { id_cita: string }) => React.ReactNode;
-    }) => (
+function TablaSimplificada({ filas, total, pagina, citaSiguienteId, onPagina, onGestionar, renderAcciones }: React.ComponentProps<typeof import("./CitasPendientesTabla").CitasPendientesTabla>) {
+    return (
         <div>
-            <p>Tabla con {total} citas</p>
+            <p>Tabla con {total} citas. Página {pagina}</p>
             <p>Cita siguiente: {citaSiguienteId ?? "ninguna"}</p>
-            <button type="button" onClick={() => onPagina(2)}>
-                Pagina 2
-            </button>
+            <button type="button" onClick={() => onPagina(2)}>Pagina 2</button>
             {filas.map((f) => (
                 <div key={f.id_cita}>
                     <span>{f.id_cita}</span>
-                    <button type="button" onClick={() => onGestionar(f)}>
-                        Llamar {f.id_cita}
-                    </button>
-                    {renderAcciones(f)}
+                    <button type="button" onClick={() => onGestionar(f)}>Llamar {f.id_cita}</button>
+                    {renderAcciones?.(f)}
                 </div>
             ))}
         </div>
-    )
-}));
+    );
+}
 vi.mock("./RegistrarLlamadaModal", () => ({
     RegistrarLlamadaModal: ({ onCerrar, onRegistrado, onCitaCerrada }: { onCerrar: () => void; onRegistrado: (m: string) => void; onCitaCerrada?: () => void }) => (
         <div role="dialog" aria-label="Registrar llamada">
@@ -101,6 +90,7 @@ function respuestaConLista(ids: string[], total = ids.length): RespuestaCitas {
                 disponibilidad: null,
                 rut_usuario: "11.111.111-1",
                 nombre_usuario: "Paciente de prueba",
+                nombre_social: null,
                 profesion: null,
                 prestacion: null,
                 fecha_estimada_atencion: null,
@@ -124,6 +114,7 @@ beforeEach(() => {
     // Reset (no clear) para que respuestas "Once" sin consumir no se filtren al test siguiente.
     vi.resetAllMocks();
     estadoMocks.usuarioEditOpen = false;
+    estadoMocks.tablaReal = false;
     vi.mocked(getCitasPendientes).mockResolvedValue({ ok: false, error: "Centro no configurado" } as never);
     vi.mocked(getFiltrosComunicador).mockResolvedValue({ profesionales: [], prestaciones: [] } as never);
     vi.mocked(getCentros).mockResolvedValue([] as never);
@@ -145,7 +136,7 @@ describe("ComunicadorView", () => {
         render(<ComunicadorView />);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro no configurado"));
-        expect(screen.queryByText("Tabla con 0 citas")).not.toBeInTheDocument();
+        expect(screen.queryByText("Tabla con 0 citas. Página 1")).not.toBeInTheDocument();
     });
 
     it("ofrece reintentar cuando falla la primera carga", async () => {
@@ -158,7 +149,7 @@ describe("ComunicadorView", () => {
         expect(await screen.findByRole("alert")).toHaveTextContent("Centro no configurado");
         fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
 
-        expect(await screen.findByText("Tabla con 3 citas")).toBeInTheDocument();
+        expect(await screen.findByText("Tabla con 3 citas. Página 1")).toBeInTheDocument();
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
@@ -168,12 +159,12 @@ describe("ComunicadorView", () => {
             .mockResolvedValueOnce({ ok: false, error: "No fue posible cargar la pagina" } as never);
 
         render(<ComunicadorView />);
-        await screen.findByText("Tabla con 3 citas");
+        await screen.findByText("Tabla con 3 citas. Página 1");
 
         fireEvent.click(screen.getByRole("button", { name: "Pagina 2" }));
 
         expect(await screen.findByRole("alert")).toHaveTextContent("Se muestra la última cola cargada");
-        expect(screen.getByText("Tabla con 3 citas")).toBeInTheDocument();
+        expect(screen.getByText("Tabla con 3 citas. Página 1")).toBeInTheDocument();
     });
 });
 
@@ -276,8 +267,8 @@ describe("ComunicadorView verificacion antes de llamar", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
         const panel = await screen.findByRole("dialog", { name: "Filtros" });
-        fireEvent.change(within(panel).getByLabelText("RUT filtro"), { target: { value: "99999999-9" } });
-        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.change(within(panel).getByPlaceholderText("Ej: 12345678"), { target: { value: "99999999-9" } });
+        fireEvent.click(within(panel).getByRole("button", { name: /^Buscar$/i }));
         await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(2));
         await act(async () => undefined);
 
@@ -323,8 +314,8 @@ describe("ComunicadorView refresco automatico", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
         const panel = await screen.findByRole("dialog", { name: "Filtros" });
-        fireEvent.change(within(panel).getByLabelText("RUT filtro"), { target: { value: "12345678-5" } });
-        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.change(within(panel).getByPlaceholderText("Ej: 12345678"), { target: { value: "12345678-5" } });
+        fireEvent.click(within(panel).getByRole("button", { name: /^Buscar$/i }));
         await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(2));
         await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
         fireEvent.click(screen.getByRole("button", { name: "Pagina 2" }));
@@ -352,7 +343,7 @@ describe("ComunicadorView refresco automatico", () => {
         vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaCon("CITA-9", 7));
         await avanzar(60_000);
         expect(await screen.findByText("CITA-9")).toBeInTheDocument();
-        expect(screen.getByText("Tabla con 7 citas")).toBeInTheDocument();
+        expect(screen.getByText("Tabla con 7 citas. Página 1")).toBeInTheDocument();
     });
 
     it("no cambia la alerta de error visible al refrescar en silencio con falla", async () => {
@@ -485,7 +476,7 @@ describe("ComunicadorView refresco automatico", () => {
             .mockReturnValueOnce(new Promise((resolve) => (responderSegunda = resolve)));
         fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
         fireEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
-        fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Buscar$/i }));
         await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(4));
 
         await act(async () => responderSegunda({ ok: false, error: "Falla nueva" } as never));
@@ -568,7 +559,7 @@ describe("ComunicadorView filtros por defecto y detalle activo", () => {
 
         render(<ComunicadorView />);
 
-        await screen.findByText("Tabla con 0 citas");
+        await screen.findByText("Tabla con 0 citas. Página 1");
         expect(vi.mocked(getCitasPendientes).mock.calls[0][0]).toMatchObject({ temporalidad: "Agendamientos próximos" });
     });
 
@@ -593,8 +584,8 @@ describe("ComunicadorView filtros por defecto y detalle activo", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
         const panel = await screen.findByRole("dialog", { name: "Filtros" });
-        fireEvent.change(within(panel).getByLabelText("RUT filtro"), { target: { value: "99999999-9" } });
-        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.change(within(panel).getByPlaceholderText("Ej: 12345678"), { target: { value: "99999999-9" } });
+        fireEvent.click(within(panel).getByRole("button", { name: /^Buscar$/i }));
         await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
 
         expect(screen.getByText("RUT: 99999999-9")).toBeInTheDocument();
@@ -604,5 +595,300 @@ describe("ComunicadorView filtros por defecto y detalle activo", () => {
         await waitFor(() => expect(screen.queryByText("RUT: 99999999-9")).not.toBeInTheDocument());
         expect(vi.mocked(getCitasPendientes).mock.calls[2][0]).toMatchObject({ temporalidad: "Agendamientos próximos" });
         expect((vi.mocked(getCitasPendientes).mock.calls[2][0] as { rut?: string }).rut).toBeFalsy();
+    });
+});
+
+describe("ComunicadorView búsqueda global", () => {
+    function paginaCon(id: string, pagina: number, total = 301): RespuestaCitas {
+        const respuesta = respuestaCon(id, total);
+        if (respuesta.ok) respuesta.data.pagina = pagina;
+        return respuesta;
+    }
+
+    async function editarTexto(texto: string) {
+        fireEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        const input = within(panel).getByRole("textbox", { name: "Buscar en observación clínica" });
+        fireEvent.change(input, { target: { value: texto } });
+        return { panel, input };
+    }
+
+    it("busca al enviar, vuelve a página 1 y muestra el resultado global del servidor", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(paginaCon("CITA-INICIAL", 2))
+            .mockResolvedValueOnce(paginaCon("CITA-REMOTA", 1, 201));
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-INICIAL");
+        const { panel, input } = await editarTexto("Observación de otra página");
+        expect(input).toHaveAttribute("maxlength", "200");
+        expect(within(panel).getByText("Busca en todas las páginas con los filtros actuales")).toBeInTheDocument();
+        expect(getCitasPendientes).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText(/Observación clínica:/)).not.toBeInTheDocument();
+        fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+        expect(await screen.findByText("CITA-REMOTA")).toBeInTheDocument();
+        expect(screen.queryByText("CITA-INICIAL")).not.toBeInTheDocument();
+        expect(screen.getByText("Tabla con 201 citas. Página 1")).toBeInTheDocument();
+        expect(screen.getByText("Observación clínica: Observación de otra página")).toBeInTheDocument();
+        expect(getCitasPendientes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "Observación de otra página", pagina: 1 }));
+    });
+
+    it("vuelve a consultar al enviar de nuevo el mismo texto", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(paginaCon("CITA-INICIAL", 1))
+            .mockResolvedValueOnce(paginaCon("CITA-PRIMERA", 1))
+            .mockResolvedValueOnce(paginaCon("CITA-ACTUALIZADA", 1));
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-INICIAL");
+        const primera = await editarTexto("control");
+        fireEvent.click(within(primera.panel).getByRole("button", { name: "Buscar" }));
+        await screen.findByText("CITA-PRIMERA");
+        fireEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.submit(within(panel).getByRole("textbox", { name: "Buscar en observación clínica" }).closest("form")!);
+        expect(await screen.findByText("CITA-ACTUALIZADA")).toBeInTheDocument();
+        expect(getCitasPendientes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "control", pagina: 1 }));
+    });
+
+    it("pagina y refresca con el texto aplicado aunque se edite un borrador", async () => {
+        let visibilidad: DocumentVisibilityState = "visible";
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibilidad });
+        try {
+            vi.mocked(getCitasPendientes)
+                .mockResolvedValueOnce(paginaCon("CITA-INICIAL", 1))
+                .mockResolvedValueOnce(paginaCon("CITA-BUSQUEDA", 1, 201))
+                .mockResolvedValue(paginaCon("CITA-PAGINA2", 2, 201));
+            render(<ComunicadorView />);
+            await screen.findByText("CITA-INICIAL");
+            const { input } = await editarTexto("aplicado");
+            fireEvent.submit(input.closest("form")!);
+            await screen.findByText("CITA-BUSQUEDA");
+            await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+            const borrador = await editarTexto("sin aplicar");
+            expect(getCitasPendientes).toHaveBeenCalledTimes(2);
+            expect(screen.getByText("Observación clínica: aplicado")).toBeInTheDocument();
+            fireEvent.click(within(borrador.panel).getByRole("button", { name: "Cerrar" }));
+            fireEvent.click(screen.getByRole("button", { name: "Pagina 2" }));
+            await screen.findByText("CITA-PAGINA2");
+            expect(getCitasPendientes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "aplicado", pagina: 2 }));
+            visibilidad = "hidden";
+            fireEvent(document, new Event("visibilitychange"));
+            visibilidad = "visible";
+            fireEvent(document, new Event("visibilitychange"));
+            await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(4));
+            expect(getCitasPendientes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "aplicado", pagina: 2 }));
+        } finally {
+            Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        }
+    });
+
+    it("una respuesta A posterior a B no reemplaza filas ni chips y limpiar elimina el texto", async () => {
+        let resolverA!: (respuesta: RespuestaCitas) => void;
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(paginaCon("CITA-INICIAL", 1))
+            .mockReturnValueOnce(new Promise((resolve) => { resolverA = resolve; }))
+            .mockResolvedValueOnce(paginaCon("CITA-B", 1, 201))
+            .mockResolvedValueOnce(paginaCon("CITA-LIMPIA", 1, 2));
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-INICIAL");
+        const primera = await editarTexto("consulta A");
+        fireEvent.click(within(primera.panel).getByRole("button", { name: "Buscar" }));
+        await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(2));
+        const segunda = await editarTexto("consulta B");
+        fireEvent.click(within(segunda.panel).getByRole("button", { name: "Buscar" }));
+        await screen.findByText("CITA-B");
+        await act(async () => resolverA(paginaCon("CITA-A", 1, 999)));
+        expect(screen.queryByText("CITA-A")).not.toBeInTheDocument();
+        expect(screen.getByText("CITA-B")).toBeInTheDocument();
+        expect(screen.getByText("Observación clínica: consulta B")).toBeInTheDocument();
+        expect(screen.queryByText("Observación clínica: consulta A")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+        await screen.findByText("CITA-LIMPIA");
+        expect(screen.queryByText(/Observación clínica:/)).not.toBeInTheDocument();
+        expect(getCitasPendientes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: undefined, pagina: 1 }));
+        const limpia = await editarTexto("");
+        expect(within(limpia.panel).getByRole("textbox", { name: "Buscar en observación clínica" })).toHaveValue("");
+    });
+
+    it("conserva última tabla y feedback existente cuando falla la búsqueda", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(paginaCon("CITA-INICIAL", 1))
+            .mockResolvedValueOnce({ ok: false, error: "No fue posible buscar" });
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-INICIAL");
+        const { panel } = await editarTexto("consulta fallida");
+        fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("Se muestra la última cola cargada");
+        expect(toast.error).toHaveBeenCalledWith("No fue posible buscar");
+        expect(screen.getByText("CITA-INICIAL")).toBeInTheDocument();
+    });
+});
+
+describe("ComunicadorView orden local y continuidad visible", () => {
+    function respuestaOrdenada(ids = ["CITA-A", "CITA-B", "CITA-C"], pagina = 1, total = 3): RespuestaCitas {
+        const respuesta = respuestaConLista(ids, total);
+        if (respuesta.ok) {
+            const dias: Record<string, number> = { "CITA-A": 2, "CITA-B": 3, "CITA-C": 1, "CITA-D": 6, "CITA-E": 5, "CITA-F": 4 };
+            respuesta.data.filas = respuesta.data.filas.map((fila) => ({
+                ...fila,
+                fecha_estimada_atencion: new Date(Date.UTC(2026, 10, dias[fila.id_cita] ?? 10)),
+                tiene_llamada_hoy: fila.id_cita === "CITA-A"
+            }));
+            respuesta.data.pagina = pagina;
+            respuesta.data.porPagina = 100;
+        }
+        return respuesta;
+    }
+
+    function idsVisibles(): string[] {
+        return screen.getAllByRole("row").slice(1).map((fila) => within(fila).getByText(/^CITA-/).textContent!);
+    }
+
+    function llamar(id: string) {
+        const fila = screen.getByText(id).closest("tr")!;
+        fireEvent.click(within(fila).getByRole("button", { name: "Llamar" }));
+    }
+
+    async function registrarA() {
+        llamar("CITA-A");
+        const registrar = await screen.findByRole("button", { name: "Simular llamada registrada" });
+        await act(async () => fireEvent.click(registrar));
+    }
+
+    beforeEach(() => {
+        estadoMocks.tablaReal = true;
+        Element.prototype.scrollIntoView = vi.fn();
+        vi.mocked(getCitasPendientes).mockResolvedValue(respuestaOrdenada());
+    });
+
+    it("cicla fecha ascendente, descendente y prioridad original sin consultar", async () => {
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        const fecha = screen.getByRole("button", { name: "ID / Fecha Estimada" });
+        expect(idsVisibles()).toEqual(["CITA-A", "CITA-B", "CITA-C"]);
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["CITA-C", "CITA-A", "CITA-B"]);
+        expect(screen.getByText("Orden manual de esta página")).toBeInTheDocument();
+        expect(screen.queryByText("Ordenadas de mayor a menor prioridad.")).not.toBeInTheDocument();
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["CITA-B", "CITA-A", "CITA-C"]);
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["CITA-A", "CITA-B", "CITA-C"]);
+        expect(screen.getByText("Ordenadas de mayor a menor prioridad.")).toBeInTheDocument();
+        expect(getCitasPendientes).toHaveBeenCalledTimes(1);
+    });
+
+    it("conserva criterio al paginar y al refrescar en silencio, ordenando las filas nuevas", async () => {
+        let visibilidad: DocumentVisibilityState = "visible";
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibilidad });
+        try {
+            const refrescada = respuestaOrdenada(["CITA-E", "CITA-D", "CITA-F"], 2, 201);
+            if (refrescada.ok) refrescada.data.filas[1].fecha_estimada_atencion = new Date("2026-11-03T00:00:00Z");
+            vi.mocked(getCitasPendientes)
+                .mockResolvedValueOnce(respuestaOrdenada(undefined, 1, 201))
+                .mockResolvedValueOnce(respuestaOrdenada(["CITA-D", "CITA-E", "CITA-F"], 2, 201))
+                .mockResolvedValueOnce(refrescada);
+            render(<ComunicadorView />);
+            await screen.findByText("CITA-A");
+            fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+            fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+            await screen.findByText("CITA-D");
+            expect(idsVisibles()).toEqual(["CITA-F", "CITA-E", "CITA-D"]);
+            expect(screen.getByRole("columnheader", { name: "ID / Fecha Estimada" })).toHaveAttribute("aria-sort", "ascending");
+            visibilidad = "hidden";
+            fireEvent(document, new Event("visibilitychange"));
+            visibilidad = "visible";
+            fireEvent(document, new Event("visibilitychange"));
+            await waitFor(() => expect(idsVisibles()).toEqual(["CITA-D", "CITA-F", "CITA-E"]));
+            expect(getCitasPendientes).toHaveBeenCalledTimes(3);
+            expect(getCitasPendientes).toHaveBeenLastCalledWith(expect.objectContaining({ pagina: 2, temporalidad: "Agendamientos próximos" }));
+        } finally {
+            Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        }
+    });
+
+    it("conserva orden al aplicar filtros y lo restablece al limpiar", async () => {
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.change(within(panel).getByPlaceholderText("Ej: 12345678"), { target: { value: "11111111-1" } });
+        fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+        await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(2));
+        expect(idsVisibles()).toEqual(["CITA-C", "CITA-A", "CITA-B"]);
+        fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+        await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(3));
+        expect(idsVisibles()).toEqual(["CITA-A", "CITA-B", "CITA-C"]);
+        expect(screen.getByRole("columnheader", { name: "ID / Fecha Estimada" })).toHaveAttribute("aria-sort", "none");
+    });
+
+    it.each([
+        [["CITA-A", "CITA-C", "CITA-B"], "CITA-B"],
+        [["CITA-C"], "CITA-C"]
+    ])("tras gestionar A elige el primer candidato visible vigente en %j", async (ids, esperado) => {
+        const refrescada = respuestaOrdenada(ids);
+        // La nueva fecha mueve B antes de C: Siguiente debe conservar el orden capturado antes de recargar.
+        if (refrescada.ok) {
+            const b = refrescada.data.filas.find((fila) => fila.id_cita === "CITA-B");
+            if (b) b.fecha_estimada_atencion = new Date("2026-10-01T00:00:00Z");
+        }
+        vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaOrdenada()).mockResolvedValueOnce(refrescada);
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        expect(idsVisibles()).toEqual(["CITA-C", "CITA-A", "CITA-B"]);
+        expect(screen.getByText("CITA-A").closest("tr")).toHaveClass("bg-primary/15");
+        await registrarA();
+        await waitFor(() => expect(container.querySelector('tr[data-cita-siguiente="true"]')).toHaveTextContent(esperado));
+        const fila = container.querySelector('tr[data-cita-siguiente="true"]')! as HTMLElement;
+        expect(document.activeElement).toBe(within(fila).getByRole("button", { name: "Llamar" }));
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
+    });
+
+    it("no destaca ni enfoca una fila ajena si ya no queda ningún candidato", async () => {
+        vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaOrdenada()).mockResolvedValueOnce(respuestaOrdenada(["CITA-D"]));
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        await registrarA();
+        await screen.findByText("CITA-D");
+        expect(container.querySelector('tr[data-cita-siguiente="true"]')).toBeNull();
+        expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+        expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Llamar" }));
+    });
+
+    it("al cerrarse C concurrentemente sigue con A según el orden visible C–A–B", async () => {
+        vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaOrdenada()).mockResolvedValueOnce(respuestaOrdenada(["CITA-A", "CITA-B"]));
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-C");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        llamar("CITA-C");
+        fireEvent.click(await screen.findByRole("button", { name: "Simular cita cerrada" }));
+        await waitFor(() => expect(container.querySelector('tr[data-cita-siguiente="true"]')).toHaveTextContent("CITA-A"));
+    });
+
+    it.each(["criterio", "página", "filtros"] as const)("limpia candidatos capturados al cambiar %s mientras se recarga la llamada", async (cambio) => {
+        let resolver!: (respuesta: RespuestaCitas) => void;
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaOrdenada(undefined, 1, 201))
+            .mockReturnValueOnce(new Promise((resolve) => { resolver = resolve; }))
+            .mockResolvedValue(respuestaOrdenada(undefined, 2, 201));
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        await registrarA();
+        await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(2));
+        if (cambio === "criterio") {
+            fireEvent.click(screen.getByRole("button", { name: "Estado" }));
+        } else if (cambio === "página") {
+            fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+        } else {
+            fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+            const panel = await screen.findByRole("dialog", { name: "Filtros" });
+            fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+        }
+        await act(async () => resolver(respuestaOrdenada()));
+        expect(container.querySelector('tr[data-cita-siguiente="true"]')).toBeNull();
+        expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     });
 });
