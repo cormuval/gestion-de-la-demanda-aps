@@ -13,12 +13,13 @@ import { citasFiltrosSchema } from "../schemas/llamada.schema";
 import { rangoTemporalidad } from "../utils/temporalidad";
 import { rangoEdadAFechaNacimiento } from "../utils/rangoEdadAFechaNacimiento";
 // types
-import { ESTADOS_PENDIENTES, ORDEN_ESTADOS_PENDIENTES, RESPUESTA_LLAMADA } from "../types/comunicador";
+import { ESTADOS_PENDIENTES, RESPUESTA_LLAMADA } from "../types/comunicador";
 
 const POR_PAGINA = 100;
 
 export interface CitaFila {
     id_cita: string;
+    priorizacion_clinica: string | null;
     priorizacion: number | null;
     disponibilidad: string | null;
     rut_usuario: string;
@@ -78,15 +79,15 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
 
     const where = Prisma.sql`WHERE ${Prisma.join(condiciones, " AND ")}`;
 
-    // Orden en cascada por estado (FIELD) + priorizacion desc
-    const ordenEstados = Prisma.join(ORDEN_ESTADOS_PENDIENTES.map((e) => Prisma.sql`${e}`));
-    const orderBy = Prisma.sql`ORDER BY FIELD(c.estado_cita, ${ordenEstados}) ASC, c.priorizacion DESC`;
+    // Orden por priorizacion descendente con desempate determinista por fecha estimada e id
+    const orderBy = Prisma.sql`ORDER BY c.priorizacion DESC, c.fecha_estimada_atencion ASC, c.id_cita ASC`;
 
     const offset = (f.pagina - 1) * POR_PAGINA;
 
     const filas = await prisma.$queryRaw<CitaFila[]>`
         SELECT
             c.id_cita AS id_cita,
+            c.priorizacion_clinica AS priorizacion_clinica,
             c.priorizacion AS priorizacion,
             s.disponibilidad_llamada AS disponibilidad,
             c.rut_usuario AS rut_usuario,

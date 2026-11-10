@@ -70,4 +70,21 @@ describe("getCitasPendientes", () => {
 
         expect(AuditLogger.logDataAccess).toHaveBeenCalledTimes(2);
     });
+
+    it("selecciona priorizacion_clinica y ordena por priorizacion DESC con desempate por fecha estimada e id", async () => {
+        await getCitasPendientes({ pagina: 1 });
+
+        const llamada = vi.mocked(prisma.$queryRaw).mock.calls[0] ?? [];
+        const textoSql = llamada
+            .map((arg) => {
+                if (Array.isArray(arg)) return arg.join(" ");
+                if (arg && typeof arg === "object" && "sql" in arg) return String((arg as { sql: string }).sql);
+                return String(arg ?? "");
+            })
+            .join(" ");
+
+        expect(textoSql).toContain("c.priorizacion_clinica AS priorizacion_clinica");
+        expect(textoSql).toContain("ORDER BY c.priorizacion DESC, c.fecha_estimada_atencion ASC, c.id_cita ASC");
+        expect(textoSql).not.toContain("FIELD(c.estado_cita");
+    });
 });
