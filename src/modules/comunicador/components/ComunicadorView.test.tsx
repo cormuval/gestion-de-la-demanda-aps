@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const estadoMocks = vi.hoisted(() => ({ usuarioEditOpen: false }));
+const estadoMocks = vi.hoisted(() => ({ usuarioEditOpen: false, tablaReal: false }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock("../actions/getCitasPendientes.action", () => ({ getCitasPendientes: vi.fn() }));
@@ -12,34 +12,31 @@ vi.mock("@/modules/solicitudes/actions/getCentros.action", () => ({ getCentros: 
 vi.mock("@/modules/comunicador/hooks/useUsuarioEdit", () => ({
     useUsuarioEdit: () => ({ open: estadoMocks.usuarioEditOpen, form: {}, saving: false, abrir: vi.fn(), cerrar: vi.fn(), onChange: vi.fn(), onSubmit: vi.fn() })
 }));
-vi.mock("./CitasPendientesTabla", () => ({
-    CitasPendientesTabla: ({ filas, total, pagina, citaSiguienteId, onPagina, onGestionar, renderAcciones }: {
-        filas: { id_cita: string }[];
-        total: number;
-        pagina: number;
-        citaSiguienteId?: string | null;
-        onPagina: (pagina: number) => void;
-        onGestionar: (cita: { id_cita: string }) => void;
-        renderAcciones: (cita: { id_cita: string }) => React.ReactNode;
-    }) => (
+vi.mock("./CitasPendientesTabla", async (importOriginal) => {
+    const { CitasPendientesTabla: TablaReal } = await importOriginal<typeof import("./CitasPendientesTabla")>();
+    return {
+        CitasPendientesTabla: (props: React.ComponentProps<typeof TablaReal>) => {
+            if (estadoMocks.tablaReal) return <TablaReal {...props} />;
+            return <TablaSimplificada {...props} />;
+        }
+    };
+});
+function TablaSimplificada({ filas, total, pagina, citaSiguienteId, onPagina, onGestionar, renderAcciones }: React.ComponentProps<typeof import("./CitasPendientesTabla").CitasPendientesTabla>) {
+    return (
         <div>
             <p>Tabla con {total} citas. Página {pagina}</p>
             <p>Cita siguiente: {citaSiguienteId ?? "ninguna"}</p>
-            <button type="button" onClick={() => onPagina(2)}>
-                Pagina 2
-            </button>
+            <button type="button" onClick={() => onPagina(2)}>Pagina 2</button>
             {filas.map((f) => (
                 <div key={f.id_cita}>
                     <span>{f.id_cita}</span>
-                    <button type="button" onClick={() => onGestionar(f)}>
-                        Llamar {f.id_cita}
-                    </button>
-                    {renderAcciones(f)}
+                    <button type="button" onClick={() => onGestionar(f)}>Llamar {f.id_cita}</button>
+                    {renderAcciones?.(f)}
                 </div>
             ))}
         </div>
-    )
-}));
+    );
+}
 vi.mock("./RegistrarLlamadaModal", () => ({
     RegistrarLlamadaModal: ({ onCerrar, onRegistrado, onCitaCerrada }: { onCerrar: () => void; onRegistrado: (m: string) => void; onCitaCerrada?: () => void }) => (
         <div role="dialog" aria-label="Registrar llamada">
@@ -117,6 +114,7 @@ beforeEach(() => {
     // Reset (no clear) para que respuestas "Once" sin consumir no se filtren al test siguiente.
     vi.resetAllMocks();
     estadoMocks.usuarioEditOpen = false;
+    estadoMocks.tablaReal = false;
     vi.mocked(getCitasPendientes).mockResolvedValue({ ok: false, error: "Centro no configurado" } as never);
     vi.mocked(getFiltrosComunicador).mockResolvedValue({ profesionales: [], prestaciones: [] } as never);
     vi.mocked(getCentros).mockResolvedValue([] as never);
@@ -722,5 +720,175 @@ describe("ComunicadorView búsqueda global", () => {
         expect(await screen.findByRole("alert")).toHaveTextContent("Se muestra la última cola cargada");
         expect(toast.error).toHaveBeenCalledWith("No fue posible buscar");
         expect(screen.getByText("CITA-INICIAL")).toBeInTheDocument();
+    });
+});
+
+describe("ComunicadorView orden local y continuidad visible", () => {
+    function respuestaOrdenada(ids = ["CITA-A", "CITA-B", "CITA-C"], pagina = 1, total = 3): RespuestaCitas {
+        const respuesta = respuestaConLista(ids, total);
+        if (respuesta.ok) {
+            const dias: Record<string, number> = { "CITA-A": 2, "CITA-B": 3, "CITA-C": 1, "CITA-D": 6, "CITA-E": 5, "CITA-F": 4 };
+            respuesta.data.filas = respuesta.data.filas.map((fila) => ({
+                ...fila,
+                fecha_estimada_atencion: new Date(Date.UTC(2026, 10, dias[fila.id_cita] ?? 10)),
+                tiene_llamada_hoy: fila.id_cita === "CITA-A"
+            }));
+            respuesta.data.pagina = pagina;
+            respuesta.data.porPagina = 100;
+        }
+        return respuesta;
+    }
+
+    function idsVisibles(): string[] {
+        return screen.getAllByRole("row").slice(1).map((fila) => within(fila).getByText(/^CITA-/).textContent!);
+    }
+
+    function llamar(id: string) {
+        const fila = screen.getByText(id).closest("tr")!;
+        fireEvent.click(within(fila).getByRole("button", { name: "Llamar" }));
+    }
+
+    async function registrarA() {
+        llamar("CITA-A");
+        const registrar = await screen.findByRole("button", { name: "Simular llamada registrada" });
+        await act(async () => fireEvent.click(registrar));
+    }
+
+    beforeEach(() => {
+        estadoMocks.tablaReal = true;
+        Element.prototype.scrollIntoView = vi.fn();
+        vi.mocked(getCitasPendientes).mockResolvedValue(respuestaOrdenada());
+    });
+
+    it("cicla fecha ascendente, descendente y prioridad original sin consultar", async () => {
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        const fecha = screen.getByRole("button", { name: "ID / Fecha Estimada" });
+        expect(idsVisibles()).toEqual(["CITA-A", "CITA-B", "CITA-C"]);
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["CITA-C", "CITA-A", "CITA-B"]);
+        expect(screen.getByText("Orden manual de esta página")).toBeInTheDocument();
+        expect(screen.queryByText("Ordenadas de mayor a menor prioridad.")).not.toBeInTheDocument();
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["CITA-B", "CITA-A", "CITA-C"]);
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["CITA-A", "CITA-B", "CITA-C"]);
+        expect(screen.getByText("Ordenadas de mayor a menor prioridad.")).toBeInTheDocument();
+        expect(getCitasPendientes).toHaveBeenCalledTimes(1);
+    });
+
+    it("conserva criterio al paginar y al refrescar en silencio, ordenando las filas nuevas", async () => {
+        let visibilidad: DocumentVisibilityState = "visible";
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibilidad });
+        try {
+            const refrescada = respuestaOrdenada(["CITA-E", "CITA-D", "CITA-F"], 2, 201);
+            if (refrescada.ok) refrescada.data.filas[1].fecha_estimada_atencion = new Date("2026-11-03T00:00:00Z");
+            vi.mocked(getCitasPendientes)
+                .mockResolvedValueOnce(respuestaOrdenada(undefined, 1, 201))
+                .mockResolvedValueOnce(respuestaOrdenada(["CITA-D", "CITA-E", "CITA-F"], 2, 201))
+                .mockResolvedValueOnce(refrescada);
+            render(<ComunicadorView />);
+            await screen.findByText("CITA-A");
+            fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+            fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+            await screen.findByText("CITA-D");
+            expect(idsVisibles()).toEqual(["CITA-F", "CITA-E", "CITA-D"]);
+            expect(screen.getByRole("columnheader", { name: "ID / Fecha Estimada" })).toHaveAttribute("aria-sort", "ascending");
+            visibilidad = "hidden";
+            fireEvent(document, new Event("visibilitychange"));
+            visibilidad = "visible";
+            fireEvent(document, new Event("visibilitychange"));
+            await waitFor(() => expect(idsVisibles()).toEqual(["CITA-D", "CITA-F", "CITA-E"]));
+            expect(getCitasPendientes).toHaveBeenCalledTimes(3);
+            expect(getCitasPendientes).toHaveBeenLastCalledWith(expect.objectContaining({ pagina: 2, temporalidad: "Agendamientos próximos" }));
+        } finally {
+            Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        }
+    });
+
+    it("conserva orden al aplicar filtros y lo restablece al limpiar", async () => {
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.change(within(panel).getByPlaceholderText("Ej: 12345678"), { target: { value: "11111111-1" } });
+        fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+        await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(2));
+        expect(idsVisibles()).toEqual(["CITA-C", "CITA-A", "CITA-B"]);
+        fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+        await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(3));
+        expect(idsVisibles()).toEqual(["CITA-A", "CITA-B", "CITA-C"]);
+        expect(screen.getByRole("columnheader", { name: "ID / Fecha Estimada" })).toHaveAttribute("aria-sort", "none");
+    });
+
+    it.each([
+        [["CITA-A", "CITA-C", "CITA-B"], "CITA-B"],
+        [["CITA-C"], "CITA-C"]
+    ])("tras gestionar A elige el primer candidato visible vigente en %j", async (ids, esperado) => {
+        const refrescada = respuestaOrdenada(ids);
+        // La nueva fecha mueve B antes de C: Siguiente debe conservar el orden capturado antes de recargar.
+        if (refrescada.ok) {
+            const b = refrescada.data.filas.find((fila) => fila.id_cita === "CITA-B");
+            if (b) b.fecha_estimada_atencion = new Date("2026-10-01T00:00:00Z");
+        }
+        vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaOrdenada()).mockResolvedValueOnce(refrescada);
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        expect(idsVisibles()).toEqual(["CITA-C", "CITA-A", "CITA-B"]);
+        expect(screen.getByText("CITA-A").closest("tr")).toHaveClass("bg-primary/15");
+        await registrarA();
+        await waitFor(() => expect(container.querySelector('tr[data-cita-siguiente="true"]')).toHaveTextContent(esperado));
+        const fila = container.querySelector('tr[data-cita-siguiente="true"]')! as HTMLElement;
+        expect(document.activeElement).toBe(within(fila).getByRole("button", { name: "Llamar" }));
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
+    });
+
+    it("no destaca ni enfoca una fila ajena si ya no queda ningún candidato", async () => {
+        vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaOrdenada()).mockResolvedValueOnce(respuestaOrdenada(["CITA-D"]));
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        await registrarA();
+        await screen.findByText("CITA-D");
+        expect(container.querySelector('tr[data-cita-siguiente="true"]')).toBeNull();
+        expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+        expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Llamar" }));
+    });
+
+    it("al cerrarse C concurrentemente sigue con A según el orden visible C–A–B", async () => {
+        vi.mocked(getCitasPendientes).mockResolvedValueOnce(respuestaOrdenada()).mockResolvedValueOnce(respuestaOrdenada(["CITA-A", "CITA-B"]));
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-C");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        llamar("CITA-C");
+        fireEvent.click(await screen.findByRole("button", { name: "Simular cita cerrada" }));
+        await waitFor(() => expect(container.querySelector('tr[data-cita-siguiente="true"]')).toHaveTextContent("CITA-A"));
+    });
+
+    it.each(["criterio", "página", "filtros"] as const)("limpia candidatos capturados al cambiar %s mientras se recarga la llamada", async (cambio) => {
+        let resolver!: (respuesta: RespuestaCitas) => void;
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaOrdenada(undefined, 1, 201))
+            .mockReturnValueOnce(new Promise((resolve) => { resolver = resolve; }))
+            .mockResolvedValue(respuestaOrdenada(undefined, 2, 201));
+        const { container } = render(<ComunicadorView />);
+        await screen.findByText("CITA-A");
+        fireEvent.click(screen.getByRole("button", { name: "ID / Fecha Estimada" }));
+        await registrarA();
+        await waitFor(() => expect(getCitasPendientes).toHaveBeenCalledTimes(2));
+        if (cambio === "criterio") {
+            fireEvent.click(screen.getByRole("button", { name: "Estado" }));
+        } else if (cambio === "página") {
+            fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+        } else {
+            fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+            const panel = await screen.findByRole("dialog", { name: "Filtros" });
+            fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+        }
+        await act(async () => resolver(respuestaOrdenada()));
+        expect(container.querySelector('tr[data-cita-siguiente="true"]')).toBeNull();
+        expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     });
 });
