@@ -30,7 +30,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import type { Catalogos } from "@/modules/catalogos/types/catalogos";
 import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // utils
-import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada } from "@/modules/solicitudes/utils/duplicados";
+import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada, permiteSolicitudesActivasMultiples } from "@/modules/solicitudes/utils/duplicados";
 
 type ResultadoUsuarioEncontrado = Extract<Awaited<ReturnType<typeof getUsuarioPorRut>>, { ok: true }>;
 type UsuarioConfirmado = NonNullable<ResultadoUsuarioEncontrado["data"]["usuario"]>;
@@ -169,11 +169,14 @@ export function IngresarSolicitudView({ centroActivoId }: { centroActivoId: stri
         if (!pendientes || !usuarioConfirmado || !solicitudForm.tipo_solicitud_id) return null;
         if (requiereMotivo && !solicitudForm.motivo_id) return null;
 
+        const tipoSolicitud = catalogos.tiposSolicitud.find((tipo) => String(tipo.id_tipo_solicitud) === solicitudForm.tipo_solicitud_id);
+        if (tipoSolicitud && permiteSolicitudesActivasMultiples(tipoSolicitud.nombre_tipo_solicitud)) return null;
+
         return buscarSolicitudDuplicada(pendientes.solicitudesPendientes, {
             tipo_solicitud_id: Number(solicitudForm.tipo_solicitud_id),
             motivo_id: requiereMotivo ? Number(solicitudForm.motivo_id) : null
         });
-    }, [pendientes, usuarioConfirmado, solicitudForm.tipo_solicitud_id, solicitudForm.motivo_id, requiereMotivo]);
+    }, [pendientes, usuarioConfirmado, solicitudForm.tipo_solicitud_id, solicitudForm.motivo_id, requiereMotivo, catalogos.tiposSolicitud]);
 
     function updateSolicitudField(field: keyof SolicitudFormState, value: string) {
         setSolicitudForm((current) => ({ ...current, [field]: value, ...(field === "tipo_solicitud_id" ? { motivo_id: "" } : {}) }));

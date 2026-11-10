@@ -437,6 +437,72 @@ describe("IngresarSolicitudView mantener usuario", () => {
 });
 
 describe("IngresarSolicitudView duplicados", () => {
+    it("permite guardar Control cronico respiratorio aunque exista una solicitud pendiente coincidente", async () => {
+        vi.mocked(getCatalogos).mockResolvedValue({
+            tiposSolicitud: [{ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control cronico respiratorio" }],
+            motivos: [{ id_motivo: 10, tipo_solicitud_id: 1, nombre_motivo: "Control" }]
+        });
+
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud();
+
+        expect(screen.queryByText("Solicitud duplicada")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).not.toBeDisabled();
+    });
+
+    it("permite guardar Control de salud mental aunque exista una solicitud pendiente con el mismo motivo", async () => {
+        vi.mocked(getCatalogos).mockResolvedValue({
+            tiposSolicitud: [{ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control de salud mental" }],
+            motivos: [{ id_motivo: 10, tipo_solicitud_id: 1, nombre_motivo: "Control" }]
+        });
+
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud();
+
+        expect(screen.queryByText("Solicitud duplicada")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).not.toBeDisabled();
+    });
+
+    it("vuelve a bloquear el duplicado al cambiar desde un programa exceptuado a Atencion", async () => {
+        vi.mocked(getCatalogos).mockResolvedValue({
+            tiposSolicitud: [
+                { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control cronico respiratorio" },
+                { id_tipo_solicitud: 2, nombre_tipo_solicitud: "Atencion" }
+            ],
+            motivos: [
+                { id_motivo: 10, tipo_solicitud_id: 1, nombre_motivo: "Control respiratorio" },
+                { id_motivo: 20, tipo_solicitud_id: 2, nombre_motivo: "Control atencion" }
+            ]
+        });
+        vi.mocked(getPendientes).mockResolvedValue({
+            ok: true,
+            data: {
+                solicitudesPendientes: [
+                    solicitudDuplicada,
+                    { ...solicitudDuplicada, id_solicitud: "SOL-atencion", tipo_solicitud_id: 2, motivo_id: 20, tipoSolicitud: { nombre_tipo_solicitud: "Atencion" }, motivo: { nombre_motivo: "Control atencion" } }
+                ],
+                citasPendientes: []
+            }
+        } as Awaited<ReturnType<typeof getPendientes>>);
+
+        await buscarRutConfirmado();
+        const [tipoSolicitud] = screen.getAllByRole("combobox");
+        fireEvent.change(tipoSolicitud, { target: { value: "1" } });
+        const [, motivoRespiratorio, disponibilidad] = screen.getAllByRole("combobox");
+        fireEvent.change(motivoRespiratorio, { target: { value: "10" } });
+        fireEvent.change(disponibilidad, { target: { value: "Solo AM" } });
+
+        expect(screen.queryByText("Solicitud duplicada")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).not.toBeDisabled();
+
+        fireEvent.change(tipoSolicitud, { target: { value: "2" } });
+        const [, motivoAtencion] = screen.getAllByRole("combobox");
+        fireEvent.change(motivoAtencion, { target: { value: "20" } });
+
+        expect(screen.getByText("Solicitud duplicada")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).toBeDisabled();
+    });
+
     it("muestra aviso y deshabilita guardar cuando tipo y motivo ya tienen solicitud en curso", async () => {
         await buscarRutConfirmado();
         await completarFormularioSolicitud();
