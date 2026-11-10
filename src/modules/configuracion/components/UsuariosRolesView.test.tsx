@@ -242,7 +242,7 @@ describe("UsuariosRolesView: pestanas segun permisos", () => {
     });
 
     it("muestra toast y no recarga cuando guardarRol retorna ok false", async () => {
-        (guardarRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "El nombre «Administrador» esta reservado" });
+        (guardarRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: "No tienes permiso para esta operacion" });
         render(<UsuariosRolesView permisos={["config.ver", "config.roles"]} actor={{ rut: "11.111.111-1", rolId: 2 }} />);
 
         await screen.findByText("Roles");
@@ -250,8 +250,22 @@ describe("UsuariosRolesView: pestanas segun permisos", () => {
         fireEvent.change(screen.getByLabelText("Nombre rol"), { target: { value: "Administrador" } });
         fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
-        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("El nombre «Administrador» esta reservado"));
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No tienes permiso para esta operacion"));
         expect(getMantenedoresConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it("permite nombrar un rol nuevo Administrador (ya sin reserva)", async () => {
+        (guardarRol as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: { id_rol: 5, nombre_rol: "Administrador" } });
+        render(<UsuariosRolesView permisos={["config.ver", "config.roles"]} actor={{ rut: "11.111.111-1", rolId: 2 }} />);
+
+        await screen.findByText("Roles");
+        fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+        const inputNombre = screen.getByLabelText("Nombre rol") as HTMLInputElement;
+        expect(inputNombre).not.toBeDisabled();
+        fireEvent.change(inputNombre, { target: { value: "Administrador" } });
+        fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(guardarRol).toHaveBeenCalledWith(expect.objectContaining({ nombre_rol: "Administrador" })));
     });
 });
 

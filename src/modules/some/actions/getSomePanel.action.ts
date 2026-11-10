@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 // lib
-import { requirePermiso } from "@/shared/lib/permisos";
+import { requirePermiso, getPermisosRol } from "@/shared/lib/permisos";
 import { prisma } from "@/shared/lib/prisma";
 // types
 import { ESTADOS_PENDIENTES, TEMPORALIDAD, TEMPORALIDADES } from "@/modules/comunicador/types/comunicador";
@@ -72,7 +72,7 @@ export interface SomeSolicitudPendienteTipo {
 }
 
 export interface SomePanelData {
-    esAdministrador: boolean;
+    alcanzaTodosLosCentros: boolean;
     rangoDias: SomeRangoDias;
     desde: Date;
     hasta: Date;
@@ -203,21 +203,22 @@ function sumarDemanda(target: SomeDemandaConteos, temporalidad: string, estado: 
 
 export async function getSomePanel(input?: unknown): Promise<ResultadoAccion<SomePanelData>> {
     const user = await requirePermiso("some.ver");
+    const permisos = await getPermisosRol(user.rol.id);
+    const alcanzaTodosLosCentros = permisos.has("some.todos_centros");
     const filtros = filtrosSomeSchema.parse(input ?? {});
-    const esAdministrador = user.rol.nombre === "Administrador";
     const { rangoDias, desde, hasta } = buildRango(filtros.rangoDias);
     const demandaTemporalidad = parseDemandaTemporalidad(filtros.demandaTemporalidad);
     const temporalidadRangos = buildTemporalidadRangos();
     const temporalidadesDemanda =
         demandaTemporalidad === TEMPORALIDAD.TODAS ? [TEMPORALIDAD.ATRASADOS, TEMPORALIDAD.PROXIMOS, TEMPORALIDAD.FUTUROS] : [demandaTemporalidad];
 
-    const centros = esAdministrador
+    const centros = alcanzaTodosLosCentros
         ? await prisma.centro.findMany({ select: { id_centro: true, nombre_centro: true }, orderBy: { nombre_centro: "asc" } })
         : user.centro_id
           ? await prisma.centro.findMany({ where: { id_centro: user.centro_id }, select: { id_centro: true, nombre_centro: true } })
           : [];
 
-    const centroSeleccionado = esAdministrador
+    const centroSeleccionado = alcanzaTodosLosCentros
         ? filtros.centroId && centros.some((centro) => centro.id_centro === filtros.centroId)
             ? filtros.centroId
             : centros[0]?.id_centro ?? ""
@@ -402,7 +403,7 @@ export async function getSomePanel(input?: unknown): Promise<ResultadoAccion<Som
     return {
         ok: true,
         data: {
-            esAdministrador,
+            alcanzaTodosLosCentros,
             rangoDias,
             desde,
             hasta,

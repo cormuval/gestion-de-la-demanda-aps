@@ -13,10 +13,10 @@ vi.mock("@/shared/lib/prisma", () => ({
         llamada: { findMany: vi.fn() }
     }
 }));
-vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn() }));
+vi.mock("@/shared/lib/permisos", () => ({ requirePermiso: vi.fn(), getPermisosRol: vi.fn() }));
 
 import { prisma } from "@/shared/lib/prisma";
-import { requirePermiso } from "@/shared/lib/permisos";
+import { requirePermiso, getPermisosRol } from "@/shared/lib/permisos";
 import { getSomePanel, type SomePanelData } from "./getSomePanel.action";
 
 const funcionarioSome = {
@@ -42,9 +42,15 @@ async function getPanelData(input?: unknown): Promise<SomePanelData> {
     return result.data;
 }
 
+function habilitarTodosLosCentros() {
+    (getPermisosRol as any).mockResolvedValue(new Set(["some.todos_centros"]));
+}
+
 beforeEach(() => {
     vi.clearAllMocks();
     (requirePermiso as any).mockResolvedValue(funcionarioSome);
+    // Por defecto el rol NO alcanza todos los centros; el permiso se otorga solo en los tests que lo fijan.
+    (getPermisosRol as any).mockResolvedValue(new Set());
     (prisma.centro.findMany as any).mockResolvedValue([{ id_centro: "501", nombre_centro: "Centro 501" }]);
     (prisma.funcionario.findMany as any).mockResolvedValue([
         { rut: "44.444.444-4", nombre: "SOME Demo" },
@@ -103,8 +109,35 @@ describe("getSomePanel", () => {
         expect(prisma.funcionario.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { centro_id: "501", estado: { in: ["Activo", "1"] } } }));
     });
 
-    it("para administrador permite filtrar por centro_id", async () => {
+    it("el alcance multi-centro viene del permiso, no del nombre del rol", async () => {
         (requirePermiso as any).mockResolvedValue(funcionarioAdmin);
+        (prisma.centro.findMany as any).mockResolvedValue([{ id_centro: "501", nombre_centro: "Centro 501" }]);
+
+        const result = await getPanelData({ centroId: "650" });
+
+        expect(result.alcanzaTodosLosCentros).toBe(false);
+        expect(result.centroSeleccionado).toBe("501");
+        expect(prisma.centro.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id_centro: "501" } }));
+    });
+
+    it("usuario con some.todos_centros lista todos los centros", async () => {
+        (requirePermiso as any).mockResolvedValue(funcionarioAdmin);
+        habilitarTodosLosCentros();
+        (prisma.centro.findMany as any).mockResolvedValue([
+            { id_centro: "501", nombre_centro: "Centro 501" },
+            { id_centro: "650", nombre_centro: "Centro 650" }
+        ]);
+
+        const result = await getPanelData({});
+
+        expect(result.alcanzaTodosLosCentros).toBe(true);
+        expect(prisma.centro.findMany).toHaveBeenCalledTimes(1);
+        expect(prisma.centro.findMany).not.toHaveBeenCalledWith(expect.objectContaining({ where: expect.anything() }));
+    });
+
+    it("para usuario con permiso permite filtrar por centro_id", async () => {
+        (requirePermiso as any).mockResolvedValue(funcionarioAdmin);
+        habilitarTodosLosCentros();
         (prisma.centro.findMany as any).mockResolvedValue([
             { id_centro: "501", nombre_centro: "Centro 501" },
             { id_centro: "650", nombre_centro: "Centro 650" }
@@ -113,7 +146,7 @@ describe("getSomePanel", () => {
 
         const result = await getPanelData({ centroId: "650" });
 
-        expect(result.esAdministrador).toBe(true);
+        expect(result.alcanzaTodosLosCentros).toBe(true);
         expect(result.centroSeleccionado).toBe("650");
         expect(result.funcionarios).toEqual([{ rut: "99.999.999-9", nombre: "Funcionario Centro 650" }]);
         expect(prisma.funcionario.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { centro_id: "650", estado: { in: ["Activo", "1"] } } }));
@@ -191,6 +224,7 @@ describe("getSomePanel", () => {
     it("cuenta solicitudes del centro cuando el funcionario activo usa estado legacy 1", async () => {
         const hoy = new Date();
         (requirePermiso as any).mockResolvedValue(funcionarioAdmin);
+        habilitarTodosLosCentros();
         (prisma.centro.findMany as any).mockResolvedValue([{ id_centro: "605", nombre_centro: "Centro 605" }]);
         (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "08712946-2", nombre: "Andrea Alarcon" }]);
         (prisma.solicitud.findMany as any)
@@ -295,6 +329,7 @@ describe("getSomePanel", () => {
 
     it("agrupa solicitudes pendientes por tipo y motivo", async () => {
         (requirePermiso as any).mockResolvedValue(funcionarioAdmin);
+        habilitarTodosLosCentros();
         (prisma.centro.findMany as any).mockResolvedValue([{ id_centro: "605", nombre_centro: "Centro 605" }]);
         (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "08712946-2", nombre: "Andrea Alarcon" }]);
         (prisma.solicitud.findMany as any)

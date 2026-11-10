@@ -4,7 +4,6 @@ import { esPermiso, type Permiso } from "@/config/permisos";
 // utils
 import {
     MENSAJES_PRIVILEGIOS,
-    esNombreReservado,
     esSubconjunto,
     permisosFaltantes,
     puedeCambiarCentroPropio,
@@ -28,12 +27,6 @@ describe("privilegios: helpers", () => {
         expect(esSubconjunto(["config.ver"], actorBase)).toBe(true);
         expect(esSubconjunto(["config.catalogos"], actorBase)).toBe(false);
         expect(permisosFaltantes(["config.catalogos", "config.roles"], actorBase)).toEqual(["config.catalogos"]);
-    });
-
-    it("detecta el nombre reservado con espacios y mayusculas", () => {
-        expect(esNombreReservado(" Administrador ")).toBe(true);
-        expect(esNombreReservado("ADMINISTRADOR")).toBe(true);
-        expect(esNombreReservado("Admin")).toBe(false);
     });
 });
 
@@ -88,10 +81,9 @@ describe("privilegios: F1-F4 funcionarios", () => {
 });
 
 describe("privilegios: R1-R4 roles", () => {
-    it("R1 bloquea crear, renombrar a, o renombrar desde el nombre reservado", () => {
-        expect(validarEdicionRol({ actorRolId: 2, actorPermisos: actorBase, rolActual: null, data: { nombre_rol: "Administrador", estado: "Activo" }, quedaAdmin: true })).toBe(MENSAJES_PRIVILEGIOS.nombreReservado);
-        expect(validarEdicionRol({ actorRolId: 2, actorPermisos: actorBase, rolActual: { ...rolBase, nombre_rol: "Operador" }, data: { nombre_rol: " administrador ", estado: "Activo" }, quedaAdmin: true })).toBe(MENSAJES_PRIVILEGIOS.nombreReservado);
-        expect(validarEdicionRol({ actorRolId: 2, actorPermisos: rolSuperior.permisos, rolActual: rolSuperior, data: { nombre_rol: "Admin base", estado: "Activo" }, quedaAdmin: true })).toBe(MENSAJES_PRIVILEGIOS.nombreReservado);
+    it("el nombre «Administrador» ya no esta reservado (el alcance viene del permiso)", () => {
+        expect(validarEdicionRol({ actorRolId: 2, actorPermisos: actorBase, rolActual: null, data: { nombre_rol: "Administrador", estado: "Activo" }, quedaAdmin: true })).toBeNull();
+        expect(validarEdicionRol({ actorRolId: 2, actorPermisos: actorBase, rolActual: { ...rolBase, id_rol: 9, nombre_rol: "Operador" }, data: { nombre_rol: " administrador ", estado: "Activo" }, quedaAdmin: true })).toBeNull();
     });
 
     it("R2 bloquea renombrar o desactivar el rol propio", () => {

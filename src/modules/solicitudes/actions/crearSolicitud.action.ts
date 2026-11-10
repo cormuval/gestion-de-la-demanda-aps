@@ -14,7 +14,7 @@ import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // utils
 import { calcularEdad } from "../utils/priorizacion";
 import { normalizarRut } from "../utils/rut";
-import { mensajeSolicitudDuplicada } from "../utils/duplicados";
+import { mensajeSolicitudDuplicada, permiteSolicitudesActivasMultiples } from "../utils/duplicados";
 
 interface SolicitudCreada {
     id_solicitud: string;
@@ -99,7 +99,7 @@ export async function crearSolicitud(input: CrearSolicitudInput): Promise<Result
         }),
         prisma.tipoSolicitud.findFirst({
             where: buildTipoSolicitudWhere(data.tipo_solicitud_id, centroColumna),
-            select: { id_tipo_solicitud: true }
+            select: { id_tipo_solicitud: true, nombre_tipo_solicitud: true }
         }),
         data.motivo_id
             ? prisma.motivo.findFirst({
@@ -122,20 +122,22 @@ export async function crearSolicitud(input: CrearSolicitudInput): Promise<Result
     const resultado = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT rut FROM usuarios WHERE rut = ${usuario.rut} FOR UPDATE`;
 
-        const duplicada = await tx.solicitud.findFirst({
-            where: {
-                rut_usuario: usuario.rut,
-                tipo_solicitud_id: data.tipo_solicitud_id,
-                motivo_id: data.motivo_id,
-                estado_solicitud: "En Curso"
-            },
-            select: {
-                id_solicitud: true,
-                fecha_inicio: true,
-                tipo_solicitud_id: true,
-                motivo_id: true
-            }
-        });
+        const duplicada = permiteSolicitudesActivasMultiples(tipoSolicitud.nombre_tipo_solicitud)
+            ? null
+            : await tx.solicitud.findFirst({
+                  where: {
+                      rut_usuario: usuario.rut,
+                      tipo_solicitud_id: data.tipo_solicitud_id,
+                      motivo_id: data.motivo_id,
+                      estado_solicitud: "En Curso"
+                  },
+                  select: {
+                      id_solicitud: true,
+                      fecha_inicio: true,
+                      tipo_solicitud_id: true,
+                      motivo_id: true
+                  }
+              });
 
         if (duplicada) return { duplicada, solicitud: null } as const;
 
