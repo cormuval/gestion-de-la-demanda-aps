@@ -10,6 +10,23 @@ const DISCAPACIDAD_SIN_PUNTAJE = [
     "El usuario no posee una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad."
 ];
 
+const FORMATEADOR_FECHA_CHILE = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+});
+
+function obtenerFechaCivilChile(fecha: Date): { anio: number; mes: number; dia: number } {
+    const partes = FORMATEADOR_FECHA_CHILE.formatToParts(fecha);
+
+    return {
+        anio: Number(partes.find(({ type }) => type === "year")?.value),
+        mes: Number(partes.find(({ type }) => type === "month")?.value),
+        dia: Number(partes.find(({ type }) => type === "day")?.value)
+    };
+}
+
 export function calcularEdad(fechaNacimiento: Date | string | null, fechaReferencia: Date = new Date()): number | null {
     if (!fechaNacimiento) return null;
 
@@ -18,9 +35,10 @@ export function calcularEdad(fechaNacimiento: Date | string | null, fechaReferen
         : new Date(`${fechaNacimiento}T00:00:00`);
     if (Number.isNaN(nacimiento.getTime())) return null;
 
-    let edad = fechaReferencia.getFullYear() - nacimiento.getFullYear();
-    const mes = fechaReferencia.getMonth() - nacimiento.getMonth();
-    if (mes < 0 || (mes === 0 && fechaReferencia.getDate() < nacimiento.getDate())) {
+    const referencia = obtenerFechaCivilChile(fechaReferencia);
+    let edad = referencia.anio - nacimiento.getFullYear();
+    const mes = referencia.mes - (nacimiento.getMonth() + 1);
+    if (mes < 0 || (mes === 0 && referencia.dia < nacimiento.getDate())) {
         edad -= 1;
     }
 
