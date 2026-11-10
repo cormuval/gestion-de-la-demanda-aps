@@ -577,9 +577,11 @@ function UsuarioStatus({
                 <span>
                     <strong>Nombre:</strong> {usuario.nombre} {usuario.apellido}
                 </span>
-                <span>
-                    {edad === null ? "Falta fecha de nacimiento" : <><strong>Edad:</strong> {edad} años</>}
-                </span>
+                {edad === null ? (
+                    <span className="text-primary">Falta fecha de nacimiento</span>
+                ) : (
+                    <span><strong>Edad:</strong> {edad} años</span>
+                )}
                 {usuario.nombre_social && (
                     <span className="font-medium text-blue-700">
                         <strong>Nombre social:</strong> {usuario.nombre_social}
