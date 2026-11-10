@@ -9,6 +9,7 @@ import { getVoucherSolicitud } from "@/modules/solicitudes/actions/getVoucherSol
 import type { CitaHistorial, HistorialPaciente, SolicitudHistorial } from "../types/historial";
 import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // components
+import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
 import { VoucherSolicitudModal } from "@/modules/solicitudes/components/VoucherSolicitudModal";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
@@ -313,7 +314,9 @@ export function HistorialPacienteView() {
                 <>
                     <Card>
                         <CardHeader>
-                            <CardTitle>{historial.paciente?.nombre}</CardTitle>
+                            <CardTitle>
+                                <NombrePaciente nombreLegal={historial.paciente?.nombre ?? null} nombreSocial={historial.paciente?.nombre_social} />
+                            </CardTitle>
                             <CardDescription>RUT {historial.paciente?.rut}</CardDescription>
                             <p className="text-sm text-muted-foreground">{resumenSolicitudes(historial.solicitudes)}</p>
                         </CardHeader>

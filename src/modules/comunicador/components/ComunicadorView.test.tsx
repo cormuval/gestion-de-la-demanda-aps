@@ -101,6 +101,7 @@ function respuestaConLista(ids: string[], total = ids.length): RespuestaCitas {
                 disponibilidad: null,
                 rut_usuario: "11.111.111-1",
                 nombre_usuario: "Paciente de prueba",
+                nombre_social: null,
                 profesion: null,
                 prestacion: null,
                 fecha_estimada_atencion: null,

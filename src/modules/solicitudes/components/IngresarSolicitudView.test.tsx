@@ -106,7 +106,7 @@ async function buscarRutConfirmado() {
     fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
     fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
 
-    await screen.findByText("Paciente Demo");
+    await screen.findAllByText("Paciente Demo");
 }
 
 async function completarFormularioSolicitud(motivo = "10") {
@@ -178,6 +178,13 @@ const resultadoCreacionExitosa = {
 };
 
 describe("IngresarSolicitudView mantener usuario", () => {
+    it("identifica el paciente confirmado y el formulario con nombre legal y social", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({ ok: true, data: { usuario: { ...usuarioConfirmado, nombre_social: "Social Demo" } } } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+        await buscarRutConfirmado();
+        expect(screen.getAllByText("Paciente Demo")).toHaveLength(2);
+        expect(screen.getAllByText("Nombre social: Social Demo")).toHaveLength(2);
+    });
+
     it("bloquea el cambio de paciente durante la creacion y abre el voucher confirmado", async () => {
         let resolverCreacion!: (value: Awaited<ReturnType<typeof crearSolicitud>>) => void;
         vi.mocked(crearSolicitud).mockReturnValueOnce(new Promise((resolve) => { resolverCreacion = resolve; }));
@@ -224,7 +231,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
 
-        await screen.findByText(/Paciente B/);
+        await screen.findAllByText(/Paciente B/);
         expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).not.toBeChecked();
     });
 
@@ -245,7 +252,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
 
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
         fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
-        await screen.findByText("Paciente Demo");
+        await screen.findAllByText("Paciente Demo");
         const [tipoSolicitud] = screen.getAllByRole("combobox");
         const descripcion = screen.getAllByRole("textbox").at(-1)!;
         expect(tipoSolicitud).toHaveValue("");
@@ -273,7 +280,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
 
         await screen.findByText("Voucher de solicitud");
-        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getAllByText("Paciente Demo")[0]).toBeInTheDocument();
         expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).toBeChecked();
         const [tipoSolicitud, disponibilidad] = screen.getAllByRole("combobox");
         const descripcion = screen.getAllByRole("textbox").at(-1)!;
@@ -323,7 +330,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error de negocio"));
-        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getAllByText("Paciente Demo")[0]).toBeInTheDocument();
         expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).toBeChecked();
         const { tipoSolicitud, motivoSolicitud, disponibilidad, descripcion } = obtenerCamposSolicitud();
         expect(tipoSolicitud).toHaveValue("1");
@@ -348,7 +355,7 @@ describe("IngresarSolicitudView mantener usuario", () => {
         fireEvent.click(screen.getByRole("button", { name: "Guardar solicitud" }));
 
         expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
-        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getAllByText("Paciente Demo")[0]).toBeInTheDocument();
         expect(screen.getByRole("checkbox", { name: "Mantener usuario para otra solicitud" })).toBeChecked();
         const [tipoSolicitud, disponibilidad] = screen.getAllByRole("combobox");
         const descripcion = screen.getAllByRole("textbox").at(-1)!;
@@ -396,12 +403,12 @@ describe("IngresarSolicitudView mantener usuario", () => {
 
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "11.111.111-1" } });
         fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
-        await screen.findByText(/Paciente B/);
+        await screen.findAllByText(/Paciente B/);
         expect(await screen.findByTitle("SOL-B")).toBeInTheDocument();
 
         completarRefrescoA(resolverRefrescoA, rechazarRefrescoA);
 
-        await waitFor(() => expect(screen.getByText(/Paciente B/)).toBeInTheDocument());
+        await waitFor(() => expect(screen.getAllByText(/Paciente B/)[0]).toBeInTheDocument());
         expect(screen.getByTitle("SOL-B")).toBeInTheDocument();
         expect(screen.queryByTitle("SOL-duplicada")).not.toBeInTheDocument();
         expect(toast.warning).not.toHaveBeenCalled();
@@ -427,12 +434,12 @@ describe("IngresarSolicitudView mantener usuario", () => {
         fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "11.111.111-1" } });
         expect(screen.getByRole("button", { name: "Buscar pendientes" })).not.toBeDisabled();
         fireEvent.click(screen.getByRole("button", { name: "Buscar pendientes" }));
-        await screen.findByText(/Paciente B/);
+        await screen.findAllByText(/Paciente B/);
 
         resolverPendientesA(pendientesExitosos as unknown as Awaited<ReturnType<typeof getPendientes>>);
 
         await waitFor(() => expect(screen.getByRole("button", { name: "Buscar pendientes" })).not.toBeDisabled());
-        expect(screen.getByText(/Paciente B/)).toBeInTheDocument();
+        expect(screen.getAllByText(/Paciente B/)[0]).toBeInTheDocument();
     });
 });
 
@@ -606,7 +613,7 @@ describe("IngresarSolicitudView reimpresion de voucher", () => {
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Solicitud no encontrada"));
         expect(screen.queryByText("Voucher de solicitud")).not.toBeInTheDocument();
-        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getAllByText("Paciente Demo")[0]).toBeInTheDocument();
         expect(screen.getByTitle("SOL-duplicada")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" })).not.toBeDisabled();
     });
@@ -696,7 +703,7 @@ describe("IngresarSolicitudView reimpresion de voucher", () => {
         fireEvent.click(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" }));
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al reimprimir voucher"));
-        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getAllByText("Paciente Demo")[0]).toBeInTheDocument();
         expect(screen.getByTitle("SOL-duplicada")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-duplicada" })).not.toBeDisabled();
     });

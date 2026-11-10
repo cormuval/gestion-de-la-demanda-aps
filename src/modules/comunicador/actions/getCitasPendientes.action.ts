@@ -24,6 +24,7 @@ export interface CitaFila {
     disponibilidad: string | null;
     rut_usuario: string;
     nombre_usuario: string | null;
+    nombre_social: string | null;
     profesion: string | null;
     prestacion: string | null;
     fecha_estimada_atencion: Date | null;
@@ -92,6 +93,7 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
             s.disponibilidad_llamada AS disponibilidad,
             c.rut_usuario AS rut_usuario,
             TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))) AS nombre_usuario,
+            u.nombre_social AS nombre_social,
             p.nombre AS profesion,
             pr.nombre_prestacion AS prestacion,
             c.fecha_estimada_atencion AS fecha_estimada_atencion,

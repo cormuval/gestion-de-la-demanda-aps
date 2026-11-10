@@ -35,6 +35,6 @@ export interface SolicitudHistorial {
 }
 
 export interface HistorialPaciente {
-    paciente: { rut: string; nombre: string } | null;
+    paciente: { rut: string; nombre: string; nombre_social: string | null } | null;
     solicitudes: SolicitudHistorial[];
 }

@@ -19,7 +19,7 @@ const SESION = { rut: "9-9", nombre: "Func", centro_id: "655" };
 beforeEach(() => {
     vi.clearAllMocks();
     (requirePermiso as any).mockResolvedValue(SESION);
-    (prisma.usuario.findUnique as any).mockResolvedValue({ rut: "12345678-5", nombre: "Juana", apellido: "Perez" });
+    (prisma.usuario.findUnique as any).mockResolvedValue({ rut: "12345678-5", nombre: "Juana", apellido: "Perez", nombre_social: "Social Perez" });
     (prisma.solicitud.findMany as any).mockResolvedValue([]);
 });
 
@@ -67,7 +67,7 @@ describe("getHistorialPaciente", () => {
     });
 
     it("paciente existente sin solicitudes en este centro devuelve historial vacio sin nombre", async () => {
-        (prisma.usuario.findUnique as any).mockResolvedValueOnce({ rut: "12345678-5", nombre: "Juana", apellido: "Perez" });
+        (prisma.usuario.findUnique as any).mockResolvedValueOnce({ rut: "12345678-5", nombre: "Juana", apellido: "Perez", nombre_social: "Social Perez" });
         (prisma.solicitud.findMany as any).mockResolvedValueOnce([]);
 
         const resultado = await getHistorialPaciente("12345678-5");
@@ -157,7 +157,11 @@ describe("getHistorialPaciente", () => {
 
         expect(resultado.ok).toBe(true);
         if (!resultado.ok) return;
-        expect(resultado.data.paciente).toEqual({ rut: "12345678-5", nombre: "Juana Perez" });
+        expect(prisma.usuario.findUnique).toHaveBeenCalledWith({
+            where: { rut: "12345678-5" },
+            select: { rut: true, nombre: true, apellido: true, nombre_social: true }
+        });
+        expect(resultado.data.paciente).toEqual({ rut: "12345678-5", nombre: "Juana Perez", nombre_social: "Social Perez" });
 
         const solicitud = resultado.data.solicitudes[0];
         expect(solicitud.fecha_cierre).toEqual(d2);

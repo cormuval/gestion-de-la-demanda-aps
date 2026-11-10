@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react";
 // lib
 import { cn } from "@/shared/lib/utils";
 // components
+import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
@@ -105,9 +106,7 @@ export function CitasPendientesTabla({
                                             </div>
                                         </TableCell>
                                         <TableCell className="py-1.5">
-                                            <div className="line-clamp-1 leading-tight" title={c.nombre_usuario || undefined}>
-                                                {c.nombre_usuario || "—"}
-                                            </div>
+                                            <NombrePaciente nombreLegal={c.nombre_usuario} nombreSocial={c.nombre_social} className="leading-tight" />
                                             <div className="text-xs leading-tight text-muted-foreground whitespace-nowrap">{c.rut_usuario}</div>
                                         </TableCell>
                                         <TableCell className="py-1.5">

@@ -131,7 +131,7 @@ export async function getHistorialPaciente(rutPaciente: string): Promise<Resulta
 
     const usuario = await prisma.usuario.findUnique({
         where: { rut },
-        select: { rut: true, nombre: true, apellido: true }
+        select: { rut: true, nombre: true, apellido: true, nombre_social: true }
     });
 
     if (!usuario) {
@@ -153,7 +153,7 @@ export async function getHistorialPaciente(rutPaciente: string): Promise<Resulta
     return {
         ok: true,
         data: {
-            paciente: { rut: usuario.rut, nombre: `${usuario.nombre} ${usuario.apellido}` },
+            paciente: { rut: usuario.rut, nombre: `${usuario.nombre} ${usuario.apellido}`, nombre_social: usuario.nombre_social },
             solicitudes: solicitudes.map(mapSolicitud)
         }
     };

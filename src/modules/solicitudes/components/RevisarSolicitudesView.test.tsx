@@ -49,6 +49,7 @@ const solicitudBase = {
         rut: "12345678-5",
         nombre: "Juan",
         apellido: "Perez",
+        nombre_social: "Social Perez",
         genero: "Masculino",
         gestante: "No aplica",
         discapacidad: "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
@@ -101,6 +102,12 @@ function abrirFiltros() {
 }
 
 describe("RevisarSolicitudesView contexto de citas", () => {
+    it("identifica al paciente con sus nombres legal y social", async () => {
+        render(<RevisarSolicitudesView />);
+        expect(await screen.findByText("Juan Perez")).toBeVisible();
+        expect(screen.getByText("Nombre social: Social Perez")).toBeVisible();
+    });
+
     it("abre otras solicitudes y citas con acciones condicionales", async () => {
         render(<RevisarSolicitudesView />);
 

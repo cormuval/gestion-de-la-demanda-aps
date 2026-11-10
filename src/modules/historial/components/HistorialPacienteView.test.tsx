@@ -123,12 +123,12 @@ const SOLICITUD_EN_CURSO_DOS = {
 };
 
 const HISTORIAL_COMPLETO: HistorialPaciente = {
-    paciente: { rut: "12345678-5", nombre: "Juana Perez" },
+    paciente: { rut: "12345678-5", nombre: "Juana Perez", nombre_social: "Social Perez" },
     solicitudes: [SOLICITUD_EN_CURSO, SOLICITUD_REALIZADA, SOLICITUD_RECHAZADA]
 };
 
 const HISTORIAL_CON_DOS_SOLICITUDES_EN_CURSO: HistorialPaciente = {
-    paciente: { rut: "12345678-5", nombre: "Juana Perez" },
+    paciente: { rut: "12345678-5", nombre: "Juana Perez", nombre_social: "Social Perez" },
     solicitudes: [SOLICITUD_EN_CURSO, SOLICITUD_EN_CURSO_DOS]
 };
 
@@ -157,6 +157,7 @@ describe("HistorialPacienteView", () => {
 
         await waitFor(() => expect(getHistorialPaciente).toHaveBeenCalledWith("12345678-5"));
         expect(await screen.findByText("Juana Perez")).toBeInTheDocument();
+        expect(screen.getByText("Nombre social: Social Perez")).toBeVisible();
         expect(screen.getByText("3 solicitudes · 1 en curso · 1 realizadas · 1 rechazadas")).toBeInTheDocument();
     });
 
@@ -261,11 +262,11 @@ describe("HistorialPacienteView", () => {
 
     it("ignora la respuesta de una busqueda anterior si llega despues de una mas reciente", async () => {
         const pacienteA: HistorialPaciente = {
-            paciente: { rut: "11111111-1", nombre: "Paciente A" },
+            paciente: { rut: "11111111-1", nombre: "Paciente A", nombre_social: null },
             solicitudes: [SOLICITUD_EN_CURSO]
         };
         const pacienteB: HistorialPaciente = {
-            paciente: { rut: "22222222-2", nombre: "Paciente B" },
+            paciente: { rut: "22222222-2", nombre: "Paciente B", nombre_social: null },
             solicitudes: [SOLICITUD_REALIZADA]
         };
 
@@ -440,7 +441,7 @@ describe("HistorialPacienteView", () => {
 
     it("descarta un voucher resuelto despues de iniciar una nueva busqueda", async () => {
         const historialPacienteB: HistorialPaciente = {
-            paciente: { rut: "22222222-2", nombre: "Paciente B" },
+            paciente: { rut: "22222222-2", nombre: "Paciente B", nombre_social: null },
             solicitudes: [SOLICITUD_REALIZADA]
         };
         let resolverVoucherA!: (value: Awaited<ReturnType<typeof getVoucherSolicitud>>) => void;

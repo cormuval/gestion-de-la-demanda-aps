@@ -83,6 +83,7 @@ describe("getCitasPendientes", () => {
             })
             .join(" ");
 
+        expect(textoSql).toContain("u.nombre_social AS nombre_social");
         expect(textoSql).toContain("c.priorizacion_clinica AS priorizacion_clinica");
         expect(textoSql).toContain("ORDER BY c.priorizacion DESC, c.fecha_estimada_atencion ASC, c.id_cita ASC");
         expect(textoSql).not.toContain("FIELD(c.estado_cita");

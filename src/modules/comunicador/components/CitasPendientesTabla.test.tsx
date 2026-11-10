@@ -13,6 +13,7 @@ const cita: CitaFila = {
     disponibilidad: "Lunes AM",
     rut_usuario: "22.222.222-2",
     nombre_usuario: "Paciente Demo",
+    nombre_social: "Social Demo",
     profesion: "Medicina",
     prestacion: "Consulta medica",
     fecha_estimada_atencion: new Date("2026-10-10T00:00:00"),
@@ -30,6 +31,7 @@ const citaSinPrioridad: CitaFila = {
     disponibilidad: null,
     rut_usuario: "33.333.333-3",
     nombre_usuario: "Segundo Paciente",
+    nombre_social: null,
     profesion: "Odontología",
     prestacion: "Control dental",
     tiene_llamada_hoy: false
@@ -58,6 +60,7 @@ describe("CitasPendientesTabla", () => {
 
         // Paciente: nombre y RUT
         expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
+        expect(screen.getByText("Nombre social: Social Demo")).toBeVisible();
         expect(screen.getByText("22.222.222-2")).toBeInTheDocument();
 
         // Simbologia de prioridad
@@ -136,7 +139,7 @@ describe("CitasPendientesTabla", () => {
         expect(contenedorAcciones).not.toHaveClass("flex-wrap");
         expect(contenedorAcciones).toHaveClass("whitespace-nowrap");
 
-        expect(screen.getByText("Paciente Demo")).toHaveClass("line-clamp-1");
+        expect(screen.getByText("Nombre social: Social Demo")).not.toHaveClass("line-clamp-1");
         expect(screen.getByText("Consulta medica")).toHaveClass("line-clamp-1");
     });
 });

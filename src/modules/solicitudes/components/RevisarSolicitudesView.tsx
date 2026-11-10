@@ -22,6 +22,7 @@ import {
 } from "@/modules/solicitudes/schemas/revision.schema";
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
+import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
 import { Badge } from "@/shared/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
@@ -655,9 +656,10 @@ export function RevisarSolicitudesView() {
                                                 </TableCell>
                                                 <TableCell className="align-top">
                                                     <div className="flex flex-col gap-1">
-                                                        <span>
-                                                            {s.usuario?.nombre} {s.usuario?.apellido}
-                                                        </span>
+                                                        <NombrePaciente
+                                                            nombreLegal={s.usuario ? `${s.usuario.nombre} ${s.usuario.apellido}` : null}
+                                                            nombreSocial={s.usuario?.nombre_social}
+                                                        />
                                                         <span className="text-xs text-muted-foreground">{s.rut_usuario}</span>
                                                     </div>
                                                 </TableCell>
