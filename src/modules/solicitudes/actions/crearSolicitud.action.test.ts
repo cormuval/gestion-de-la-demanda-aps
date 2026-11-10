@@ -50,7 +50,7 @@ beforeEach(() => {
         rol: { id: 2, nombre: "Orientador" }
     });
     (prisma.$queryRaw as any).mockResolvedValue([{ nombre_centro: "Centro De Salud Familiar Esperanza" }]);
-    (prisma.tipoSolicitud.findFirst as any).mockResolvedValue({ id_tipo_solicitud: 1 });
+    (prisma.tipoSolicitud.findFirst as any).mockResolvedValue({ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Atencion" });
     (prisma.motivo.findFirst as any).mockResolvedValue({ id_motivo: 1 });
     (prisma.motivo.count as any).mockResolvedValue(1);
     mocks.tx.$queryRaw.mockResolvedValue([{ rut: "12345678-5" }]);
@@ -132,6 +132,53 @@ describe("crearSolicitud", () => {
                 motivo_id: true
             }
         });
+    });
+
+    it.each(["Control cronico respiratorio", "Control de salud mental"])("permite solicitudes repetidas en curso para %s", async (nombreTipoSolicitud) => {
+        (prisma.usuario.findUnique as any).mockResolvedValue({
+            rut: "12345678-5",
+            nombre: "Paciente",
+            apellido: "Demo",
+            nombre_social: null,
+            telefono: "+56911111111",
+            telefono_alternativo: null,
+            fecha_nacimiento: new Date("1990-01-01T00:00:00"),
+            priorizacion_administrativa: null
+        });
+        (prisma.tipoSolicitud.findFirst as any).mockResolvedValue({ id_tipo_solicitud: 1, nombre_tipo_solicitud: nombreTipoSolicitud });
+        mocks.tx.solicitud.findFirst.mockResolvedValue({
+            id_solicitud: "SOL-duplicada",
+            fecha_inicio: new Date("2026-07-02T12:00:00"),
+            tipo_solicitud_id: 1,
+            motivo_id: 1
+        });
+        mocks.tx.solicitud.create.mockResolvedValue({
+            id_solicitud: "SOL-nueva",
+            fecha_inicio: new Date("2026-07-02T12:00:00"),
+            estado_solicitud: "En Curso",
+            centro_id: "650",
+            descripcion: null,
+            disponibilidad_llamada: "Solo AM",
+            priorizacion_admin: null,
+            ultimo_control: "36",
+            accion: "En espera de validación",
+            usuario: {
+                rut: "12345678-5",
+                nombre: "Paciente",
+                apellido: "Demo",
+                nombre_social: null,
+                telefono: "+56911111111",
+                telefono_alternativo: null
+            },
+            tipoSolicitud: { id_tipo_solicitud: 1, nombre_tipo_solicitud: nombreTipoSolicitud },
+            motivo: { id_motivo: 1, nombre_motivo: "Motivo" }
+        });
+
+        const result = await crearSolicitud(baseInput as any);
+
+        expect(result.ok).toBe(true);
+        expect(mocks.tx.solicitud.findFirst).not.toHaveBeenCalled();
+        expect(mocks.tx.solicitud.create).toHaveBeenCalledTimes(1);
     });
 
     it("crea solicitud sin motivo si el tipo no tiene motivos activos", async () => {
@@ -227,6 +274,10 @@ describe("crearSolicitud", () => {
             telefono_alternativo: null,
             fecha_nacimiento: null,
             priorizacion_administrativa: null
+        });
+        (prisma.tipoSolicitud.findFirst as any).mockResolvedValue({
+            id_tipo_solicitud: 1,
+            nombre_tipo_solicitud: "Control cronico cardiovascular"
         });
         mocks.tx.solicitud.findFirst.mockResolvedValue({
             id_solicitud: "SOL-duplicada",
