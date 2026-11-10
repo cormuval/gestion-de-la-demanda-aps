@@ -9,6 +9,13 @@ describe("calcularEdad", () => {
         expect(calcularEdad("1990-07-03", fechaReferencia)).toBe(35);
     });
 
+    it("preserva la fecha civil UTC de Prisma alrededor del cumpleaños en Chile", () => {
+        const nacimientoPrisma = new Date("1990-11-10T00:00:00.000Z");
+
+        expect(calcularEdad(nacimientoPrisma, new Date("2026-11-10T02:59:59.999Z"))).toBe(35);
+        expect(calcularEdad(nacimientoPrisma, new Date("2026-11-10T03:00:00.000Z"))).toBe(36);
+    });
+
     it("retorna null sin fecha", () => {
         expect(calcularEdad(null, fechaReferencia)).toBeNull();
     });

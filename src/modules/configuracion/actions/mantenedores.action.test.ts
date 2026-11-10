@@ -627,39 +627,24 @@ describe("anti escalada en funcionarios", () => {
 });
 
 describe("anti escalada en roles", () => {
-    it("bloquea crear o renombrar un rol a Administrador", async () => {
+    it("crea un rol llamado Administrador (el nombre ya no esta reservado)", async () => {
         prisma.role.findFirst.mockResolvedValue(null);
+        prisma.role.create.mockResolvedValue({ id_rol: 5, nombre_rol: "Administrador", estado: "Activo" });
         const result = await guardarRol({ nombre_rol: " administrador ", estado: "Activo" });
 
-        expect(result).toEqual({ ok: false, error: "El nombre «Administrador» esta reservado" });
-        expect(prisma.role.create).not.toHaveBeenCalled();
-        expect(AuditLogger.logSecurity).toHaveBeenCalledWith(
-            "CREATE",
-            false,
-            { rut: "11.111.111-1", name: "Admin" },
-            expect.objectContaining({
-                resourceId: "rol:nuevo",
-                error: "El nombre «Administrador» esta reservado"
-            })
-        );
+        expect(result.ok).toBe(true);
+        expect(result).toMatchObject({ ok: true, data: { id_rol: 5, nombre_rol: "Administrador" } });
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { rut: "11.111.111-1", name: "Admin" }, "rol:5", expect.anything());
+        expect(AuditLogger.logSecurity).not.toHaveBeenCalled();
     });
 
-    it("audita intento de crear rol Administrador aunque el nombre ya exista", async () => {
+    it("rechaza con error de negocio un nombre de rol ya existente", async () => {
         prisma.role.findFirst.mockResolvedValue({ id_rol: 1 });
 
         const result = await guardarRol({ nombre_rol: "Administrador", estado: "Activo" });
 
-        expect(result).toEqual({ ok: false, error: "El nombre «Administrador» esta reservado" });
+        expect(result).toEqual({ ok: false, error: "Ya existe un rol con ese nombre" });
         expect(prisma.role.create).not.toHaveBeenCalled();
-        expect(AuditLogger.logSecurity).toHaveBeenCalledWith(
-            "CREATE",
-            false,
-            { rut: "11.111.111-1", name: "Admin" },
-            expect.objectContaining({
-                resourceId: "rol:nuevo",
-                error: "El nombre «Administrador» esta reservado"
-            })
-        );
     });
 
     it("bloquea editar un rol con permisos superiores al actor", async () => {

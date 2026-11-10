@@ -15,7 +15,7 @@ import { ESTADO_CITA, TEMPORALIDAD } from "@/modules/comunicador/types/comunicad
 import { SomeView } from "./SomeView";
 
 const someData: SomePanelData = {
-    esAdministrador: true,
+    alcanzaTodosLosCentros: true,
     rangoDias: 30,
     desde: new Date("2026-09-07T00:00:00"),
     hasta: new Date("2026-10-07T00:00:00"),
@@ -90,7 +90,7 @@ const someData: SomePanelData = {
 };
 
 const panelData: SomePanelData = {
-    esAdministrador: true,
+    alcanzaTodosLosCentros: true,
     rangoDias: 30,
     desde: new Date("2026-10-01T00:00:00"),
     hasta: new Date("2026-10-08T00:00:00"),

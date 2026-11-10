@@ -31,7 +31,7 @@ type MetricaProductividad = (typeof metricasProductividad)[number]["key"];
 const chartConfig = Object.fromEntries(metricasProductividad.map((item) => [item.key, { label: item.label, color: item.color }])) satisfies ChartConfig;
 
 const emptyData: SomePanelData = {
-    esAdministrador: false,
+    alcanzaTodosLosCentros: false,
     rangoDias: 30,
     desde: new Date(),
     hasta: new Date(),
@@ -161,7 +161,7 @@ export function SomeView() {
                         <Field label="Centro">
                             <Select
                                 value={centroId}
-                                disabled={!panelData.esAdministrador}
+                                disabled={!panelData.alcanzaTodosLosCentros}
                                 onChange={(event) => {
                                     const nextCentroId = event.target.value;
                                     cargar({ centroId: nextCentroId, funcionarioRut: "" });
