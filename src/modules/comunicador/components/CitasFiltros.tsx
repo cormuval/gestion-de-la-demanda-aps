@@ -20,6 +20,7 @@ export interface CitasFiltrosUI {
     fechaHasta: string;
     rut: string;
     sector: string;
+    texto: string;
 }
 
 export const FILTROS_INICIALES: CitasFiltrosUI = {
@@ -33,7 +34,8 @@ export const FILTROS_INICIALES: CitasFiltrosUI = {
     fechaDesde: "",
     fechaHasta: "",
     rut: "",
-    sector: ""
+    sector: "",
+    texto: ""
 };
 
 type Opciones = Awaited<ReturnType<typeof getFiltrosComunicador>>;
@@ -66,6 +68,7 @@ export function detalleFiltrosActivos(valor: CitasFiltrosUI, opciones: Opciones)
     else if (valor.fechaHasta) detalle.push({ etiqueta: "Fecha estimada", valor: `hasta ${valor.fechaHasta}` });
     if (valor.rut) detalle.push({ etiqueta: "RUT", valor: valor.rut });
     if (valor.sector) detalle.push({ etiqueta: "Sector", valor: valor.sector });
+    if (valor.texto) detalle.push({ etiqueta: "Observación clínica", valor: valor.texto });
     return detalle;
 }
 
@@ -148,6 +151,17 @@ export function CitasFiltros({ opciones, valor, onCambio }: {
             <Field label="Sector">
                 <Input value={valor.sector} onChange={(e) => set("sector", e.target.value)} placeholder="Ej: Amarillo, 1, 2" />
             </Field>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor="buscar-observacion-clinica">Buscar en observación clínica</Label>
+                <Input
+                    id="buscar-observacion-clinica"
+                    aria-describedby="ayuda-buscar-observacion-clinica"
+                    maxLength={200}
+                    value={valor.texto}
+                    onChange={(e) => set("texto", e.target.value)}
+                />
+                <p id="ayuda-buscar-observacion-clinica" className="text-sm text-muted-foreground">Busca en todas las páginas con los filtros actuales</p>
+            </div>
         </div>
     );
 }

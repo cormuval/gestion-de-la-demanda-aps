@@ -13,6 +13,7 @@ interface PanelFiltrosProps {
     onAplicar: () => void;
     onLimpiar: () => void;
     aplicando?: boolean;
+    etiquetaAplicar?: string;
     // Contenido opcional sobre los campos (p. ej. un error de catalogos).
     aviso?: ReactNode;
     children: ReactNode;
@@ -26,7 +27,7 @@ export interface FiltroActivo {
 }
 
 // Filtros en un panel lateral derecho: la tabla conserva el foco y el boton muestra cuantos hay activos.
-export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplicando = false, aviso, children, activosDetalle = [] }: PanelFiltrosProps) {
+export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplicando = false, etiquetaAplicar = "Aplicar filtros", aviso, children, activosDetalle = [] }: PanelFiltrosProps) {
     const [abierto, setAbierto] = useState(false);
     const abrir = () => setAbierto(true);
 
@@ -79,7 +80,7 @@ export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplic
                         <SheetFooter className="mt-auto pt-4">
                             <Button type="submit" disabled={aplicando}>
                                 <Filter size={16} />
-                                {aplicando ? "Consultando..." : "Aplicar filtros"}
+                                {aplicando ? "Consultando..." : etiquetaAplicar}
                             </Button>
                         </SheetFooter>
                     </form>

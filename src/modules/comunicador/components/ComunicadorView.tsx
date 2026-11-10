@@ -102,6 +102,7 @@ export function ComunicadorView() {
                 fechaHasta: aplicados.fechaHasta || undefined,
                 rut: aplicados.rut || undefined,
                 sector: aplicados.sector || undefined,
+                texto: aplicados.texto || undefined,
                 pagina
             });
             if (!esVigente()) return;
@@ -198,14 +199,15 @@ export function ComunicadorView() {
                         <CardDescription>Ordenadas de mayor a menor prioridad.</CardDescription>
                     </div>
                     <PanelFiltros
-                        descripcion="Filtra por temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector."
+                        descripcion="Filtra por observación clínica, temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector."
+                        etiquetaAplicar="Buscar"
                         activos={contarFiltrosActivos(aplicados, [], FILTROS_INICIALES)}
                         activosDetalle={detalleFiltrosActivos(aplicados, opciones)}
                         onAplicar={() => {
                             candidatosSiguienteRef.current = null;
                             setCitaSiguienteId(null);
                             setPagina(1);
-                            setAplicados(filtrosUI);
+                            setAplicados({ ...filtrosUI });
                         }}
                         onLimpiar={() => {
                             candidatosSiguienteRef.current = null;

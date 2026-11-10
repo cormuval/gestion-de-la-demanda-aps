@@ -75,7 +75,7 @@ type CitaForm = {
 };
 
 const COLUMNAS_TABLA = 7;
-const FILTROS_VACIOS: SolicitudFiltros = { rut: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", page: 1 };
+const FILTROS_VACIOS: SolicitudFiltros = { rut: "", tipoSolicitudId: "", motivoId: "", sector: "", edadDesde: "", edadHasta: "", fechaDesde: "", fechaHasta: "", texto: "", page: 1 };
 const emptyResponse: SolicitudesResponse = { solicitudes: [], total: 0, page: 1, pageSize: 100, totalPages: 1 };
 const emptyCatalogos: RevisionCatalogos = { tiposSolicitud: [], motivos: [], profesionales: [], prestaciones: [], centros: [] };
 const emptyUsuarioForm: UsuarioEditFormState = {
@@ -552,7 +552,8 @@ export function RevisarSolicitudesView() {
                         </CardDescription>
                     </div>
                     <PanelFiltros
-                        descripcion="Consulta por RUT, tipo, motivo, sector, edad y fecha de ingreso."
+                        descripcion="Consulta por descripción, RUT, tipo, motivo, sector, edad y fecha de ingreso."
+                        etiquetaAplicar="Buscar"
                         activos={contarFiltrosActivos(filtrosAplicados, ["page"])}
                         aplicando={loading}
                         onAplicar={aplicarFiltros}
@@ -608,6 +609,17 @@ export function RevisarSolicitudesView() {
                             <Field label="Hasta">
                                 <Input type="date" value={filters.fechaHasta ?? ""} onChange={(e) => updateFilter("fechaHasta", e.target.value)} />
                             </Field>
+                            <div className="flex flex-col gap-2 sm:col-span-2">
+                                <Label htmlFor="buscar-descripcion">Buscar en descripción</Label>
+                                <Input
+                                    id="buscar-descripcion"
+                                    aria-describedby="ayuda-buscar-descripcion"
+                                    maxLength={200}
+                                    value={filters.texto ?? ""}
+                                    onChange={(e) => updateFilter("texto", e.target.value)}
+                                />
+                                <p id="ayuda-buscar-descripcion" className="text-sm text-muted-foreground">Busca en todas las páginas con los filtros actuales</p>
+                            </div>
                         </div>
                     </PanelFiltros>
                 </CardHeader>

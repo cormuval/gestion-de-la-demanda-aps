@@ -435,7 +435,7 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro sin catalogos"));
         abrirFiltros();
         const panel = await screen.findByRole("dialog", { name: "Filtros" });
-        expect(within(panel).getByRole("button", { name: /Aplicar filtros/i })).toBeEnabled();
+        expect(within(panel).getByRole("button", { name: /^Buscar$/i })).toBeEnabled();
         expect(within(panel).getByText("RUT")).toBeInTheDocument();
     });
 
@@ -446,7 +446,7 @@ describe("RevisarSolicitudesView errores de acciones", () => {
         let responder: (valor: Awaited<ReturnType<typeof getSolicitudes>>) => void = () => undefined;
         vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responder = resolve)));
         abrirFiltros();
-        fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Buscar$/i }));
 
         await waitFor(() => expect(screen.getByText("SOL-1").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true"));
         expect(screen.queryByText("Consultando solicitudes...")).not.toBeInTheDocument();
@@ -461,7 +461,7 @@ describe("RevisarSolicitudesView errores de acciones", () => {
 
         vi.mocked(getSolicitudes).mockResolvedValueOnce({ ok: false, error: "No se pudo listar" });
         abrirFiltros();
-        fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Buscar$/i }));
 
         await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No se pudo listar"));
         expect(screen.getByText("SOL-1")).toBeInTheDocument();
@@ -635,7 +635,7 @@ describe("RevisarSolicitudesView verificacion antes de gestionar", () => {
         abrirFiltros();
         const panel = await screen.findByRole("dialog", { name: "Filtros" });
         fireEvent.change(within(panel).getAllByRole("textbox")[0], { target: { value: "99999999-9" } });
-        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.click(within(panel).getByRole("button", { name: /^Buscar$/i }));
         await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
         await waitFor(() => expect(screen.getByText("SOL-1").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false"));
 
@@ -706,7 +706,7 @@ describe("RevisarSolicitudesView refresco automatico", () => {
         abrirFiltros();
         const panel = await screen.findByRole("dialog", { name: "Filtros" });
         fireEvent.change(within(panel).getAllByRole("textbox")[0], { target: { value: "12345678-5" } });
-        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.click(within(panel).getByRole("button", { name: /^Buscar$/i }));
         await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
         await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
         const filtrosAplicados = vi.mocked(getSolicitudes).mock.calls[1][0];
@@ -752,7 +752,7 @@ describe("RevisarSolicitudesView refresco automatico", () => {
         abrirFiltros();
         const panel = await screen.findByRole("dialog", { name: "Filtros" });
         fireEvent.change(within(panel).getAllByRole("textbox")[0], { target: { value: "99999999-9" } });
-        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.click(within(panel).getByRole("button", { name: /^Buscar$/i }));
         await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(2));
         await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
 
@@ -784,7 +784,7 @@ describe("RevisarSolicitudesView refresco automatico", () => {
             let responderNormal: (valor: RespuestaSolicitudes) => void = () => undefined;
             vi.mocked(getSolicitudes).mockReturnValueOnce(new Promise((resolve) => (responderNormal = resolve)));
             abrirFiltros();
-            fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
+            fireEvent.click(await screen.findByRole("button", { name: /^Buscar$/i }));
             await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(3));
 
             if (orden === "silenciosa primero") {
@@ -812,11 +812,126 @@ describe("RevisarSolicitudesView refresco automatico", () => {
 
         vi.mocked(getSolicitudes).mockResolvedValueOnce(respuestaCon("SOL-NUEVA"));
         abrirFiltros();
-        fireEvent.click(await screen.findByRole("button", { name: /Aplicar filtros/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Buscar$/i }));
         expect(await screen.findByText("SOL-NUEVA")).toBeInTheDocument();
 
         await act(async () => responderSilenciosa(respuestaCon("SOL-VIEJA")));
         expect(screen.queryByText("SOL-VIEJA")).not.toBeInTheDocument();
         expect(screen.getByText("SOL-NUEVA")).toBeInTheDocument();
+    });
+});
+
+describe("RevisarSolicitudesView búsqueda global", () => {
+    function paginaCon(id: string, page: number, total = 301): RespuestaSolicitudes {
+        return {
+            ok: true,
+            data: { solicitudes: [{ ...solicitudBase, id_solicitud: id }], total, page, pageSize: 100, totalPages: Math.ceil(total / 100) }
+        } as RespuestaSolicitudes;
+    }
+
+    async function editarTexto(texto: string) {
+        abrirFiltros();
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        const input = within(panel).getByRole("textbox", { name: "Buscar en descripción" });
+        fireEvent.change(input, { target: { value: texto } });
+        return { panel, input };
+    }
+
+    it("busca al enviar, vuelve a página 1 y usa filas y total del servidor", async () => {
+        vi.mocked(getSolicitudes)
+            .mockResolvedValueOnce(paginaCon("SOL-INI", 2))
+            .mockResolvedValueOnce(paginaCon("SOL-REM", 1, 201));
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-INI");
+        const { panel, input } = await editarTexto("Descripción en otra página");
+        expect(input).toHaveAttribute("maxlength", "200");
+        expect(within(panel).getByText("Busca en todas las páginas con los filtros actuales")).toBeInTheDocument();
+        expect(getSolicitudes).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole("button", { name: "Filtros (1 activos)" })).not.toBeInTheDocument();
+        fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+        expect(await screen.findByText("SOL-REM")).toBeInTheDocument();
+        expect(screen.queryByText("SOL-INI")).not.toBeInTheDocument();
+        expect(screen.getByText("201 solicitudes encontradas. Pagina 1 de 3.")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Filtros (1 activos)" })).toBeInTheDocument();
+        expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "Descripción en otra página", page: 1 }));
+    });
+
+    it("pagina y refresca con el texto aplicado aunque el formulario tenga otro borrador", async () => {
+        let visibilidad: DocumentVisibilityState = "visible";
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibilidad });
+        try {
+            vi.mocked(getSolicitudes)
+                .mockResolvedValueOnce(paginaCon("SOL-INI", 1))
+                .mockResolvedValueOnce(paginaCon("SOL-BUS", 1, 201))
+                .mockResolvedValue(paginaCon("SOL-PAG2", 2, 201));
+            render(<RevisarSolicitudesView />);
+            await screen.findByText("SOL-INI");
+            const { panel, input } = await editarTexto("aplicado");
+            // El submit nativo es el mismo evento que produce Enter en este input.
+            fireEvent.submit(input.closest("form")!);
+            await screen.findByText("SOL-BUS");
+            await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+            const borrador = await editarTexto("sin aplicar");
+            expect(getSolicitudes).toHaveBeenCalledTimes(2);
+            fireEvent.click(within(borrador.panel).getByRole("button", { name: "Cerrar" }));
+            fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+            await screen.findByText("SOL-PAG2");
+            expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "aplicado", page: 2 }));
+            visibilidad = "hidden";
+            fireEvent(document, new Event("visibilitychange"));
+            visibilidad = "visible";
+            fireEvent(document, new Event("visibilitychange"));
+            await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(4));
+            expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "aplicado", page: 2 }));
+        } finally {
+            Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        }
+    });
+
+    it("limpia el texto y descarta la respuesta anterior que llega después", async () => {
+        let resolverVieja!: (respuesta: RespuestaSolicitudes) => void;
+        vi.mocked(getSolicitudes)
+            .mockResolvedValueOnce(paginaCon("SOL-INI", 1))
+            .mockResolvedValueOnce(paginaCon("SOL-APL", 1))
+            .mockReturnValueOnce(new Promise((resolve) => { resolverVieja = resolve; }))
+            .mockResolvedValueOnce(paginaCon("SOL-LIMP", 1, 2));
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-INI");
+        const primera = await editarTexto("aplicada");
+        fireEvent.click(within(primera.panel).getByRole("button", { name: "Buscar" }));
+        await screen.findByText("SOL-APL");
+        const segunda = await editarTexto("consulta vieja");
+        fireEvent.click(within(segunda.panel).getByRole("button", { name: "Buscar" }));
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(3));
+        fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+        await screen.findByText("SOL-LIMP");
+        await act(async () => resolverVieja(paginaCon("SOL-VIEJA", 1, 999)));
+        expect(screen.queryByText("SOL-VIEJA")).not.toBeInTheDocument();
+        expect(screen.getByText("SOL-LIMP")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Filtros" })).toBeInTheDocument();
+        expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "", page: 1 }));
+        const limpia = await editarTexto("");
+        expect(within(limpia.panel).getByRole("textbox", { name: "Buscar en descripción" })).toHaveValue("");
+    });
+
+    it("conserva última tabla y contador aplicado cuando una nueva búsqueda falla", async () => {
+        vi.mocked(getSolicitudes)
+            .mockResolvedValueOnce(paginaCon("SOL-INI", 1))
+            .mockResolvedValueOnce(paginaCon("SOL-APL", 1, 201))
+            .mockResolvedValueOnce({ ok: false, error: "No fue posible buscar" });
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-INI");
+        const primera = await editarTexto("aplicada");
+        fireEvent.click(within(primera.panel).getByRole("button", { name: "Buscar" }));
+        await screen.findByText("SOL-APL");
+        const segunda = await editarTexto("");
+        fireEvent.click(within(segunda.panel).getByRole("button", { name: "Buscar" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("No fue posible buscar");
+        expect(toast.error).toHaveBeenCalledWith("No fue posible buscar");
+        expect(screen.getByText("SOL-APL")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Filtros (1 activos)" })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Reintentar solicitudes" }));
+        await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(4));
+        expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "aplicada" }));
     });
 });

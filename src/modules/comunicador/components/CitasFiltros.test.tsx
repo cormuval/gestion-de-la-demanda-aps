@@ -30,6 +30,12 @@ describe("detalleFiltrosActivos", () => {
         ]);
     });
 
+    it("resume el texto aplicado como observación clínica", () => {
+        expect(detalleFiltrosActivos({ ...base, texto: "control pendiente" }, Opciones)).toEqual([
+            { etiqueta: "Observación clínica", valor: "control pendiente" }
+        ]);
+    });
+
     it("resuelve el nombre del profesional desde las opciones", () => {
         const detalle = detalleFiltrosActivos({ ...base, profesional_id: "7" }, Opciones);
         expect(detalle).toEqual([{ etiqueta: "Profesión", valor: "Médico General" }]);

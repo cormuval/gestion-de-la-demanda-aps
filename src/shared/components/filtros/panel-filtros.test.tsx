@@ -32,6 +32,17 @@ describe("PanelFiltros", () => {
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
+    it("permite enviar el formulario con una etiqueta propia", async () => {
+        const { onAplicar } = renderPanel({ etiquetaAplicar: "Buscar" });
+        fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        const boton = within(panel).getByRole("button", { name: "Buscar" });
+        expect(boton).toHaveAttribute("type", "submit");
+        fireEvent.submit(boton.closest("form")!);
+        expect(onAplicar).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+
     it("muestra el contador y Limpiar solo con filtros activos", () => {
         const { onLimpiar } = renderPanel({ activos: 3 });
 
