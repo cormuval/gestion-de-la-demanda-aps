@@ -23,6 +23,9 @@ import { IngresarSolicitudView } from "./IngresarSolicitudView";
 // lib
 import { toast } from "sonner";
 
+type PendientesExitosos = Extract<Awaited<ReturnType<typeof getPendientes>>, { ok: true }>["data"];
+type SolicitudPendiente = PendientesExitosos["solicitudesPendientes"][number];
+
 const usuarioConfirmado = {
     rut: "12345678-5",
     nombre: "Paciente",
@@ -46,17 +49,51 @@ const usuarioConfirmadoB = {
     nombre: "Paciente B"
 };
 
-const solicitudDuplicada = {
+const solicitudDuplicada: SolicitudPendiente = {
     id_solicitud: "SOL-duplicada",
     centro_id: "650",
     fecha_inicio: new Date("2026-07-02T12:00:00Z"),
+    rut_orientador: null,
+    rut_usuario: "12345678-5",
     descripcion: null,
+    ultimo_control: null,
+    disponibilidad_llamada: null,
+    priorizacion_admin: null,
+    rut_gestor: null,
+    razon_rechazo: null,
+    fecha_validacion: null,
     estado_solicitud: "En Curso",
     accion: "En espera de validación",
     tipo_solicitud_id: 1,
     motivo_id: 10,
-    tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
-    motivo: { nombre_motivo: "Control" }
+    observacion_rechazo: null,
+    tipoSolicitud: {
+        id_tipo_solicitud: 1,
+        nombre_tipo_solicitud: "Atencion",
+        estado: "Activo",
+        esperanza: null,
+        placeres: null,
+        padre_damian: null,
+        baron: null,
+        rodelillo: null,
+        reina_isabel: null,
+        placilla: null,
+        las_canas: null,
+        mena: null,
+        cordillera: null,
+        quebrada_verde: null,
+        cecosf_porvenir_bajo: null,
+        puertas_negras: null,
+        cecosf_laguna_verde: null,
+        cecosf_juan_pablo_ii: null,
+        desarrollo: null
+    },
+    motivo: {
+        id_motivo: 10,
+        tipo_solicitud_id: 1,
+        nombre_motivo: "Control",
+        estado: "Activo"
+    }
 };
 
 const pendientesConDuplicado = {
@@ -883,7 +920,7 @@ describe("IngresarSolicitudView edad del usuario", () => {
     it("informa la fecha de nacimiento invalida sin bloquear la edicion", async () => {
         vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
             ok: true,
-            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: "fecha-invalida" } }
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: new Date("fecha-invalida") } }
         } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
 
         await buscarRutConfirmadoConTiempoFalso();
