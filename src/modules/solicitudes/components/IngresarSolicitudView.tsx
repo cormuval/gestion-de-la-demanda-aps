@@ -578,7 +578,7 @@ function UsuarioStatus({
                     <strong>Nombre:</strong> {usuario.nombre} {usuario.apellido}
                 </span>
                 {edad === null ? (
-                    <span className="text-primary">Falta fecha de nacimiento</span>
+                    <span className="font-medium text-blue-700">Falta fecha de nacimiento</span>
                 ) : (
                     <span><strong>Edad:</strong> {edad} años</span>
                 )}

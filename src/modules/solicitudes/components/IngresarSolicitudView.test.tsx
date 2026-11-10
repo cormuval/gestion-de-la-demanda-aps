@@ -875,7 +875,7 @@ describe("IngresarSolicitudView edad del usuario", () => {
 
         await buscarRutConfirmadoConTiempoFalso();
 
-        expect(screen.getByText("Falta fecha de nacimiento")).toHaveClass("text-primary");
+        expect(screen.getByText("Falta fecha de nacimiento")).toHaveClass("font-medium", "text-blue-700");
         expect(screen.queryByText("NaN años")).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Editar usuario" })).toBeInTheDocument();
     });
@@ -888,7 +888,7 @@ describe("IngresarSolicitudView edad del usuario", () => {
 
         await buscarRutConfirmadoConTiempoFalso();
 
-        expect(screen.getByText("Falta fecha de nacimiento")).toHaveClass("text-primary");
+        expect(screen.getByText("Falta fecha de nacimiento")).toHaveClass("font-medium", "text-blue-700");
         expect(screen.queryByText("NaN años")).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Editar usuario" })).toBeInTheDocument();
     });
