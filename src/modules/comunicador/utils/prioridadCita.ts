@@ -69,10 +69,10 @@ export function resolverPrioridadCita(
     priorizacion: number | null | undefined
 ): PrioridadCitaResuelta | null {
     const tienePuntaje = typeof priorizacion === "number" && Number.isFinite(priorizacion);
-    const nivel: NivelPrioridadCita | null = esNivelPrioridadCita(priorizacionClinica)
-        ? priorizacionClinica
-        : tienePuntaje
-          ? inferirNivelPorPuntaje(priorizacion)
+    const nivel: NivelPrioridadCita | null = tienePuntaje
+        ? inferirNivelPorPuntaje(priorizacion)
+        : esNivelPrioridadCita(priorizacionClinica)
+          ? priorizacionClinica
           : null;
 
     if (!nivel) return null;

@@ -34,6 +34,19 @@ describe("prioridadCita", () => {
         expect(resolverPrioridadCita("Desconocida", 20)?.etiqueta).toBe("Baja · 20");
     });
 
+    it("clasifica por el tramo del puntaje numerico aunque priorizacion_clinica difiera (ej. Media con 60 -> Alta · 60)", () => {
+        expect(resolverPrioridadCita("Media", 60)).toMatchObject({
+            nivel: "Alta",
+            etiqueta: "Alta · 60"
+        });
+        expect(resolverPrioridadCita("Alta", 80)).toMatchObject({
+            nivel: "Urgente",
+            etiqueta: "Urgente · 80"
+        });
+        expect(resolverPrioridadCita("Media", 59)?.etiqueta).toBe("Media · 59");
+        expect(resolverPrioridadCita("Baja", 39)?.etiqueta).toBe("Baja · 39");
+    });
+
     it("devuelve null cuando no hay nivel clinico ni puntaje numerico", () => {
         expect(resolverPrioridadCita(null, null)).toBeNull();
         expect(resolverPrioridadCita(undefined, undefined)).toBeNull();

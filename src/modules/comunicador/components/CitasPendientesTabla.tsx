@@ -66,12 +66,12 @@ export function CitasPendientesTabla({
                 <Table>
                     <TableHeader className="bg-muted text-muted-foreground">
                         <TableRow>
-                            <TableHead>ID / Fecha Estimada</TableHead>
+                            <TableHead className="whitespace-nowrap">ID / Fecha Estimada</TableHead>
                             <TableHead>Paciente</TableHead>
                             <TableHead>Prestación</TableHead>
-                            <TableHead>Priorización / Disponibilidad</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead className="whitespace-nowrap">Priorización / Disponibilidad</TableHead>
+                            <TableHead className="whitespace-nowrap">Estado</TableHead>
+                            <TableHead className="whitespace-nowrap">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -95,29 +95,33 @@ export function CitasPendientesTabla({
                                             esSiguiente && "border-l-4 border-l-primary bg-primary/5 ring-1 ring-inset ring-primary/30"
                                         )}
                                     >
-                                        <TableCell>
-                                            <div className="flex flex-wrap items-center gap-1.5 font-medium">
+                                        <TableCell className="py-1.5 whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 font-medium leading-tight">
                                                 <CodigoId id={c.id_cita} />
                                                 {esSiguiente && <Badge variant="default">Siguiente</Badge>}
                                             </div>
-                                            <div className="text-xs text-muted-foreground">
+                                            <div className="text-xs leading-tight text-muted-foreground">
                                                 {c.fecha_estimada_atencion ? new Date(c.fecha_estimada_atencion).toLocaleDateString("es-CL") : "—"}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <div>{c.nombre_usuario || "—"}</div>
-                                            <div className="text-xs text-muted-foreground">{c.rut_usuario}</div>
+                                        <TableCell className="py-1.5">
+                                            <div className="line-clamp-1 leading-tight" title={c.nombre_usuario || undefined}>
+                                                {c.nombre_usuario || "—"}
+                                            </div>
+                                            <div className="text-xs leading-tight text-muted-foreground whitespace-nowrap">{c.rut_usuario}</div>
                                         </TableCell>
-                                        <TableCell>
-                                            <div>{c.prestacion || "—"}</div>
-                                            <div className="text-xs text-muted-foreground">{c.profesion || "—"}</div>
+                                        <TableCell className="py-1.5">
+                                            <div className="line-clamp-1 leading-tight" title={c.prestacion || undefined}>
+                                                {c.prestacion || "—"}
+                                            </div>
+                                            <div className="line-clamp-1 text-xs leading-tight text-muted-foreground">{c.profesion || "—"}</div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="py-1.5 whitespace-nowrap">
                                             <div>
                                                 {prioridad ? (
                                                     <span
                                                         className={cn(
-                                                            "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium",
+                                                            "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium leading-tight",
                                                             prioridad.badgeClassName
                                                         )}
                                                     >
@@ -128,16 +132,16 @@ export function CitasPendientesTabla({
                                                     "—"
                                                 )}
                                             </div>
-                                            <div className="mt-0.5 text-xs text-muted-foreground">{c.disponibilidad || "—"}</div>
+                                            <div className="mt-0.5 text-xs leading-tight text-muted-foreground">{c.disponibilidad || "—"}</div>
                                         </TableCell>
-                                        <TableCell>
-                                            <Badge variant="warning">
+                                        <TableCell className="py-1.5 whitespace-nowrap">
+                                            <Badge variant="warning" className="whitespace-nowrap">
                                                 <AlertTriangle size={12} />
                                                 {c.estado_cita}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap items-center gap-2">
+                                        <TableCell className="py-1.5 whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 whitespace-nowrap">
                                                 <Button
                                                     ref={esSiguiente ? botonSiguienteRef : undefined}
                                                     type="button"
