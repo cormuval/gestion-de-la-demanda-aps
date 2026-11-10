@@ -199,9 +199,9 @@ poder cambiar su rol ni su estado, y en Configuracion -> Funcionarios la regla n
 cuyo rol activo incluye `config.roles`. La regla cubre cambios de funcionario, estado de rol y
 matriz de permisos del rol.
 
-**Nombre reservado.** `Administrador` es un nombre reservado para cerrar el vector legacy donde
-algunas rutas aun comparan `user.rol.nombre === "Administrador"`. La deuda definitiva es reemplazar
-esa comparacion por un permiso explicito, registrada en #21.
+**Nombre reservado.** La reserva del nombre `Administrador` se retiro cuando el alcance
+multi-centro de SOME paso al permiso `some.todos_centros` (#21): hoy ninguna ruta decide
+autorizacion por nombre de rol. Las salvaguardas restantes operan por permisos.
 
 **Validacion en escritura.** `permisosRolSchema` (Zod) refina cada string con `esPermiso`, y ademas
 `guardarPermisosRol` filtra contra `CLAVES_PERMISOS` — lo que tambien normaliza el orden. Una clave
@@ -337,9 +337,9 @@ Si agregas una pagina o una action sin guard, la suite falla. Ese es el punto.
 
 ## 10. Anti-patrones
 
-- **Chequear por nombre de rol.** `if (user.rol.nombre === "Administrador")` es deuda legacy. Hoy el
-  mantenedor reserva ese nombre para evitar escalada, pero el patron correcto sigue siendo autorizar
-  por permisos. Ver #21 para eliminar la comparacion restante.
+- **Chequear por nombre de rol.** `if (user.rol.nombre === "Administrador")` es el anti-patron: el
+  alcance depende de un texto editable en lugar de un permiso autenticado en `roles_permisos`.
+  El alcance de SOME en los centros se resuelve con el permiso `some.todos_centros` (#21).
 - **Confiar en que la UI oculta el boton.** El filtrado de `NAV` y de pestanas es cosmetico.
 - **Guard despues de la logica.** Debe ser la primera linea: leer datos y despues validar ya filtro
   informacion.
