@@ -144,7 +144,7 @@ describe("getHistorialPaciente", () => {
                                 fecha_llamada: d2,
                                 respuesta_usuario: "Cita Aceptada",
                                 observacion: null,
-                                hora_agendada: null,
+                                hora_agendada: new Date("2026-07-01T13:30:00Z"),
                                 comunicador: { nombre: "Ana" }
                             }
                         ]
@@ -167,6 +167,7 @@ describe("getHistorialPaciente", () => {
         expect(solicitud.fecha_cierre).toEqual(d2);
 
         const cita = solicitud.citas[0];
+        expect(cita.hora_agendada).toEqual(new Date("2026-07-01T13:30:00Z"));
         expect(cita.cerrada).toBe(true);
         expect(cita.fecha_cierre).toEqual(d2);
         expect(cita.llamadas[1].comunicador).toBe("Ana");

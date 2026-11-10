@@ -13,6 +13,7 @@ import { esEstadoTerminal } from "@/modules/comunicador/types/comunicador";
 // utils
 import { esRutChilenoValido, normalizarRut } from "@/modules/solicitudes/utils/rut";
 import { fechaCierreCita, fechaCierreSolicitud } from "../utils/cierre";
+import { resolverAgendaCita } from "../utils/agendaCita";
 
 const ERROR_RUT = "RUT invalido";
 const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
@@ -83,6 +84,7 @@ function mapCita(cita: CitaConRelaciones): CitaHistorial {
         cerrada: esEstadoTerminal(cita.estado_cita),
         fecha_cierre: fechaCierreCita(cita.estado_cita, llamadas.map((llamada) => llamada.fecha_llamada)),
         fecha_estimada_atencion: cita.fecha_estimada_atencion,
+        hora_agendada: resolverAgendaCita(cita.estado_cita, llamadas),
         observacion: cita.observacion,
         llamadas
     };

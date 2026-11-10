@@ -15,6 +15,7 @@ export interface CitaHistorial {
     cerrada: boolean;
     fecha_cierre: Date | null;
     fecha_estimada_atencion: Date | null;
+    hora_agendada: Date | null;
     observacion: string | null;
     llamadas: LlamadaHistorial[];
 }

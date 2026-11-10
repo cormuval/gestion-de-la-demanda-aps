@@ -5,7 +5,10 @@ import { Printer } from "lucide-react";
 // actions
 import { getHistorialPaciente } from "../actions/getHistorialPaciente.action";
 import { getVoucherSolicitud } from "@/modules/solicitudes/actions/getVoucherSolicitud.action";
+// utils
+import { formatearAgendaCita } from "../utils/agendaCita";
 // types
+import { ESTADO_CITA } from "@/modules/comunicador/types/comunicador";
 import type { CitaHistorial, HistorialPaciente, SolicitudHistorial } from "../types/historial";
 import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // components
@@ -64,6 +67,14 @@ function CitaItem({ cita, expandida, onToggle }: { cita: CitaHistorial; expandid
                     <p className="text-xs text-muted-foreground">Cierre: <span>{formatFecha(cita.fecha_cierre)}</span></p>
                 </div>
             </div>
+            {cita.estado_cita === ESTADO_CITA.ACEPTADA && (
+                <div className="mt-2 text-sm">
+                    <p className="font-medium">Fecha y hora agendadas</p>
+                    <p className="text-muted-foreground">
+                        {cita.hora_agendada ? formatearAgendaCita(cita.hora_agendada) : "Fecha y hora no registradas"}
+                    </p>
+                </div>
+            )}
             <div className="mt-2">
                 <Button
                     type="button"
