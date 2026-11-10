@@ -269,7 +269,7 @@ describe("RevisarSolicitudesView tabla compacta", () => {
 
         await screen.findByText("SOL-1");
 
-        expect(screen.getByRole("columnheader", { name: "Solicitud" })).toBeInTheDocument();
+        expect(screen.getByRole("columnheader", { name: "Solicitud / Fecha" })).toBeInTheDocument();
         expect(screen.getByRole("columnheader", { name: "Paciente" })).toBeInTheDocument();
         expect(screen.getByRole("columnheader", { name: "Tipo / Motivo" })).toBeInTheDocument();
         expect(screen.queryByRole("columnheader", { name: "RUT" })).not.toBeInTheDocument();
@@ -933,5 +933,102 @@ describe("RevisarSolicitudesView búsqueda global", () => {
         fireEvent.click(screen.getByRole("button", { name: "Reintentar solicitudes" }));
         await waitFor(() => expect(getSolicitudes).toHaveBeenCalledTimes(4));
         expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "aplicada" }));
+    });
+});
+
+describe("RevisarSolicitudesView orden de página", () => {
+    const filasOrdenables = [
+        { ...solicitudBase, id_solicitud: "SOL-MEDIA", fecha_inicio: new Date("2026-12-31T12:00:00Z"), tipoSolicitud: { nombre_tipo_solicitud: "Ñandú" } },
+        { ...solicitudBase, id_solicitud: "SOL-NUEVA", fecha_inicio: new Date("2027-01-01T12:00:00Z"), tipoSolicitud: { nombre_tipo_solicitud: "Árbol" } },
+        { ...solicitudBase, id_solicitud: "SOL-ANTIGUA", fecha_inicio: new Date("2026-11-30T12:00:00Z"), tipoSolicitud: null }
+    ];
+
+    function paginaOrdenable(filas: typeof filasOrdenables, page = 1): RespuestaSolicitudes {
+        return { ok: true, data: { solicitudes: filas, total: 201, page, pageSize: 100, totalPages: 3 } } as RespuestaSolicitudes;
+    }
+
+    function idsVisibles(): string[] {
+        return within(screen.getByRole("table")).getAllByRole("row").slice(1)
+            .map((fila) => within(fila).getByRole("button", { name: "Copiar codigo completo" }).getAttribute("title") ?? "");
+    }
+
+    it("cicla fecha y tipo sobre las filas descargadas conservando total y sin consultar al servidor", async () => {
+        vi.mocked(getSolicitudes).mockResolvedValue(paginaOrdenable(filasOrdenables));
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-MEDIA");
+        expect(screen.getByText("Ordena esta página")).toBeVisible();
+        expect(idsVisibles()).toEqual(["SOL-MEDIA", "SOL-NUEVA", "SOL-ANTIGUA"]);
+        const fecha = screen.getByRole("button", { name: "Solicitud / Fecha" });
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["SOL-ANTIGUA", "SOL-MEDIA", "SOL-NUEVA"]);
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["SOL-NUEVA", "SOL-MEDIA", "SOL-ANTIGUA"]);
+        fireEvent.click(fecha);
+        expect(idsVisibles()).toEqual(["SOL-MEDIA", "SOL-NUEVA", "SOL-ANTIGUA"]);
+
+        const tipo = screen.getByRole("button", { name: "Tipo / Motivo" });
+        fireEvent.click(tipo);
+        expect(idsVisibles()).toEqual(["SOL-NUEVA", "SOL-MEDIA", "SOL-ANTIGUA"]);
+        fireEvent.click(tipo);
+        expect(idsVisibles()).toEqual(["SOL-MEDIA", "SOL-NUEVA", "SOL-ANTIGUA"]);
+        fireEvent.click(tipo);
+        expect(idsVisibles()).toEqual(["SOL-MEDIA", "SOL-NUEVA", "SOL-ANTIGUA"]);
+        expect(screen.getByText("201 solicitudes encontradas. Pagina 1 de 3.")).toBeVisible();
+        expect(getSolicitudes).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole("columnheader", { name: "Paciente" }).querySelector("button")).toBeNull();
+        expect(screen.getByRole("columnheader", { name: "Prioridad" }).querySelector("button")).toBeNull();
+    });
+
+    it("conserva el criterio al recibir otra página y refrescar, y Limpiar restaura el orden recibido", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        try {
+            vi.mocked(getSolicitudes)
+                .mockResolvedValueOnce(paginaOrdenable(filasOrdenables))
+                .mockResolvedValueOnce(paginaOrdenable(filasOrdenables))
+                .mockResolvedValueOnce(paginaOrdenable([
+                    { ...filasOrdenables[0], id_solicitud: "SOL-MEDIA-PAGINA" },
+                    { ...filasOrdenables[1], id_solicitud: "SOL-NUEVA-PAGINA" }
+                ], 2))
+                .mockResolvedValueOnce(paginaOrdenable([
+                    { ...filasOrdenables[2], id_solicitud: "SOL-ANTIGUA-REFRESCO" },
+                    { ...filasOrdenables[1], id_solicitud: "SOL-NUEVA-REFRESCO" }
+                ], 2))
+                .mockResolvedValueOnce(paginaOrdenable(filasOrdenables));
+            render(<RevisarSolicitudesView />);
+            await screen.findByText("SOL-MEDIA");
+            abrirFiltros();
+            const panel = await screen.findByRole("dialog", { name: "Filtros" });
+            fireEvent.change(within(panel).getByRole("textbox", { name: "Buscar en descripción" }), { target: { value: "control" } });
+            fireEvent.click(within(panel).getByRole("button", { name: "Buscar" }));
+            await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
+            fireEvent.click(screen.getByRole("button", { name: "Solicitud / Fecha" }));
+            fireEvent.click(screen.getByRole("button", { name: "Solicitud / Fecha" }));
+            fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+            await screen.findByTitle("SOL-MEDIA-PAGINA");
+            let filas = screen.getAllByRole("row").slice(1);
+            expect(within(filas[0]).getByTitle("SOL-NUEVA-PAGINA")).toBeVisible();
+            expect(screen.queryByTitle("SOL-ANTIGUA")).not.toBeInTheDocument();
+            expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+
+            await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+            await screen.findByTitle("SOL-NUEVA-REFRESCO");
+            filas = screen.getAllByRole("row").slice(1);
+            expect(within(filas[0]).getByTitle("SOL-NUEVA-REFRESCO")).toBeVisible();
+            expect(screen.getByRole("columnheader", { name: "Solicitud / Fecha" })).toHaveAttribute("aria-sort", "descending");
+            expect(screen.getByText("201 solicitudes encontradas. Pagina 2 de 3.")).toBeVisible();
+            expect(getSolicitudes).toHaveBeenCalledTimes(4);
+            expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, texto: "control" }));
+            expect(vi.mocked(getSolicitudes).mock.calls[3][0]).not.toHaveProperty("orden");
+
+            fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+            await screen.findByText("SOL-MEDIA");
+            expect(idsVisibles()).toEqual(["SOL-MEDIA", "SOL-NUEVA", "SOL-ANTIGUA"]);
+            expect(screen.getByRole("columnheader", { name: "Solicitud / Fecha" })).toHaveAttribute("aria-sort", "none");
+            expect(getSolicitudes).toHaveBeenCalledTimes(5);
+            expect(getSolicitudes).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, texto: "" }));
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

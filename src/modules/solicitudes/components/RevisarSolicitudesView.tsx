@@ -23,6 +23,7 @@ import {
 import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO, GESTANTE_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
 // components
 import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
+import { EncabezadoOrdenable } from "@/shared/components/tablas/encabezado-ordenable";
 import { Badge } from "@/shared/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
@@ -51,7 +52,11 @@ import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/co
 import { useRefrescoAutomatico } from "@/shared/hooks/useRefrescoAutomatico";
 // lib
 import { cn } from "@/shared/lib/utils";
+// utils
+import { ordenarSolicitudes } from "@/modules/solicitudes/utils/ordenSolicitudes";
 // types
+import type { ColumnaSolicitud } from "@/modules/solicitudes/utils/ordenSolicitudes";
+import type { OrdenPagina } from "@/shared/lib/ordenPagina";
 import type { SolicitudFiltros } from "@/modules/solicitudes/schemas/solicitud.schema";
 import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestion";
 import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
@@ -188,6 +193,8 @@ export function RevisarSolicitudesView() {
     // Filtros con los que se cargo la tabla (los de `filters` pueden estar editandose en el panel).
     const [filtrosAplicados, setFiltrosAplicados] = useState<SolicitudFiltros>(FILTROS_VACIOS);
     const [data, setData] = useState<SolicitudesResponse>(emptyResponse);
+    const [orden, setOrden] = useState<OrdenPagina<ColumnaSolicitud> | null>(null);
+    const solicitudesOrdenadas = useMemo(() => ordenarSolicitudes(data.solicitudes, orden), [data.solicitudes, orden]);
     const [catalogos, setCatalogos] = useState<RevisionCatalogos>(emptyCatalogos);
     const [catalogosError, setCatalogosError] = useState<string | null>(null);
     const [solicitudesError, setSolicitudesError] = useState<string | null>(null);
@@ -307,6 +314,7 @@ export function RevisarSolicitudesView() {
 
     function limpiarFiltros() {
         setFilters(FILTROS_VACIOS);
+        setOrden(null);
         loadSolicitudes(FILTROS_VACIOS);
     }
 
@@ -637,14 +645,15 @@ export function RevisarSolicitudesView() {
                         <TablaSkeleton columnas={COLUMNAS_TABLA} etiqueta="Consultando solicitudes..." />
                     ) : sinDatosAun && solicitudesError ? null : (
                         <>
+                            <p className="text-sm text-muted-foreground">Ordena esta página</p>
                             <TooltipProvider>
                                 <div className={cn("rounded-md border transition-opacity", loading && "opacity-60")} aria-busy={loading}>
                                     <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Solicitud</TableHead>
+                                        <EncabezadoOrdenable columna="fecha" orden={orden} onOrden={setOrden}>Solicitud / Fecha</EncabezadoOrdenable>
                                         <TableHead>Paciente</TableHead>
-                                        <TableHead>Tipo / Motivo</TableHead>
+                                        <EncabezadoOrdenable columna="tipo" orden={orden} onOrden={setOrden}>Tipo / Motivo</EncabezadoOrdenable>
                                         <TableHead>Prioridad</TableHead>
                                         <TableHead>Descripcion</TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
@@ -658,7 +667,7 @@ export function RevisarSolicitudesView() {
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        data.solicitudes.map((s) => (
+                                        solicitudesOrdenadas.map((s) => (
                                             <TableRow key={s.id_solicitud}>
                                                 <TableCell className="align-top font-medium">
                                                     <div className="flex flex-col gap-1">
