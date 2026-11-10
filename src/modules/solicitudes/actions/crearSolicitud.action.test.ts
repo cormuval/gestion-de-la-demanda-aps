@@ -177,8 +177,17 @@ describe("crearSolicitud", () => {
         const result = await crearSolicitud(baseInput as any);
 
         expect(result.ok).toBe(true);
+        expect(mocks.tx.$queryRaw).toHaveBeenCalledTimes(1);
         expect(mocks.tx.solicitud.findFirst).not.toHaveBeenCalled();
         expect(mocks.tx.solicitud.create).toHaveBeenCalledTimes(1);
+        expect(mocks.tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(mocks.tx.solicitud.create.mock.invocationCallOrder[0]);
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith(
+            "CREATE",
+            true,
+            { id: "o@demo.local", name: "Orientador", rut: "22.222.222-2" },
+            "SOL-nueva",
+            { details: expect.stringContaining("Solicitud creada para RUT 12345678-5") }
+        );
     });
 
     it("crea solicitud sin motivo si el tipo no tiene motivos activos", async () => {

@@ -13,7 +13,9 @@ const DISCAPACIDAD_SIN_PUNTAJE = [
 export function calcularEdad(fechaNacimiento: Date | string | null, fechaReferencia: Date = new Date()): number | null {
     if (!fechaNacimiento) return null;
 
-    const nacimiento = fechaNacimiento instanceof Date ? fechaNacimiento : new Date(`${fechaNacimiento}T00:00:00`);
+    const nacimiento = fechaNacimiento instanceof Date
+        ? new Date(fechaNacimiento.getUTCFullYear(), fechaNacimiento.getUTCMonth(), fechaNacimiento.getUTCDate())
+        : new Date(`${fechaNacimiento}T00:00:00`);
     if (Number.isNaN(nacimiento.getTime())) return null;
 
     let edad = fechaReferencia.getFullYear() - nacimiento.getFullYear();
