@@ -44,6 +44,34 @@ describe("PanelFiltros", () => {
         renderPanel();
         expect(screen.queryByRole("button", { name: /Limpiar filtros/ })).not.toBeInTheDocument();
     });
+
+    it("sin detalle no muestra chips", () => {
+        renderPanel({ activos: 2 });
+        expect(screen.queryByText(/Estado:/)).not.toBeInTheDocument();
+    });
+
+    it("muestra un chip por filtro activo con etiqueta y valor", () => {
+        renderPanel({
+            activos: 2,
+            activosDetalle: [
+                { etiqueta: "Estado", valor: "Sin llamadas" },
+                { etiqueta: "RUT", valor: "12345678-5" }
+            ]
+        });
+
+        expect(screen.getByText("Estado: Sin llamadas")).toBeInTheDocument();
+        expect(screen.getByText("RUT: 12345678-5")).toBeInTheDocument();
+    });
+
+    it("abre el panel al hacer clic en un chip", async () => {
+        renderPanel({
+            activos: 1,
+            activosDetalle: [{ etiqueta: "Estado", valor: "Sin llamadas" }]
+        });
+
+        fireEvent.click(screen.getByText("Estado: Sin llamadas"));
+        await waitFor(() => expect(screen.getByRole("dialog", { name: "Filtros" })).toBeInTheDocument());
+    });
 });
 
 describe("contarFiltrosActivos", () => {

@@ -6,7 +6,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 // types
-import { TEMPORALIDADES, ESTADOS_PENDIENTES } from "../types/comunicador";
+import { TEMPORALIDAD, TEMPORALIDADES, ESTADOS_PENDIENTES } from "../types/comunicador";
 import type { getFiltrosComunicador } from "../actions/getFiltrosComunicador.action";
 
 export interface CitasFiltrosUI {
@@ -23,7 +23,8 @@ export interface CitasFiltrosUI {
 }
 
 export const FILTROS_INICIALES: CitasFiltrosUI = {
-    temporalidad: "Todas",
+    // La cola parte en "Agendamientos próximos" (hoy-15 a hoy+30); "Todas" queda disponible manualmente.
+    temporalidad: TEMPORALIDAD.PROXIMOS,
     estado: "",
     profesional_id: "",
     prestacion: "",
@@ -36,6 +37,37 @@ export const FILTROS_INICIALES: CitasFiltrosUI = {
 };
 
 type Opciones = Awaited<ReturnType<typeof getFiltrosComunicador>>;
+
+export interface DetalleFiltro {
+    etiqueta: string;
+    valor: string;
+}
+
+/**
+ * Traduccion legible de los filtros aplicados, para los chips del panel.
+ * Orden fijo; la temporalidad base no se lista (no es un criterio activo).
+ */
+export function detalleFiltrosActivos(valor: CitasFiltrosUI, opciones: Opciones): DetalleFiltro[] {
+    const detalle: DetalleFiltro[] = [];
+    if (valor.temporalidad && valor.temporalidad !== FILTROS_INICIALES.temporalidad) {
+        detalle.push({ etiqueta: "Temporalidad", valor: valor.temporalidad });
+    }
+    if (valor.estado) detalle.push({ etiqueta: "Estado", valor: valor.estado });
+    if (valor.profesional_id) {
+        const profesional = opciones.profesionales.find((p) => String(p.id) === String(valor.profesional_id));
+        detalle.push({ etiqueta: "Profesión", valor: profesional?.nombre ?? valor.profesional_id });
+    }
+    if (valor.prestacion) detalle.push({ etiqueta: "Prestación", valor: valor.prestacion });
+    if (valor.edadMin && valor.edadMax) detalle.push({ etiqueta: "Edad", valor: `${valor.edadMin}–${valor.edadMax} años` });
+    else if (valor.edadMin) detalle.push({ etiqueta: "Edad", valor: `≥ ${valor.edadMin} años` });
+    else if (valor.edadMax) detalle.push({ etiqueta: "Edad", valor: `≤ ${valor.edadMax} años` });
+    if (valor.fechaDesde && valor.fechaHasta) detalle.push({ etiqueta: "Fecha estimada", valor: `${valor.fechaDesde} a ${valor.fechaHasta}` });
+    else if (valor.fechaDesde) detalle.push({ etiqueta: "Fecha estimada", valor: `desde ${valor.fechaDesde}` });
+    else if (valor.fechaHasta) detalle.push({ etiqueta: "Fecha estimada", valor: `hasta ${valor.fechaHasta}` });
+    if (valor.rut) detalle.push({ etiqueta: "RUT", valor: valor.rut });
+    if (valor.sector) detalle.push({ etiqueta: "Sector", valor: valor.sector });
+    return detalle;
+}
 
 // Campos de filtro de la cola; el formulario y el boton Aplicar los pone PanelFiltros.
 export function CitasFiltros({ opciones, valor, onCambio }: {

@@ -16,11 +16,19 @@ interface PanelFiltrosProps {
     // Contenido opcional sobre los campos (p. ej. un error de catalogos).
     aviso?: ReactNode;
     children: ReactNode;
+    // Detalle opcional de los filtros activos, para verlos sin abrir el panel.
+    activosDetalle?: FiltroActivo[];
+}
+
+export interface FiltroActivo {
+    etiqueta: string;
+    valor: string;
 }
 
 // Filtros en un panel lateral derecho: la tabla conserva el foco y el boton muestra cuantos hay activos.
-export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplicando = false, aviso, children }: PanelFiltrosProps) {
+export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplicando = false, aviso, children, activosDetalle = [] }: PanelFiltrosProps) {
     const [abierto, setAbierto] = useState(false);
+    const abrir = () => setAbierto(true);
 
     function aplicar(event: FormEvent) {
         event.preventDefault();
@@ -38,12 +46,28 @@ export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplic
             )}
             <Sheet open={abierto} onOpenChange={setAbierto}>
                 <SheetTrigger asChild>
-                    <Button type="button" variant="outline" size="sm" aria-label={activos > 0 ? `Filtros (${activos} activos)` : "Filtros"}>
+                    <Button type="button" variant="outline" size="sm" aria-label={activos > 0 ? `Filtros (${activos} activos)` : "Filtros"} onClick={abrir}>
                         <Filter size={16} />
                         Filtros
                         {activos > 0 && <Badge>{activos}</Badge>}
                     </Button>
                 </SheetTrigger>
+                {activosDetalle.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {activosDetalle.map((f) => (
+                            <Badge
+                                key={`${f.etiqueta}:${f.valor}`}
+                                variant="muted"
+                                className="min-w-0 max-w-full cursor-pointer font-normal"
+                                onClick={abrir}
+                            >
+                                <span className="truncate">
+                                    {f.etiqueta}: {f.valor}
+                                </span>
+                            </Badge>
+                        ))}
+                    </div>
+                )}
                 <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
                     <SheetHeader>
                         <SheetTitle>Filtros</SheetTitle>
