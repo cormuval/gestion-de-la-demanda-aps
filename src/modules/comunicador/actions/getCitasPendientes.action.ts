@@ -10,10 +10,9 @@ import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
 import { citasFiltrosSchema } from "../schemas/llamada.schema";
 // utils
-import { rangoTemporalidad } from "../utils/temporalidad";
-import { rangoEdadAFechaNacimiento } from "../utils/rangoEdadAFechaNacimiento";
+import { construirConsultaCitas } from "../utils/consultaCitas";
 // types
-import { ESTADOS_PENDIENTES, RESPUESTA_LLAMADA } from "../types/comunicador";
+import { RESPUESTA_LLAMADA } from "../types/comunicador";
 
 const POR_PAGINA = 100;
 
@@ -40,45 +39,12 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
         return { ok: false, error: "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion." };
     }
 
-    const f = citasFiltrosSchema.parse(filtros ?? {});
-    const hoy = new Date();
-
-    // Estado: si viene un estado pendiente puntual, filtrar por él; si no, por todos los pendientes.
-    const estadosFiltro =
-        f.estado && (ESTADOS_PENDIENTES as readonly string[]).includes(f.estado) ? [f.estado] : [...ESTADOS_PENDIENTES];
-
-    const condiciones: Prisma.Sql[] = [
-        Prisma.sql`c.centro_id = ${user.centro_id}`,
-        Prisma.sql`c.estado_cita IN (${Prisma.join(estadosFiltro)})`
-    ];
-
-    if (f.profesional_id) condiciones.push(Prisma.sql`c.profesional_id = ${f.profesional_id}`);
-    if (f.prestacion) condiciones.push(Prisma.sql`c.prestacion_id IN (SELECT id_prestacion FROM prestaciones WHERE nombre_prestacion = ${f.prestacion})`);
-
-    // RUT: coincidencia parcial, ignorando puntos y guion en ambos lados.
-    if (f.rut) {
-        const fragmentoRut = f.rut.replace(/[.\-\s]/g, "");
-        if (fragmentoRut) condiciones.push(Prisma.sql`REPLACE(REPLACE(c.rut_usuario, '.', ''), '-', '') LIKE ${`%${fragmentoRut}%`}`);
+    const validacion = citasFiltrosSchema.safeParse(filtros ?? {});
+    if (!validacion.success) {
+        return { ok: false, error: "Filtros invalidos. Revisa los valores; el texto admite hasta 200 caracteres." };
     }
-    // Sector: coincidencia parcial (texto libre).
-    if (f.sector) condiciones.push(Prisma.sql`u.sector LIKE ${`%${f.sector}%`}`);
-
-    // Temporalidad (sobre fecha_estimada_atencion)
-    const rt = rangoTemporalidad(f.temporalidad ?? "", hoy);
-    if (rt?.gte) condiciones.push(Prisma.sql`c.fecha_estimada_atencion >= ${rt.gte}`);
-    if (rt?.lte) condiciones.push(Prisma.sql`c.fecha_estimada_atencion <= ${rt.lte}`);
-    if (rt?.lt) condiciones.push(Prisma.sql`c.fecha_estimada_atencion < ${rt.lt}`);
-
-    // Rango de fecha estimada explícito (AND con temporalidad)
-    if (f.fechaDesde) condiciones.push(Prisma.sql`c.fecha_estimada_atencion >= ${new Date(`${f.fechaDesde}T00:00:00`)}`);
-    if (f.fechaHasta) condiciones.push(Prisma.sql`c.fecha_estimada_atencion <= ${new Date(`${f.fechaHasta}T23:59:59`)}`);
-
-    // Edad -> fecha_nacimiento
-    const rEdad = rangoEdadAFechaNacimiento(f.edadMin ?? null, f.edadMax ?? null, hoy);
-    if (rEdad.gte) condiciones.push(Prisma.sql`u.fecha_nacimiento >= ${rEdad.gte}`);
-    if (rEdad.lte) condiciones.push(Prisma.sql`u.fecha_nacimiento <= ${rEdad.lte}`);
-
-    const where = Prisma.sql`WHERE ${Prisma.join(condiciones, " AND ")}`;
+    const f = validacion.data;
+    const { where, fromPagina, fromConteo } = construirConsultaCitas(f, user.centro_id, new Date());
 
     // Orden por priorizacion descendente con desempate determinista por fecha estimada e id
     const orderBy = Prisma.sql`ORDER BY c.priorizacion DESC, c.fecha_estimada_atencion ASC, c.id_cita ASC`;
@@ -101,11 +67,7 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
             c.observacion AS observacion,
             (SELECT COUNT(*) FROM llamadas ll WHERE ll.cita_id = c.id_cita AND ll.respuesta_usuario = ${RESPUESTA_LLAMADA.NO_CONTESTA}) AS intentos,
             EXISTS(SELECT 1 FROM llamadas lh WHERE lh.cita_id = c.id_cita AND DATE(lh.fecha_llamada) = CURDATE()) AS tiene_llamada_hoy
-        FROM citas c
-        JOIN usuarios u ON u.rut = c.rut_usuario
-        JOIN solicitudes s ON s.id_solicitud = c.solicitud_id
-        LEFT JOIN profesionales p ON p.id_profesional = c.profesional_id
-        LEFT JOIN prestaciones pr ON pr.id_prestacion = c.prestacion_id
+        ${fromPagina}
         ${where}
         ${orderBy}
         LIMIT ${POR_PAGINA} OFFSET ${offset}
@@ -113,9 +75,7 @@ export async function getCitasPendientes(filtros: unknown): Promise<ResultadoAcc
 
     const totalRows = await prisma.$queryRaw<{ total: bigint }[]>`
         SELECT COUNT(*) AS total
-        FROM citas c
-        JOIN usuarios u ON u.rut = c.rut_usuario
-        JOIN solicitudes s ON s.id_solicitud = c.solicitud_id
+        ${fromConteo}
         ${where}
     `;
     const total = Number(totalRows[0]?.total ?? 0);
