@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // types
@@ -8,7 +8,8 @@ import { CitasPendientesTabla } from "./CitasPendientesTabla";
 
 const cita: CitaFila = {
     id_cita: "cita-comunicador-1",
-    priorizacion: 9,
+    priorizacion_clinica: "Urgente",
+    priorizacion: 85,
     disponibilidad: "Lunes AM",
     rut_usuario: "22.222.222-2",
     nombre_usuario: "Paciente Demo",
@@ -21,14 +22,27 @@ const cita: CitaFila = {
     tiene_llamada_hoy: true
 };
 
+const citaSinPrioridad: CitaFila = {
+    ...cita,
+    id_cita: "cita-comunicador-2",
+    priorizacion_clinica: null,
+    priorizacion: null,
+    disponibilidad: null,
+    rut_usuario: "33.333.333-3",
+    nombre_usuario: "Segundo Paciente",
+    profesion: "Odontología",
+    prestacion: "Control dental",
+    tiene_llamada_hoy: false
+};
+
 describe("CitasPendientesTabla", () => {
-    it("compacta columnas, conserva acciones y no usa ancho minimo fijo", () => {
+    it("compacta columnas, muestra ID / Fecha Estimada, nombre + RUT, simbologia y badge de prioridad coloreado", () => {
         const onGestionar = vi.fn();
         const onPagina = vi.fn();
         const { container } = render(
             <CitasPendientesTabla
-                filas={[cita]}
-                total={1}
+                filas={[cita, citaSinPrioridad]}
+                total={2}
                 pagina={1}
                 porPagina={100}
                 onPagina={onPagina}
@@ -39,14 +53,57 @@ describe("CitasPendientesTabla", () => {
 
         expect(container.querySelector('table[class*="min-w-["]')).toBeNull();
         expect(container.querySelector("table.table-fixed")).toBeNull();
+        expect(screen.getByRole("columnheader", { name: "ID / Fecha Estimada" })).toBeInTheDocument();
+        expect(screen.queryByRole("columnheader", { name: "Cita" })).not.toBeInTheDocument();
+
+        // Paciente: nombre y RUT
+        expect(screen.getByText("Paciente Demo")).toBeInTheDocument();
         expect(screen.getByText("22.222.222-2")).toBeInTheDocument();
+
+        // Simbologia de prioridad
+        expect(screen.getByText("Simbología de prioridad:")).toBeInTheDocument();
+        expect(screen.getByText("Urgente (80–100)")).toBeInTheDocument();
+        expect(screen.getByText("Alta (60–79)")).toBeInTheDocument();
+        expect(screen.getByText("Media (40–59)")).toBeInTheDocument();
+        expect(screen.getByText("Baja (< 40)")).toBeInTheDocument();
+
+        // Badge de prioridad coloreado
+        const badgePrioridad = screen.getByText("Urgente · 85");
+        expect(badgePrioridad.closest("span")).toHaveClass("bg-red-100");
+
         expect(screen.getByText("Consulta medica")).toBeInTheDocument();
         expect(screen.getByText("Medicina")).toBeInTheDocument();
         expect(screen.getByText("Lunes AM")).toBeInTheDocument();
-        expect(screen.getByText("10-10-2026")).toBeInTheDocument();
-        expect(screen.getByText("Accion secundaria")).toBeInTheDocument();
+        expect(screen.getAllByText("10-10-2026")).toHaveLength(2);
+        expect(screen.getAllByText("Accion secundaria")).toHaveLength(2);
 
-        fireEvent.click(screen.getByRole("button", { name: /Llamar/i }));
+        fireEvent.click(screen.getAllByRole("button", { name: /Llamar/i })[0]);
         expect(onGestionar).toHaveBeenCalledWith(cita);
+    });
+
+    it("destaca la fila de citaSiguienteId con badge Siguiente, scrollIntoView y foco en su boton Llamar", () => {
+        const scrollSpy = vi.fn();
+        Element.prototype.scrollIntoView = scrollSpy;
+
+        const { container } = render(
+            <CitasPendientesTabla
+                filas={[cita, citaSinPrioridad]}
+                total={2}
+                pagina={1}
+                porPagina={100}
+                citaSiguienteId="cita-comunicador-2"
+                onPagina={vi.fn()}
+                onGestionar={vi.fn()}
+            />
+        );
+
+        const filaSiguiente = container.querySelector('tr[data-cita-siguiente="true"]') as HTMLElement | null;
+        expect(filaSiguiente).not.toBeNull();
+        expect(within(filaSiguiente!).getByText("Siguiente")).toBeInTheDocument();
+        expect(within(filaSiguiente!).getByText("Segundo Paciente")).toBeInTheDocument();
+        expect(scrollSpy).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
+
+        const botonLlamarSiguiente = within(filaSiguiente!).getByRole("button", { name: "Llamar" });
+        expect(document.activeElement).toBe(botonLlamarSiguiente);
     });
 });

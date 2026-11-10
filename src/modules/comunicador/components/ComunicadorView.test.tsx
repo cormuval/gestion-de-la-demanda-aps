@@ -19,15 +19,17 @@ vi.mock("./CitasFiltros", () => ({
     FILTROS_INICIALES: { temporalidad: "", estado: "", profesional_id: "", prestacion: "", edadMin: "", edadMax: "", fechaDesde: "", fechaHasta: "", rut: "", sector: "" }
 }));
 vi.mock("./CitasPendientesTabla", () => ({
-    CitasPendientesTabla: ({ filas, total, onPagina, onGestionar, renderAcciones }: {
+    CitasPendientesTabla: ({ filas, total, citaSiguienteId, onPagina, onGestionar, renderAcciones }: {
         filas: { id_cita: string }[];
         total: number;
+        citaSiguienteId?: string | null;
         onPagina: (pagina: number) => void;
         onGestionar: (cita: { id_cita: string }) => void;
         renderAcciones: (cita: { id_cita: string }) => React.ReactNode;
     }) => (
         <div>
             <p>Tabla con {total} citas</p>
+            <p>Cita siguiente: {citaSiguienteId ?? "ninguna"}</p>
             <button type="button" onClick={() => onPagina(2)}>
                 Pagina 2
             </button>
@@ -44,8 +46,11 @@ vi.mock("./CitasPendientesTabla", () => ({
     )
 }));
 vi.mock("./RegistrarLlamadaModal", () => ({
-    RegistrarLlamadaModal: ({ onCerrar, onCitaCerrada }: { onCerrar: () => void; onCitaCerrada?: () => void }) => (
+    RegistrarLlamadaModal: ({ onCerrar, onRegistrado, onCitaCerrada }: { onCerrar: () => void; onRegistrado: (m: string) => void; onCitaCerrada?: () => void }) => (
         <div role="dialog" aria-label="Registrar llamada">
+            <button type="button" onClick={() => onRegistrado("Cita Aceptada.")}>
+                Simular llamada registrada
+            </button>
             <button type="button" onClick={() => onCitaCerrada?.()}>
                 Simular cita cerrada
             </button>
@@ -82,31 +87,34 @@ import { ComunicadorView } from "./ComunicadorView";
 type RespuestaCitas = Awaited<ReturnType<typeof getCitasPendientes>>;
 type RespuestaVerificacion = Awaited<ReturnType<typeof verificarCitaPendiente>>;
 
-function respuestaCon(idCita: string, total = 1): RespuestaCitas {
+function respuestaConLista(ids: string[], total = ids.length): RespuestaCitas {
     return {
         ok: true,
         data: {
-            filas: [
-                {
-                    id_cita: idCita,
-                    priorizacion: null,
-                    disponibilidad: null,
-                    rut_usuario: "11.111.111-1",
-                    nombre_usuario: "Paciente de prueba",
-                    profesion: null,
-                    prestacion: null,
-                    fecha_estimada_atencion: null,
-                    estado_cita: "Sin llamadas",
-                    observacion: null,
-                    intentos: 0,
-                    tiene_llamada_hoy: false
-                }
-            ],
+            filas: ids.map((idCita) => ({
+                id_cita: idCita,
+                priorizacion_clinica: null,
+                priorizacion: null,
+                disponibilidad: null,
+                rut_usuario: "11.111.111-1",
+                nombre_usuario: "Paciente de prueba",
+                profesion: null,
+                prestacion: null,
+                fecha_estimada_atencion: null,
+                estado_cita: "Sin llamadas",
+                observacion: null,
+                intentos: 0,
+                tiene_llamada_hoy: false
+            })),
             total,
             pagina: 1,
             porPagina: 25
         }
     } as RespuestaCitas;
+}
+
+function respuestaCon(idCita: string, total = 1): RespuestaCitas {
+    return respuestaConLista([idCita], total);
 }
 
 beforeEach(() => {
@@ -482,5 +490,71 @@ describe("ComunicadorView refresco automatico", () => {
 
         expect(await screen.findByRole("button", { name: "Reintentar" })).toBeEnabled();
         expect(screen.queryByText("CITA-VIEJA")).not.toBeInTheDocument();
+    });
+});
+
+describe("ComunicadorView cita siguiente tras gestionar", () => {
+    it("muestra la descripcion de orden por prioridad y destaca la cita siguiente tras registrar llamada", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaConLista(["CITA-1", "CITA-2", "CITA-3"]))
+            .mockResolvedValueOnce(respuestaConLista(["CITA-2", "CITA-3"]));
+
+        render(<ComunicadorView />);
+        expect(screen.getByText("Ordenadas de mayor a menor prioridad.")).toBeInTheDocument();
+        expect(await screen.findByText("Cita siguiente: ninguna")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Llamar CITA-1" }));
+        await screen.findByRole("dialog", { name: "Registrar llamada" });
+        fireEvent.click(screen.getByRole("button", { name: "Simular llamada registrada" }));
+
+        expect(await screen.findByText("Cita siguiente: CITA-2")).toBeInTheDocument();
+    });
+
+    it("salta al siguiente candidato disponible si otro funcionario cerro la cita inmediata", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaConLista(["CITA-1", "CITA-2", "CITA-3"]))
+            .mockResolvedValueOnce(respuestaConLista(["CITA-3"]));
+
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-1");
+
+        fireEvent.click(screen.getByRole("button", { name: "Llamar CITA-1" }));
+        await screen.findByRole("dialog", { name: "Registrar llamada" });
+        fireEvent.click(screen.getByRole("button", { name: "Simular llamada registrada" }));
+
+        expect(await screen.findByText("Cita siguiente: CITA-3")).toBeInTheDocument();
+    });
+
+    it("usa la fila anterior como respaldo cuando se gestiona la ultima fila de la tabla", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaConLista(["CITA-1", "CITA-2", "CITA-3"]))
+            .mockResolvedValueOnce(respuestaConLista(["CITA-1", "CITA-2"]));
+
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-3");
+
+        fireEvent.click(screen.getByRole("button", { name: "Llamar CITA-3" }));
+        await screen.findByRole("dialog", { name: "Registrar llamada" });
+        fireEvent.click(screen.getByRole("button", { name: "Simular llamada registrada" }));
+
+        expect(await screen.findByText("Cita siguiente: CITA-2")).toBeInTheDocument();
+    });
+
+    it("limpia citaSiguienteId al cambiar de pagina o aplicar filtros", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaConLista(["CITA-1", "CITA-2"]))
+            .mockResolvedValueOnce(respuestaConLista(["CITA-2"]))
+            .mockResolvedValueOnce(respuestaConLista(["CITA-9"]));
+
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-1");
+
+        fireEvent.click(screen.getByRole("button", { name: "Llamar CITA-1" }));
+        await screen.findByRole("dialog", { name: "Registrar llamada" });
+        fireEvent.click(screen.getByRole("button", { name: "Simular llamada registrada" }));
+        expect(await screen.findByText("Cita siguiente: CITA-2")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Pagina 2" }));
+        expect(await screen.findByText("Cita siguiente: ninguna")).toBeInTheDocument();
     });
 });

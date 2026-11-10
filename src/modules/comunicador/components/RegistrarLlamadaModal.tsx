@@ -16,6 +16,13 @@ import { acortarId } from "@/shared/lib/acortarId";
 import { ERROR_CITA_CERRADA, RESPUESTAS_LLAMADA, RESPUESTA_LLAMADA } from "../types/comunicador";
 import { toast } from "sonner";
 
+function formatearFechaEstimada(fecha: Date | null): string | null {
+    if (!fecha) return null;
+    const date = fecha instanceof Date ? fecha : new Date(fecha);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString("es-CL");
+}
+
 function DatoCita({ etiqueta, valor, className }: { etiqueta: string; valor: string | null; className?: string }) {
     return (
         <div className={className}>
@@ -79,6 +86,7 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, onCerrar, onReg
                     <DatoCita etiqueta="Estado de la cita" valor={cita.estado_cita} />
                     <DatoCita etiqueta="Estamento" valor={cita.profesion} />
                     <DatoCita etiqueta="Prestación" valor={cita.prestacion} />
+                    <DatoCita etiqueta="Fecha estimada de atención" valor={formatearFechaEstimada(cita.fecha_estimada_atencion)} />
                     <DatoCita etiqueta="Observación del personal clínico" valor={cita.observacion} className="sm:col-span-2" />
                 </dl>
                 <form className="space-y-4" onSubmit={onSubmit}>

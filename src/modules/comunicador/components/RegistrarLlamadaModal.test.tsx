@@ -10,6 +10,7 @@ import { RegistrarLlamadaModal } from "./RegistrarLlamadaModal";
 
 const cita = {
     id_cita: "CITA-1",
+    priorizacion_clinica: null,
     priorizacion: null,
     disponibilidad: null,
     rut_usuario: "11.111.111-1",
@@ -28,10 +29,17 @@ beforeEach(() => {
 });
 
 describe("RegistrarLlamadaModal", () => {
-    it("muestra el contexto de la cita: RUT, estado, estamento, prestacion y observacion clinica", () => {
+    it("muestra el contexto de la cita: RUT, estado, estamento, prestacion, fecha estimada y observacion clinica", () => {
         render(
             <RegistrarLlamadaModal
-                cita={{ ...cita, profesion: "Médico", prestacion: "Control Cronico", estado_cita: "No contesta (1)", observacion: "Control PSM con Dr. Veas en junio" }}
+                cita={{
+                    ...cita,
+                    profesion: "Médico",
+                    prestacion: "Control Cronico",
+                    estado_cita: "No contesta (1)",
+                    fecha_estimada_atencion: new Date("2026-10-15T00:00:00"),
+                    observacion: "Control PSM con Dr. Veas en junio"
+                }}
                 telefonos="9 1234 5678"
                 correo="paciente@example.com"
                 onCerrar={vi.fn()}
@@ -43,7 +51,24 @@ describe("RegistrarLlamadaModal", () => {
         expect(screen.getByText("No contesta (1)")).toBeInTheDocument();
         expect(screen.getByText("Médico")).toBeInTheDocument();
         expect(screen.getByText("Control Cronico")).toBeInTheDocument();
+        expect(screen.getByText("Fecha estimada de atención")).toBeInTheDocument();
+        expect(screen.getByText("15-10-2026")).toBeInTheDocument();
         expect(screen.getByText("Control PSM con Dr. Veas en junio")).toBeInTheDocument();
+    });
+
+    it("muestra guion largo cuando la fecha estimada de atencion es nula", () => {
+        render(
+            <RegistrarLlamadaModal
+                cita={{ ...cita, fecha_estimada_atencion: null }}
+                telefonos="9 1234 5678"
+                correo="paciente@example.com"
+                onCerrar={vi.fn()}
+                onRegistrado={vi.fn()}
+            />
+        );
+
+        const termino = screen.getByText("Fecha estimada de atención");
+        expect(termino.parentElement?.querySelector("dd")).toHaveTextContent("—");
     });
 
     it("muestra el error de negocio y mantiene el modal sin notificar exito", async () => {
