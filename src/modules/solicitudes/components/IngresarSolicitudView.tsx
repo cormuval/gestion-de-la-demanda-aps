@@ -30,7 +30,8 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import type { Catalogos } from "@/modules/catalogos/types/catalogos";
 import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // utils
-import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada } from "@/modules/solicitudes/utils/duplicados";
+import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada, permiteSolicitudesActivasMultiples } from "@/modules/solicitudes/utils/duplicados";
+import { calcularEdad } from "@/modules/solicitudes/utils/priorizacion";
 
 type ResultadoUsuarioEncontrado = Extract<Awaited<ReturnType<typeof getUsuarioPorRut>>, { ok: true }>;
 type UsuarioConfirmado = NonNullable<ResultadoUsuarioEncontrado["data"]["usuario"]>;
@@ -169,11 +170,14 @@ export function IngresarSolicitudView({ centroActivoId }: { centroActivoId: stri
         if (!pendientes || !usuarioConfirmado || !solicitudForm.tipo_solicitud_id) return null;
         if (requiereMotivo && !solicitudForm.motivo_id) return null;
 
+        const tipoSolicitud = catalogos.tiposSolicitud.find((tipo) => String(tipo.id_tipo_solicitud) === solicitudForm.tipo_solicitud_id);
+        if (tipoSolicitud && permiteSolicitudesActivasMultiples(tipoSolicitud.nombre_tipo_solicitud)) return null;
+
         return buscarSolicitudDuplicada(pendientes.solicitudesPendientes, {
             tipo_solicitud_id: Number(solicitudForm.tipo_solicitud_id),
             motivo_id: requiereMotivo ? Number(solicitudForm.motivo_id) : null
         });
-    }, [pendientes, usuarioConfirmado, solicitudForm.tipo_solicitud_id, solicitudForm.motivo_id, requiereMotivo]);
+    }, [pendientes, usuarioConfirmado, solicitudForm.tipo_solicitud_id, solicitudForm.motivo_id, requiereMotivo, catalogos.tiposSolicitud]);
 
     function updateSolicitudField(field: keyof SolicitudFormState, value: string) {
         setSolicitudForm((current) => ({ ...current, [field]: value, ...(field === "tipo_solicitud_id" ? { motivo_id: "" } : {}) }));
@@ -563,6 +567,7 @@ function UsuarioStatus({
     }
 
     const centro = centros.find((c) => c.id_centro === usuario.centro_id);
+    const edad = calcularEdad(usuario.fecha_nacimiento);
     return (
         <div className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -572,6 +577,11 @@ function UsuarioStatus({
                 <span>
                     <strong>Nombre:</strong> {usuario.nombre} {usuario.apellido}
                 </span>
+                {edad === null ? (
+                    <span className="font-medium text-blue-700">Falta fecha de nacimiento</span>
+                ) : (
+                    <span><strong>Edad:</strong> {edad} años</span>
+                )}
                 {usuario.nombre_social && (
                     <span className="font-medium text-blue-700">
                         <strong>Nombre social:</strong> {usuario.nombre_social}

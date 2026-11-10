@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 // utils
-import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada } from "./duplicados";
+import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada, permiteSolicitudesActivasMultiples } from "./duplicados";
 
 const solicitudes = [
     { id_solicitud: "SOL-11111111-1111-1111-1111-111111111111", fecha_inicio: "2026-09-08T03:00:00Z", tipo_solicitud_id: 1, motivo_id: 10 },
@@ -33,5 +33,20 @@ describe("mensajeSolicitudDuplicada", () => {
                 fecha_inicio: "2026-09-09T02:30:00Z"
             })
         ).toBe("Ya existe la solicitud SOL-bcdef del 08-09-2026 en curso para este tipo y motivo. Debe cerrarse antes de ingresar una nueva.");
+    });
+});
+
+describe("permiteSolicitudesActivasMultiples", () => {
+    it("autoriza los dos programas configurados, ignorando mayusculas, tildes y espacios", () => {
+        expect(permiteSolicitudesActivasMultiples("Control cronico respiratorio")).toBe(true);
+        expect(permiteSolicitudesActivasMultiples("CONTROL CRÓNICO RESPIRATORIO")).toBe(true);
+        expect(permiteSolicitudesActivasMultiples("  Control de salud mental  ")).toBe(true);
+    });
+
+    it("rechaza nombres no autorizados y la cadena vacia", () => {
+        expect(permiteSolicitudesActivasMultiples("Programa respiratorio")).toBe(false);
+        expect(permiteSolicitudesActivasMultiples("Control salud mental")).toBe(false);
+        expect(permiteSolicitudesActivasMultiples("Respiratorio")).toBe(false);
+        expect(permiteSolicitudesActivasMultiples("")).toBe(false);
     });
 });

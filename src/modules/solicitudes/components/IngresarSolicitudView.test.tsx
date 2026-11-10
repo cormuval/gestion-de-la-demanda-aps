@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock("@/modules/catalogos/actions/getCatalogos.action", () => ({ getCatalogos: vi.fn() }));
@@ -22,6 +22,9 @@ import { getVoucherSolicitud } from "@/modules/solicitudes/actions/getVoucherSol
 import { IngresarSolicitudView } from "./IngresarSolicitudView";
 // lib
 import { toast } from "sonner";
+
+type PendientesExitosos = Extract<Awaited<ReturnType<typeof getPendientes>>, { ok: true }>["data"];
+type SolicitudPendiente = PendientesExitosos["solicitudesPendientes"][number];
 
 const usuarioConfirmado = {
     rut: "12345678-5",
@@ -46,17 +49,51 @@ const usuarioConfirmadoB = {
     nombre: "Paciente B"
 };
 
-const solicitudDuplicada = {
+const solicitudDuplicada: SolicitudPendiente = {
     id_solicitud: "SOL-duplicada",
     centro_id: "650",
     fecha_inicio: new Date("2026-07-02T12:00:00Z"),
+    rut_orientador: null,
+    rut_usuario: "12345678-5",
     descripcion: null,
+    ultimo_control: null,
+    disponibilidad_llamada: null,
+    priorizacion_admin: null,
+    rut_gestor: null,
+    razon_rechazo: null,
+    fecha_validacion: null,
     estado_solicitud: "En Curso",
     accion: "En espera de validación",
     tipo_solicitud_id: 1,
     motivo_id: 10,
-    tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
-    motivo: { nombre_motivo: "Control" }
+    observacion_rechazo: null,
+    tipoSolicitud: {
+        id_tipo_solicitud: 1,
+        nombre_tipo_solicitud: "Atencion",
+        estado: "Activo",
+        esperanza: null,
+        placeres: null,
+        padre_damian: null,
+        baron: null,
+        rodelillo: null,
+        reina_isabel: null,
+        placilla: null,
+        las_canas: null,
+        mena: null,
+        cordillera: null,
+        quebrada_verde: null,
+        cecosf_porvenir_bajo: null,
+        puertas_negras: null,
+        cecosf_laguna_verde: null,
+        cecosf_juan_pablo_ii: null,
+        desarrollo: null
+    },
+    motivo: {
+        id_motivo: 10,
+        tipo_solicitud_id: 1,
+        nombre_motivo: "Control",
+        estado: "Activo"
+    }
 };
 
 const pendientesConDuplicado = {
@@ -437,6 +474,72 @@ describe("IngresarSolicitudView mantener usuario", () => {
 });
 
 describe("IngresarSolicitudView duplicados", () => {
+    it("permite guardar Control cronico respiratorio aunque exista una solicitud pendiente coincidente", async () => {
+        vi.mocked(getCatalogos).mockResolvedValue({
+            tiposSolicitud: [{ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control cronico respiratorio" }],
+            motivos: [{ id_motivo: 10, tipo_solicitud_id: 1, nombre_motivo: "Control" }]
+        });
+
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud();
+
+        expect(screen.queryByText("Solicitud duplicada")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).not.toBeDisabled();
+    });
+
+    it("permite guardar Control de salud mental aunque exista una solicitud pendiente con el mismo motivo", async () => {
+        vi.mocked(getCatalogos).mockResolvedValue({
+            tiposSolicitud: [{ id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control de salud mental" }],
+            motivos: [{ id_motivo: 10, tipo_solicitud_id: 1, nombre_motivo: "Control" }]
+        });
+
+        await buscarRutConfirmado();
+        await completarFormularioSolicitud();
+
+        expect(screen.queryByText("Solicitud duplicada")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).not.toBeDisabled();
+    });
+
+    it("vuelve a bloquear el duplicado al cambiar desde un programa exceptuado a Atencion", async () => {
+        vi.mocked(getCatalogos).mockResolvedValue({
+            tiposSolicitud: [
+                { id_tipo_solicitud: 1, nombre_tipo_solicitud: "Control cronico respiratorio" },
+                { id_tipo_solicitud: 2, nombre_tipo_solicitud: "Atencion" }
+            ],
+            motivos: [
+                { id_motivo: 10, tipo_solicitud_id: 1, nombre_motivo: "Control respiratorio" },
+                { id_motivo: 20, tipo_solicitud_id: 2, nombre_motivo: "Control atencion" }
+            ]
+        });
+        vi.mocked(getPendientes).mockResolvedValue({
+            ok: true,
+            data: {
+                solicitudesPendientes: [
+                    solicitudDuplicada,
+                    { ...solicitudDuplicada, id_solicitud: "SOL-atencion", tipo_solicitud_id: 2, motivo_id: 20, tipoSolicitud: { nombre_tipo_solicitud: "Atencion" }, motivo: { nombre_motivo: "Control atencion" } }
+                ],
+                citasPendientes: []
+            }
+        } as Awaited<ReturnType<typeof getPendientes>>);
+
+        await buscarRutConfirmado();
+        const [tipoSolicitud] = screen.getAllByRole("combobox");
+        fireEvent.change(tipoSolicitud, { target: { value: "1" } });
+        const [, motivoRespiratorio, disponibilidad] = screen.getAllByRole("combobox");
+        fireEvent.change(motivoRespiratorio, { target: { value: "10" } });
+        fireEvent.change(disponibilidad, { target: { value: "Solo AM" } });
+
+        expect(screen.queryByText("Solicitud duplicada")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).not.toBeDisabled();
+
+        fireEvent.change(tipoSolicitud, { target: { value: "2" } });
+        const [, motivoAtencion] = screen.getAllByRole("combobox");
+        fireEvent.change(motivoAtencion, { target: { value: "20" } });
+
+        expect(screen.getByText("Solicitud duplicada")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Guardar solicitud" })).toBeDisabled();
+    });
+
     it("muestra aviso y deshabilita guardar cuando tipo y motivo ya tienen solicitud en curso", async () => {
         await buscarRutConfirmado();
         await completarFormularioSolicitud();
@@ -755,5 +858,75 @@ describe("IngresarSolicitudView guardado de usuario", () => {
         expect(screen.getAllByText("Editar usuario")).toHaveLength(2);
         expect(screen.getByDisplayValue("Paciente actualizado")).toBeInTheDocument();
         expect(toast.success).not.toHaveBeenCalled();
+    });
+});
+
+describe("IngresarSolicitudView edad del usuario", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-11-10T12:00:00"));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    async function buscarRutConfirmadoConTiempoFalso() {
+        render(<IngresarSolicitudView centroActivoId="650" />);
+
+        await act(async () => {
+            fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+            fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+            await Promise.resolve();
+        });
+    }
+
+    it("muestra los años cumplidos del usuario", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: new Date("1990-01-01T00:00:00") } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("Edad:")).toBeInTheDocument();
+        expect(screen.getByText("36 años")).toBeInTheDocument();
+    });
+
+    it("considera los cumpleaños aun no cumplidos", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: new Date("1990-12-01T00:00:00") } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("35 años")).toBeInTheDocument();
+    });
+
+    it("informa la fecha de nacimiento ausente sin bloquear la edicion", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: null } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("Falta fecha de nacimiento")).toHaveClass("font-medium", "text-blue-700");
+        expect(screen.queryByText("NaN años")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Editar usuario" })).toBeInTheDocument();
+    });
+
+    it("informa la fecha de nacimiento invalida sin bloquear la edicion", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: new Date("fecha-invalida") } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("Falta fecha de nacimiento")).toHaveClass("font-medium", "text-blue-700");
+        expect(screen.queryByText("NaN años")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Editar usuario" })).toBeInTheDocument();
     });
 });
