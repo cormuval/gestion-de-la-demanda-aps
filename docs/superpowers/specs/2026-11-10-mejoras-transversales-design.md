@@ -19,7 +19,7 @@ de otras solicitudes o citas pendientes del mismo paciente.
 | REQ-8 | Gestor, dentro de Solicitudes; Comunicador | Ordenar las filas de la página actual mediante encabezados. |
 | REQ-13 | Gestor y Comunicador | Buscar texto en todas las páginas del conjunto autorizado y filtrado. |
 | REQ-21 | Historial | Mostrar fecha y hora agendadas en el resumen de citas aceptadas exclusivamente. |
-| REQ-25 | Todas las superficies de identificación de pacientes, incluidos documentos y vouchers | Nombre legal y debajo «Nombre social: …» cuando exista. |
+| REQ-25 | Todas las superficies de identificación de pacientes, incluidos documentos, excepto vouchers | Nombre legal y debajo «Nombre social: …» cuando exista. |
 
 ## Decisiones y alternativas
 
@@ -161,16 +161,17 @@ antes de publicar y revisar índices si la evidencia posterior lo exige.
 - Incluir Ingreso, tabla y detalle de Gestor, tabla y modal de llamada de Comunicador,
   cabecera de Historial y las demás superficies existentes que identifiquen por nombre
   al paciente. Los campos de edición mantienen sus etiquetas y función actuales.
-- Incluir documentos y vouchers. El voucher actual solo muestra RUT: agregar nombre
-  legal y nombre social opcional tanto al emitir como al reimprimir. Mantener el
-  formato térmico y comprobar nombres extensos y saltos de línea.
+- Incluir documentos que presenten el nombre legal, con excepción de los vouchers.
+  Por privacidad, el voucher conserva su contenido actual: no se agrega nombre legal
+  ni nombre social, tanto al emitirlo como al reimprimirlo.
 - Revisar el inventario completo de presentaciones del paciente al elaborar el plan;
   los nombres de funcionarios, roles, centros y catálogos no corresponden a este cambio.
-- Extender las proyecciones y tipos de Comunicador, Historial y voucher con el nombre
+- Extender las proyecciones y tipos de Comunicador e Historial con el nombre
   social; no depender de abrir un formulario de edición para obtenerlo.
 - Usar una presentación compartida pequeña para los nombres en pantallas de varios
-  módulos, ubicada en `shared`. El voucher puede mantener marcado propio de impresión
-  respetando el mismo contenido. Los datos y consultas permanecen en sus módulos.
+  módulos, ubicada en `shared`. Los documentos incluidos respetan el mismo contenido.
+  Los datos y consultas permanecen en sus módulos; no se agregan campos de nombre
+  al contrato de datos del voucher.
 - Conservar las reglas de autorización y centro. En Historial, si el paciente no
   tiene solicitudes en el centro autorizado, tampoco se revela su nombre social.
 
@@ -183,8 +184,8 @@ de búsquedas no pueden reemplazar resultados de filtros o centro más recientes
 
 No se crean permisos, tablas ni un módulo General. No se amplía la búsqueda a todo
 el histórico o a otros centros. No se modifica la prioridad clínica ni se incorpora
-ordenamiento global. No se agrega persistencia histórica de nombres al voucher:
-la reimpresión utiliza los datos vigentes del paciente, como fuente definida aquí.
+ordenamiento global. Los vouchers quedan excluidos de la incorporación de nombres
+por privacidad, incluyendo su emisión y reimpresión.
 
 ## Validación y criterios de aceptación
 
@@ -200,8 +201,9 @@ la reimpresión utiliza los datos vigentes del paciente, como fuente definida aq
 5. Cita aceptada: fecha agendada visible sin desplegar llamadas; dato ausente: mensaje
    acordado. Otros estados: ausencia total del campo, aunque haya llamadas previas
    aceptadas. Cubrir varias aceptaciones y conversión horaria.
-6. Nombre social presente, ausente y extenso en cada superficie inventariada, incluyendo
-   emisión y reimpresión del voucher. Mantener nombre legal, RUT y restricciones de acceso.
+6. Nombre social presente, ausente y extenso en cada superficie incluida en el inventario.
+   Mantener nombre legal, RUT y restricciones de acceso. Comprobar que ni la emisión
+   ni la reimpresión del voucher incorporan nombre legal o nombre social.
 7. Medir consultas completas de búsqueda con datos representativos de los centros de
    mayor volumen, documentando latencia y plan de ejecución; comparar con la base actual.
 8. Ejecutar pruebas pertinentes de Vitest/Testing Library y los checks del proyecto
