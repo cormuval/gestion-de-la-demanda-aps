@@ -28,7 +28,7 @@ import { PermisosRolModal, type RolConPermisos } from "@/modules/configuracion/c
 // config
 import { esPermiso, type Permiso } from "@/config/permisos";
 // utils
-import { esNombreReservado, esSubconjunto } from "@/modules/configuracion/utils/privilegios";
+import { esSubconjunto } from "@/modules/configuracion/utils/privilegios";
 
 type ConfigData = Awaited<ReturnType<typeof getMantenedoresConfig>>;
 type TabKey = "tipos" | "motivos" | "roles" | "profesionales" | "prestaciones" | "funcionarios";
@@ -143,7 +143,6 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
     const tiposActivos = useMemo(() => data.tiposSolicitud.filter((tipo) => tipo.estado === "1"), [data.tiposSolicitud]);
     const profesionalesActivos = useMemo(() => data.profesionales.filter((profesional) => profesional.estado === "Activo"), [data.profesionales]);
     const rolesActivos = useMemo(() => data.rolesCatalogo.filter((rol) => rol.estado === "Activo"), [data.rolesCatalogo]);
-    const editandoRolReservado = Boolean(rolForm.id_rol && esNombreReservado(rolPorId(rolForm.id_rol)?.nombre_rol ?? ""));
     const editandoFuncionarioPropio = Boolean(editingFuncionarioRut && actor?.rut === editingFuncionarioRut);
     const programaRequerido = requiereProgramaAsociado(rolPorId(Number(funcionarioForm.rol_id))?.nombre_rol);
 
@@ -711,7 +710,6 @@ export function UsuariosRolesView({ permisos, actor }: { permisos: Permiso[]; ac
                             onChange={(event) => setRolForm((current) => ({ ...current, nombre_rol: event.target.value }))}
                             required
                             maxLength={50}
-                            disabled={editandoRolReservado}
                         />
                     </Field>
                     <Field label="Estado">

@@ -1,14 +1,11 @@
 // config
 import { PERMISOS, type Permiso } from "@/config/permisos";
 
-export const NOMBRE_ROL_RESERVADO = "Administrador";
-
 export const MENSAJES_PRIVILEGIOS = {
     funcionarioSuperior: "No puedes editar a un funcionario con mas privilegios que tu",
     autoFuncionario: "No puedes cambiar tu propio rol, estado o centro",
     autoRol: "No puedes renombrar ni desactivar tu propio rol",
     rolSuperior: "No puedes editar un rol con mas privilegios que el tuyo",
-    nombreReservado: "El nombre «Administrador» esta reservado",
     quitarConfigRolesPropio: "No puedes quitar el permiso de editar roles a tu propio rol",
     ultimoAdministrador: "Debe quedar al menos un administrador activo"
 } as const;
@@ -71,10 +68,6 @@ export function permisosFaltantes(permisos: Iterable<Permiso>, de: ReadonlySet<P
     return [...permisos].filter((permiso) => !de.has(permiso));
 }
 
-export function esNombreReservado(nombre: string): boolean {
-    return nombre.trim().toLocaleLowerCase("es-CL") === NOMBRE_ROL_RESERVADO.toLocaleLowerCase("es-CL");
-}
-
 export function quedaAdministrador(admins: AdminEvaluado[], cambio: CambioAdmin): boolean {
     return admins.some((admin) => {
         if (cambio.tipo === "funcionario") return admin.rut !== cambio.rut;
@@ -120,13 +113,6 @@ export function validarEdicionFuncionario(ctx: EdicionFuncionarioCtx): string | 
 }
 
 export function validarEdicionRol(ctx: EdicionRolCtx): string | null {
-    const nombreActualReservado = ctx.rolActual ? esNombreReservado(ctx.rolActual.nombre_rol) : false;
-    const nombreNuevoReservado = esNombreReservado(ctx.data.nombre_rol);
-    const renombra = ctx.rolActual ? ctx.rolActual.nombre_rol.trim() !== ctx.data.nombre_rol.trim() : false;
-    if ((!ctx.rolActual && nombreNuevoReservado) || (ctx.rolActual && renombra && (nombreActualReservado || nombreNuevoReservado))) {
-        return MENSAJES_PRIVILEGIOS.nombreReservado;
-    }
-
     if (!ctx.rolActual) return null;
 
     if (ctx.rolActual.id_rol === ctx.actorRolId && (ctx.rolActual.nombre_rol !== ctx.data.nombre_rol || ctx.rolActual.estado !== ctx.data.estado)) {

@@ -12,7 +12,7 @@ const SEED_DEMO = process.env.SEED_DEMO !== "false";
 
 
 const rolePermisos: Record<string, Permiso[]> = {
-    Administrador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "some.ver", "config.ver", "config.funcionarios", "config.roles", "config.catalogos", "historial.ver"],
+    Administrador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "some.ver", "some.todos_centros", "config.ver", "config.funcionarios", "config.roles", "config.catalogos", "historial.ver"],
     Orientador: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "historial.ver"],
     Comunicador: ["comunicador.ver", "comunicador.llamar", "comunicador.paciente", "historial.ver"],
     SOME: ["solicitudes.ver", "solicitudes.crear", "solicitudes.gestionar", "comunicador.ver", "comunicador.llamar", "comunicador.paciente", "dashboard.ver", "some.ver", "config.ver", "config.funcionarios", "historial.ver"],

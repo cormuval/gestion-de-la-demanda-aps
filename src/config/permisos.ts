@@ -10,6 +10,7 @@ export const PERMISOS = {
     "comunicador.paciente": { modulo: "Contactar pacientes", etiqueta: "Editar datos del paciente" },
     "dashboard.ver": { modulo: "Dashboard", etiqueta: "Ver indicadores" },
     "some.ver": { modulo: "SOME", etiqueta: "Ver panel SOME" },
+    "some.todos_centros": { modulo: "SOME", etiqueta: "Ver todos los centros en SOME" },
     "config.ver": { modulo: "Configuracion", etiqueta: "Ver configuracion" },
     "config.funcionarios": { modulo: "Configuracion", etiqueta: "Editar funcionarios" },
     "config.roles": { modulo: "Configuracion", etiqueta: "Editar roles y permisos" },
