@@ -12,12 +12,15 @@ vi.mock("@/modules/solicitudes/actions/getCentros.action", () => ({ getCentros: 
 vi.mock("@/modules/comunicador/hooks/useUsuarioEdit", () => ({
     useUsuarioEdit: () => ({ open: estadoMocks.usuarioEditOpen, form: {}, saving: false, abrir: vi.fn(), cerrar: vi.fn(), onChange: vi.fn(), onSubmit: vi.fn() })
 }));
-vi.mock("./CitasFiltros", () => ({
-    CitasFiltros: ({ valor, onCambio }: { valor: Record<string, string>; onCambio: (v: Record<string, string>) => void }) => (
-        <input aria-label="RUT filtro" value={valor.rut} onChange={(e) => onCambio({ ...valor, rut: e.target.value })} />
-    ),
-    FILTROS_INICIALES: { temporalidad: "", estado: "", profesional_id: "", prestacion: "", edadMin: "", edadMax: "", fechaDesde: "", fechaHasta: "", rut: "", sector: "" }
-}));
+vi.mock("./CitasFiltros", async (importOriginal) => {
+    const real = await importOriginal<typeof import("./CitasFiltros")>();
+    return {
+        ...real,
+        CitasFiltros: ({ valor, onCambio }: { valor: Record<string, string>; onCambio: (v: Record<string, string>) => void }) => (
+            <input aria-label="RUT filtro" value={valor.rut} onChange={(e) => onCambio({ ...valor, rut: e.target.value })} />
+        )
+    };
+});
 vi.mock("./CitasPendientesTabla", () => ({
     CitasPendientesTabla: ({ filas, total, citaSiguienteId, onPagina, onGestionar, renderAcciones }: {
         filas: { id_cita: string }[];
@@ -556,5 +559,50 @@ describe("ComunicadorView cita siguiente tras gestionar", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Pagina 2" }));
         expect(await screen.findByText("Cita siguiente: ninguna")).toBeInTheDocument();
+    });
+});
+
+describe("ComunicadorView filtros por defecto y detalle activo", () => {
+    it("carga la cola por defecto con la temporalidad Agendamientos proximos", async () => {
+        vi.mocked(getCitasPendientes).mockResolvedValue(respuestaConLista([]));
+
+        render(<ComunicadorView />);
+
+        await screen.findByText("Tabla con 0 citas");
+        expect(vi.mocked(getCitasPendientes).mock.calls[0][0]).toMatchObject({ temporalidad: "Agendamientos próximos" });
+    });
+
+    it("la temporalidad por defecto no cuenta como filtro activo", async () => {
+        vi.mocked(getCitasPendientes).mockResolvedValue(respuestaConLista([]));
+
+        render(<ComunicadorView />);
+
+        expect(screen.getByRole("button", { name: "Filtros" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Filtros" })).not.toHaveTextContent("0");
+        expect(screen.queryByText(/Temporalidad:/)).not.toBeInTheDocument();
+    });
+
+    it("muestra los filtros aplicados como chips que desaparecen al limpiar", async () => {
+        vi.mocked(getCitasPendientes)
+            .mockResolvedValueOnce(respuestaConLista(["CITA-1"]))
+            .mockResolvedValueOnce(respuestaConLista([]))
+            .mockResolvedValue(respuestaConLista(["CITA-1"]));
+
+        render(<ComunicadorView />);
+        await screen.findByText("CITA-1");
+
+        fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.change(within(panel).getByLabelText("RUT filtro"), { target: { value: "99999999-9" } });
+        fireEvent.click(within(panel).getByRole("button", { name: /Aplicar filtros/i }));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
+
+        expect(screen.getByText("RUT: 99999999-9")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /Limpiar filtros/ }));
+
+        await waitFor(() => expect(screen.queryByText("RUT: 99999999-9")).not.toBeInTheDocument());
+        expect(vi.mocked(getCitasPendientes).mock.calls[2][0]).toMatchObject({ temporalidad: "Agendamientos próximos" });
+        expect((vi.mocked(getCitasPendientes).mock.calls[2][0] as { rut?: string }).rut).toBeFalsy();
     });
 });

@@ -13,7 +13,7 @@ import { getCentros, type CentroOption } from "@/modules/solicitudes/actions/get
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
-import { CitasFiltros, CitasFiltrosUI, FILTROS_INICIALES } from "@/modules/comunicador/components/CitasFiltros";
+import { CitasFiltros, CitasFiltrosUI, FILTROS_INICIALES, detalleFiltrosActivos } from "@/modules/comunicador/components/CitasFiltros";
 import { CitasPendientesTabla } from "@/modules/comunicador/components/CitasPendientesTabla";
 import { RegistrarLlamadaModal } from "@/modules/comunicador/components/RegistrarLlamadaModal";
 import { CitaAccionesMenu } from "@/modules/comunicador/components/CitaAccionesMenu";
@@ -200,6 +200,7 @@ export function ComunicadorView() {
                     <PanelFiltros
                         descripcion="Filtra por temporalidad, estado, profesión, prestación, edad, fecha estimada, RUT y sector."
                         activos={contarFiltrosActivos(aplicados, [], FILTROS_INICIALES)}
+                        activosDetalle={detalleFiltrosActivos(aplicados, opciones)}
                         onAplicar={() => {
                             candidatosSiguienteRef.current = null;
                             setCitaSiguienteId(null);
