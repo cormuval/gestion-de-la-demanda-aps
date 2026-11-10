@@ -106,4 +106,37 @@ describe("CitasPendientesTabla", () => {
         const botonLlamarSiguiente = within(filaSiguiente!).getByRole("button", { name: "Llamar" });
         expect(document.activeElement).toBe(botonLlamarSiguiente);
     });
+
+    it("mantiene las acciones en una sola linea sin flex-wrap, celdas compactas y clasifica puntaje 60 como Alta · 60", () => {
+        const citaPuntaje60Media: CitaFila = {
+            ...cita,
+            id_cita: "PLA-66b62",
+            priorizacion_clinica: "Media",
+            priorizacion: 60,
+            tiene_llamada_hoy: false
+        };
+
+        render(
+            <CitasPendientesTabla
+                filas={[citaPuntaje60Media]}
+                total={1}
+                pagina={1}
+                porPagina={100}
+                onPagina={vi.fn()}
+                onGestionar={vi.fn()}
+                renderAcciones={() => <button type="button">Mas acciones</button>}
+            />
+        );
+
+        expect(screen.getByText("Alta · 60")).toBeInTheDocument();
+        expect(screen.queryByText("Media · 60")).not.toBeInTheDocument();
+
+        const botonLlamar = screen.getByRole("button", { name: "Llamar" });
+        const contenedorAcciones = botonLlamar.parentElement;
+        expect(contenedorAcciones).not.toHaveClass("flex-wrap");
+        expect(contenedorAcciones).toHaveClass("whitespace-nowrap");
+
+        expect(screen.getByText("Paciente Demo")).toHaveClass("line-clamp-1");
+        expect(screen.getByText("Consulta medica")).toHaveClass("line-clamp-1");
+    });
 });

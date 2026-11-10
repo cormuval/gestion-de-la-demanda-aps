@@ -15,7 +15,7 @@ export function CitaAccionesMenu({ cita, onVerHistorial, onVerOtrasCitas, onEdit
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Más acciones">
+                <Button variant="outline" size="icon" className="size-8" aria-label="Más acciones">
                     <MoreVertical size={16} />
                 </Button>
             </DropdownMenuTrigger>
