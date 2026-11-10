@@ -31,6 +31,7 @@ import type { Catalogos } from "@/modules/catalogos/types/catalogos";
 import type { VoucherSolicitud } from "@/modules/solicitudes/types/voucher";
 // utils
 import { buscarSolicitudDuplicada, mensajeSolicitudDuplicada, permiteSolicitudesActivasMultiples } from "@/modules/solicitudes/utils/duplicados";
+import { calcularEdad } from "@/modules/solicitudes/utils/priorizacion";
 
 type ResultadoUsuarioEncontrado = Extract<Awaited<ReturnType<typeof getUsuarioPorRut>>, { ok: true }>;
 type UsuarioConfirmado = NonNullable<ResultadoUsuarioEncontrado["data"]["usuario"]>;
@@ -566,6 +567,7 @@ function UsuarioStatus({
     }
 
     const centro = centros.find((c) => c.id_centro === usuario.centro_id);
+    const edad = calcularEdad(usuario.fecha_nacimiento);
     return (
         <div className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -574,6 +576,9 @@ function UsuarioStatus({
                 </span>
                 <span>
                     <strong>Nombre:</strong> {usuario.nombre} {usuario.apellido}
+                </span>
+                <span>
+                    {edad === null ? "Falta fecha de nacimiento" : <><strong>Edad:</strong> {edad} años</>}
                 </span>
                 {usuario.nombre_social && (
                     <span className="font-medium text-blue-700">

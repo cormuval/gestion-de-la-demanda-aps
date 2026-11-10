@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock("@/modules/catalogos/actions/getCatalogos.action", () => ({ getCatalogos: vi.fn() }));
@@ -821,5 +821,75 @@ describe("IngresarSolicitudView guardado de usuario", () => {
         expect(screen.getAllByText("Editar usuario")).toHaveLength(2);
         expect(screen.getByDisplayValue("Paciente actualizado")).toBeInTheDocument();
         expect(toast.success).not.toHaveBeenCalled();
+    });
+});
+
+describe("IngresarSolicitudView edad del usuario", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-11-10T12:00:00"));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    async function buscarRutConfirmadoConTiempoFalso() {
+        render(<IngresarSolicitudView centroActivoId="650" />);
+
+        await act(async () => {
+            fireEvent.change(screen.getByPlaceholderText("RUT usuario"), { target: { value: "12.345.678-5" } });
+            fireEvent.click(screen.getByRole("button", { name: /Buscar pendientes/i }));
+            await Promise.resolve();
+        });
+    }
+
+    it("muestra los años cumplidos del usuario", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: new Date("1990-01-01T00:00:00") } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("Edad:")).toBeInTheDocument();
+        expect(screen.getByText("36 años")).toBeInTheDocument();
+    });
+
+    it("considera los cumpleaños aun no cumplidos", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: new Date("1990-12-01T00:00:00") } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("35 años")).toBeInTheDocument();
+    });
+
+    it("informa la fecha de nacimiento ausente sin bloquear la edicion", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: null } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("Falta fecha de nacimiento")).toBeInTheDocument();
+        expect(screen.queryByText("NaN años")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Editar usuario" })).toBeInTheDocument();
+    });
+
+    it("informa la fecha de nacimiento invalida sin bloquear la edicion", async () => {
+        vi.mocked(getUsuarioPorRut).mockResolvedValueOnce({
+            ok: true,
+            data: { usuario: { ...usuarioConfirmado, fecha_nacimiento: "fecha-invalida" } }
+        } as Awaited<ReturnType<typeof getUsuarioPorRut>>);
+
+        await buscarRutConfirmadoConTiempoFalso();
+
+        expect(screen.getByText("Falta fecha de nacimiento")).toBeInTheDocument();
+        expect(screen.queryByText("NaN años")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Editar usuario" })).toBeInTheDocument();
     });
 });
