@@ -83,6 +83,20 @@ describe("PanelFiltros", () => {
         fireEvent.click(screen.getByText("Estado: Sin llamadas"));
         await waitFor(() => expect(screen.getByRole("dialog", { name: "Filtros" })).toBeInTheDocument());
     });
+
+    it("mantiene el detalle y Limpiar a la izquierda del boton Filtros en el orden de lectura", () => {
+        renderPanel({
+            activos: 2,
+            activosDetalle: [{ etiqueta: "Estado", valor: "Sin llamadas" }]
+        });
+
+        const boton = screen.getByRole("button", { name: /Filtros/ });
+        const chip = screen.getByText("Estado: Sin llamadas");
+        const limpiar = screen.getByRole("button", { name: /Limpiar filtros/ });
+        // El chip y Limpiar preceden al boton Filtros (quedan a su izquierda); el boton no se desplaza.
+        expect(chip.compareDocumentPosition(boton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(limpiar.compareDocumentPosition(boton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
 });
 
 describe("contarFiltrosActivos", () => {

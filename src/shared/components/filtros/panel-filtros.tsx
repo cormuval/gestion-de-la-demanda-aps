@@ -38,23 +38,18 @@ export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplic
     }
 
     return (
-        <div className="flex flex-wrap items-center gap-2">
-            {activos > 0 && (
-                <Button type="button" variant="ghost" size="sm" onClick={onLimpiar}>
-                    <X size={16} />
-                    Limpiar filtros
-                </Button>
-            )}
-            <Sheet open={abierto} onOpenChange={setAbierto}>
-                <SheetTrigger asChild>
-                    <Button type="button" variant="outline" size="sm" aria-label={activos > 0 ? `Filtros (${activos} activos)` : "Filtros"} onClick={abrir}>
-                        <Filter size={16} />
-                        Filtros
-                        {activos > 0 && <Badge>{activos}</Badge>}
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+            {/* Area flexible del detalle: badges y Limpiar crecen a la izquierda del boton y pasan
+                a nuevas filas cuando no caben; Filtros queda fijo al extremo derecho sin encogerse. */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+                {activos > 0 && (
+                    <Button type="button" variant="ghost" size="sm" onClick={onLimpiar}>
+                        <X size={16} />
+                        Limpiar filtros
                     </Button>
-                </SheetTrigger>
+                )}
                 {activosDetalle.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex min-w-0 flex-wrap gap-2">
                         {activosDetalle.map((f) => (
                             <Badge
                                 key={`${f.etiqueta}:${f.valor}`}
@@ -69,6 +64,15 @@ export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplic
                         ))}
                     </div>
                 )}
+            </div>
+            <Sheet open={abierto} onOpenChange={setAbierto}>
+                <SheetTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" className="shrink-0" aria-label={activos > 0 ? `Filtros (${activos} activos)` : "Filtros"} onClick={abrir}>
+                        <Filter size={16} />
+                        Filtros
+                        {activos > 0 && <Badge>{activos}</Badge>}
+                    </Button>
+                </SheetTrigger>
                 <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
                     <SheetHeader>
                         <SheetTitle>Filtros</SheetTitle>
