@@ -51,6 +51,7 @@ describe("RegistrarLlamadaModal", () => {
 
         expect(screen.getByRole("dialog", { name: "Cierre administrativo de cita" })).toBeInTheDocument();
         expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Registrar" })).not.toBeInTheDocument();
         const observacion = screen.getByRole("textbox", { name: "Motivo del cierre" });
         expect(observacion).toHaveAttribute("maxlength", "350");
         expect(screen.getByText("0/350")).toBeInTheDocument();
