@@ -59,6 +59,9 @@ function DatoCita({ etiqueta, valor, className }: { etiqueta: string; valor: str
 
 export function RegistrarLlamadaModal({ cita, telefonos, correo, modo = "comunicador", onCerrar, onRegistrado, onCitaCerrada }: RegistrarLlamadaModalProps) {
     const esGestionSolicitudes = modo === "gestion_solicitudes";
+    const tituloModal = esGestionSolicitudes ? "Cierre administrativo de cita" : "Registrar llamada";
+    const etiquetaObservacion = esGestionSolicitudes ? "Motivo del cierre" : "Observación";
+    const textoSubmit = esGestionSolicitudes ? "Cerrar cita" : "Registrar";
     const [respuesta, setRespuesta] = useState<string>(RESPUESTA_LLAMADA.NO_CONTESTA);
     const [observacion, setObservacion] = useState("");
     const [horaAgendada, setHoraAgendada] = useState("");
@@ -96,7 +99,7 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, modo = "comunic
         <Dialog open onOpenChange={(open) => !open && onCerrar()}>
             <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Registrar llamada</DialogTitle>
+                    <DialogTitle>{tituloModal}</DialogTitle>
                     <DialogDescription asChild>
                         <div className="flex flex-col gap-1">
                             <p>Cita {acortarId(cita.id_cita)}<NombrePaciente nombreLegal={cita.nombre_usuario} nombreSocial={cita.nombre_social} /></p>
@@ -135,13 +138,13 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, modo = "comunic
                             </Field>
                         )}
                         <Field>
-                            <FieldLabel htmlFor="observacion-llamada">Observación</FieldLabel>
+                            <FieldLabel htmlFor="observacion-llamada">{etiquetaObservacion}</FieldLabel>
                             <Textarea id="observacion-llamada" maxLength={350} value={observacion} onChange={(event) => setObservacion(event.target.value)} />
                             <FieldDescription className="text-right">{observacion.length}/350</FieldDescription>
                         </Field>
                         <div className="flex justify-end gap-2">
                             <Button type="button" variant="outline" onClick={onCerrar}>Cancelar</Button>
-                            <Button type="submit" disabled={enviando}>{enviando ? "Registrando..." : "Registrar"}</Button>
+                            <Button type="submit" disabled={enviando}>{enviando ? "Registrando..." : textoSubmit}</Button>
                         </div>
                     </FieldGroup>
                 </form>

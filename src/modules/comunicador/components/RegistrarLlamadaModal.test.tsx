@@ -49,7 +49,9 @@ describe("RegistrarLlamadaModal", () => {
             />
         );
 
-        const observacion = screen.getByRole("textbox", { name: "Observación" });
+        expect(screen.getByRole("dialog", { name: "Cierre administrativo de cita" })).toBeInTheDocument();
+        expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument();
+        const observacion = screen.getByRole("textbox", { name: "Motivo del cierre" });
         expect(observacion).toHaveAttribute("maxlength", "350");
         expect(screen.getByText("0/350")).toBeInTheDocument();
         expect(screen.getByText(RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA)).toBeInTheDocument();
@@ -58,7 +60,7 @@ describe("RegistrarLlamadaModal", () => {
         expect(screen.queryByLabelText("Hora agendada")).not.toBeInTheDocument();
 
         fireEvent.change(observacion, { target: { value: "  Ya no requiere esta prestacion  " } });
-        fireEvent.submit(screen.getByRole("button", { name: "Registrar" }).closest("form")!);
+        fireEvent.submit(screen.getByRole("button", { name: "Cerrar cita" }).closest("form")!);
 
         await waitFor(() => expect(registrarLlamada).toHaveBeenCalledWith({
             cita_id: "CITA-1",
@@ -86,13 +88,13 @@ describe("RegistrarLlamadaModal", () => {
             />
         );
 
-        fireEvent.submit(screen.getByRole("button", { name: "Registrar" }).closest("form")!);
+        fireEvent.submit(screen.getByRole("button", { name: "Cerrar cita" }).closest("form")!);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No tienes permiso para esta operacion"));
         expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    it("conserva en Comunicador el selector de respuestas", () => {
+    it("conserva en Comunicador el titulo, selector y observacion actuales", () => {
         render(
             <RegistrarLlamadaModal
                 cita={cita}
@@ -103,8 +105,11 @@ describe("RegistrarLlamadaModal", () => {
             />
         );
 
+        expect(screen.getByRole("dialog", { name: "Registrar llamada" })).toBeInTheDocument();
         expect(screen.getByRole("combobox", { name: "Respuesta" })).toBeInTheDocument();
+        expect(screen.getByRole("textbox", { name: "Observación" })).toBeInTheDocument();
         expect(screen.getByRole("option", { name: RESPUESTA_LLAMADA.NO_CONTESTA })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Registrar" })).toBeInTheDocument();
     });
 
     it("muestra el contexto de la cita: RUT, estado, estamento, prestacion, fecha estimada y observacion clinica", () => {

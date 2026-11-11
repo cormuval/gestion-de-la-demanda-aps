@@ -1189,9 +1189,9 @@ function OtrasSolicitudesModal({
                         accionesCita={(cita) => (
                             <div className="flex flex-wrap justify-end gap-2">
                                 {cita.puedeRegistrarRechazo && (
-                                    <Button type="button" variant="outline" size="sm" onClick={() => onRegistrarRechazoCita(cita)}>
+                                    <Button type="button" size="sm" onClick={() => onRegistrarRechazoCita(cita)}>
                                         <X data-icon="inline-start" />
-                                        Registrar llamada
+                                        Cerrar cita
                                     </Button>
                                 )}
                                 {cita.editable && (

@@ -126,7 +126,7 @@ function abrirFiltros() {
 }
 
 describe("RevisarSolicitudesView contexto de citas", () => {
-    it("abre la llamada con los datos de la solicitud asociada por solicitud_id y recarga al guardar", async () => {
+    it("abre el cierre administrativo con los datos de la solicitud asociada y recarga al guardar", async () => {
         render(<RevisarSolicitudesView />);
 
         await screen.findByText("SOL-1");
@@ -134,17 +134,21 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
-        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar llamada" }));
+        const cerrarCita = within(modalContexto).getByRole("button", { name: "Cerrar cita" });
+        expect(cerrarCita).toHaveClass("bg-primary");
+        expect(cerrarCita).not.toHaveClass("border-input");
+        expect(within(modalContexto).queryByRole("button", { name: "Registrar llamada" })).not.toBeInTheDocument();
+        fireEvent.click(cerrarCita);
 
-        const modalLlamada = await screen.findByRole("dialog", { name: "Registrar llamada" });
+        const modalLlamada = await screen.findByRole("dialog", { name: "Cierre administrativo de cita" });
         expect(within(modalLlamada).getByText("Paciente Asociada")).toBeInTheDocument();
         expect(within(modalLlamada).getByText("Nombre social: Social Asociada")).toBeInTheDocument();
         expect(within(modalLlamada).getByText("Teléfonos: 32 222 2222 · 9 8765 4321")).toBeInTheDocument();
         expect(within(modalLlamada).getByText("Correo: asociada@example.com")).toBeInTheDocument();
         expect(within(modalLlamada).queryByText("Juan Perez")).not.toBeInTheDocument();
-        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Registrar" }));
+        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Cerrar cita" }));
 
-        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Cierre administrativo de cita" })).not.toBeInTheDocument());
         await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
     });
 
@@ -157,11 +161,11 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
-        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar llamada" }));
-        const modalLlamada = await screen.findByRole("dialog", { name: "Registrar llamada" });
-        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Registrar" }));
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Cerrar cita" }));
+        const modalLlamada = await screen.findByRole("dialog", { name: "Cierre administrativo de cita" });
+        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Cerrar cita" }));
 
-        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Cierre administrativo de cita" })).not.toBeInTheDocument());
         await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
     });
 
@@ -191,7 +195,7 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
-        expect(within(modalContexto).queryByRole("button", { name: "Registrar llamada" })).not.toBeInTheDocument();
+        expect(within(modalContexto).queryByRole("button", { name: "Cerrar cita" })).not.toBeInTheDocument();
         expect(within(modalContexto).getByRole("button", { name: "Editar" })).toBeInTheDocument();
     });
 
