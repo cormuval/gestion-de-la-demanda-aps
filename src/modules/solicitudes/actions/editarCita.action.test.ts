@@ -23,6 +23,9 @@ const fechaValida = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
 beforeEach(() => {
     vi.clearAllMocks();
+    tx.$queryRaw.mockReset();
+    tx.cita.findUnique.mockReset();
+    tx.cita.update.mockReset();
     (requirePermiso as any).mockResolvedValue({
         rut: "22.222.222-2",
         email: "gestor@demo.local",
@@ -91,6 +94,50 @@ describe("editarCita", () => {
         });
     });
 
+    it("permite cambiar prioridad conservando la fecha historica persistida", async () => {
+        const fechaHistorica = new Date("2026-01-27T00:00:00.000Z");
+        tx.cita.findUnique.mockResolvedValueOnce({
+            id_cita: "CITA-1",
+            centro_id: "650",
+            estado_cita: "Sin llamadas",
+            priorizacion_clinica: "Alta",
+            priorizacion: 70,
+            fecha_estimada_atencion: fechaHistorica,
+            usuario: { priorizacion_administrativa: 10 },
+            _count: { llamadas: 0 }
+        });
+        tx.cita.update.mockResolvedValueOnce({
+            id_cita: "CITA-1",
+            priorizacion_clinica: "Media",
+            priorizacion: 50,
+            fecha_estimada_atencion: fechaHistorica
+        });
+
+        const result = await editarCita({
+            id_cita: "CITA-1",
+            priorizacion_clinica: "Media",
+            fecha_estimada_atencion: "2026-01-27"
+        });
+
+        expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+        expect(tx.cita.update).toHaveBeenCalledWith(expect.objectContaining({
+            data: {
+                priorizacion_clinica: "Media",
+                fecha_estimada_atencion: fechaHistorica,
+                priorizacion: 50
+            }
+        }));
+        expect(result).toEqual({
+            ok: true,
+            data: {
+                id_cita: "CITA-1",
+                priorizacion_clinica: "Media",
+                priorizacion: 50,
+                fecha_estimada_atencion: fechaHistorica
+            }
+        });
+    });
+
     it("bloquea cita inexistente u otro centro sin escribir", async () => {
         tx.cita.findUnique.mockResolvedValueOnce(null);
         await expect(editarCita({ id_cita: "CITA-X", priorizacion_clinica: "Media", fecha_estimada_atencion: fechaValida })).resolves.toEqual({
@@ -153,13 +200,23 @@ describe("editarCita", () => {
         expect(tx.cita.update).not.toHaveBeenCalled();
     });
 
-    it("bloquea fecha anterior a hoy antes de abrir transaccion", async () => {
-        const ayer = new Date();
-        ayer.setHours(0, 0, 0, 0);
-        ayer.setDate(ayer.getDate() - 1);
-        const fechaAyer = ayer.toISOString().slice(0, 10);
-        const result = await editarCita({ id_cita: "CITA-1", priorizacion_clinica: "Media", fecha_estimada_atencion: fechaAyer });
+    it("bloquea una nueva fecha historica aunque la cita ya tenga otra fecha historica", async () => {
+        tx.cita.findUnique.mockResolvedValueOnce({
+            id_cita: "CITA-1",
+            centro_id: "650",
+            estado_cita: "Sin llamadas",
+            priorizacion_clinica: "Alta",
+            priorizacion: 70,
+            fecha_estimada_atencion: new Date("2026-01-27T00:00:00.000Z"),
+            usuario: { priorizacion_administrativa: 10 },
+            _count: { llamadas: 0 }
+        });
+
+        const result = await editarCita({ id_cita: "CITA-1", priorizacion_clinica: "Media", fecha_estimada_atencion: "2026-01-26" });
+
         expect(result).toEqual({ ok: false, error: "La fecha estimada no puede ser anterior a hoy" });
-        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+        expect(tx.cita.update).not.toHaveBeenCalled();
     });
 });

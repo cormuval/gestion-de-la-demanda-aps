@@ -11,6 +11,7 @@ vi.mock("@/modules/solicitudes/actions/guardarUsuario.action", () => ({ actualiz
 vi.mock("@/modules/solicitudes/actions/getOtrasSolicitudes.action", () => ({ getOtrasSolicitudes: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/editarCita.action", () => ({ editarCita: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/verificarSolicitudPendiente.action", () => ({ verificarSolicitudPendiente: vi.fn() }));
+vi.mock("@/modules/comunicador/actions/registrarLlamada.action", () => ({ registrarLlamada: vi.fn() }));
 vi.mock("@/shared/components/ui/dropdown-menu", () => ({
     DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -25,13 +26,16 @@ vi.mock("@/shared/components/ui/dropdown-menu", () => ({
 
 // actions
 import { getOtrasSolicitudes } from "@/modules/solicitudes/actions/getOtrasSolicitudes.action";
+import { editarCita } from "@/modules/solicitudes/actions/editarCita.action";
 import { getRevisionCatalogos } from "@/modules/solicitudes/actions/getRevisionCatalogos.action";
 import { getSolicitudes } from "@/modules/solicitudes/actions/getSolicitudes.action";
 import { gestionarSolicitud } from "@/modules/solicitudes/actions/gestionarSolicitud.action";
 import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 import { verificarSolicitudPendiente } from "@/modules/solicitudes/actions/verificarSolicitudPendiente.action";
+import { registrarLlamada } from "@/modules/comunicador/actions/registrarLlamada.action";
 // types
 import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestion";
+import { ERROR_CITA_CERRADA } from "@/modules/comunicador/types/comunicador";
 // components
 import { RevisarSolicitudesView } from "./RevisarSolicitudesView";
 // lib
@@ -56,8 +60,36 @@ const solicitudBase = {
         centro_id: "650"
     },
     tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
-    motivo: { nombre_motivo: "Control" }
+    motivo: { nombre_motivo: "Control" },
+    orientador: { nombre: "Orientadora Uno" }
 };
+
+const solicitudAsociada = {
+    ...solicitudBase,
+    id_solicitud: "SOL-2",
+    accion: "Realizar solicitud",
+    usuario: {
+        ...solicitudBase.usuario,
+        nombre: "Paciente",
+        apellido: "Asociada",
+        nombre_social: "Social Asociada",
+        telefono: "32 222 2222",
+        telefono_alternativo: "9 8765 4321",
+        correo_contacto: "asociada@example.com"
+    }
+};
+
+function fechaFutura(dias: number): string {
+    const fecha = new Date();
+    fecha.setHours(12, 0, 0, 0);
+    fecha.setDate(fecha.getDate() + dias);
+    const year = fecha.getFullYear();
+    const month = String(fecha.getMonth() + 1).padStart(2, "0");
+    const day = String(fecha.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+const fechaCitaEditable = fechaFutura(7);
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -72,7 +104,7 @@ beforeEach(() => {
     vi.mocked(getOtrasSolicitudes).mockResolvedValue({
         ok: true,
         data: {
-            solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "Realizar solicitud" }],
+            solicitudes: [solicitudAsociada],
             citas: [
                 {
                     id_cita: "CITA-1",
@@ -80,15 +112,29 @@ beforeEach(() => {
                     estado_cita: "Sin llamadas",
                     observacion: null,
                     priorizacion_clinica: "Alta",
-                    fecha_estimada_atencion: new Date("2026-10-01T00:00:00"),
+                    fecha_estimada_atencion: new Date(`${fechaCitaEditable}T00:00:00`),
                     profesional: { nombre: "Medico" },
                     prestacion: { nombre_prestacion: "Consulta" },
-                    editable: true
+                    editable: true,
+                    puedeRegistrarRechazo: true
                 }
             ]
         }
     } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
     vi.mocked(verificarSolicitudPendiente).mockResolvedValue({ ok: true, data: { pendiente: true, estado: "En Curso" } });
+    vi.mocked(registrarLlamada).mockResolvedValue({
+        ok: true,
+        data: { estadoCita: "Cita Rechazada (No necesaria)", solicitudRealizada: false }
+    } as never);
+    vi.mocked(editarCita).mockResolvedValue({
+        ok: true,
+        data: {
+            id_cita: "CITA-1",
+            priorizacion_clinica: "Alta",
+            priorizacion: 70,
+            fecha_estimada_atencion: new Date(`${fechaCitaEditable}T00:00:00`)
+        }
+    });
 });
 
 async function openGestionMenu() {
@@ -102,6 +148,81 @@ function abrirFiltros() {
 }
 
 describe("RevisarSolicitudesView contexto de citas", () => {
+    it("abre el cierre administrativo con los datos de la solicitud asociada y recarga al guardar", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        const cerrarCita = within(modalContexto).getByRole("button", { name: "Cerrar cita" });
+        expect(cerrarCita).toHaveClass("bg-primary");
+        expect(cerrarCita).not.toHaveClass("border-input");
+        expect(within(modalContexto).queryByRole("button", { name: "Registrar llamada" })).not.toBeInTheDocument();
+        fireEvent.click(cerrarCita);
+
+        const modalLlamada = await screen.findByRole("dialog", { name: "Cierre administrativo de cita" });
+        expect(within(modalLlamada).getByText("Paciente Asociada")).toBeInTheDocument();
+        expect(within(modalLlamada).getByText("Nombre social: Social Asociada")).toBeInTheDocument();
+        expect(within(modalLlamada).getByText("Teléfonos: 32 222 2222 · 9 8765 4321")).toBeInTheDocument();
+        expect(within(modalLlamada).getByText("Correo: asociada@example.com")).toBeInTheDocument();
+        expect(within(modalLlamada).queryByText("Juan Perez")).not.toBeInTheDocument();
+        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Cerrar cita" }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Cierre administrativo de cita" })).not.toBeInTheDocument());
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+    });
+
+    it("cierra el registro de rechazo y recarga el contexto si otro funcionario cerro la cita", async () => {
+        vi.mocked(registrarLlamada).mockResolvedValue({ ok: false, error: ERROR_CITA_CERRADA } as never);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Cerrar cita" }));
+        const modalLlamada = await screen.findByRole("dialog", { name: "Cierre administrativo de cita" });
+        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Cerrar cita" }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Cierre administrativo de cita" })).not.toBeInTheDocument());
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+    });
+
+    it("no ofrece registrar rechazo si la cita editable no tiene permiso", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValue({
+            ok: true,
+            data: {
+                solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "Realizar solicitud" }],
+                citas: [{
+                    id_cita: "CITA-1",
+                    solicitud_id: "SOL-2",
+                    estado_cita: "Sin llamadas",
+                    observacion: null,
+                    priorizacion_clinica: "Alta",
+                    fecha_estimada_atencion: new Date(`${fechaCitaEditable}T00:00:00`),
+                    profesional: { nombre: "Medico" },
+                    prestacion: { nombre_prestacion: "Consulta" },
+                    editable: true,
+                    puedeRegistrarRechazo: false
+                }]
+            }
+        } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        expect(within(modalContexto).queryByRole("button", { name: "Cerrar cita" })).not.toBeInTheDocument();
+        expect(within(modalContexto).getByRole("button", { name: "Editar prioridad" })).toBeInTheDocument();
+        expect(within(modalContexto).getByRole("button", { name: "Editar fecha estimada" })).toBeInTheDocument();
+        expect(within(modalContexto).queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
+    });
+
     it("identifica al paciente con sus nombres legal y social", async () => {
         render(<RevisarSolicitudesView />);
         expect(await screen.findByText("Juan Perez")).toBeVisible();
@@ -118,8 +239,93 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledWith("12345678-5", "SOL-1"));
         expect(screen.getByText("Solicitudes y citas en curso")).toBeInTheDocument();
         expect(screen.getByText("CITA-1")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /^Editar$/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Editar prioridad" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Editar fecha estimada" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /^Editar$/i })).not.toBeInTheDocument();
         expect(screen.getByText("Validada")).toBeInTheDocument();
+    });
+
+    it("abre cada edicion en un dialogo que muestra solo su campo", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Editar prioridad" }));
+        const modalPrioridad = await screen.findByRole("dialog", { name: /^Editar prioridad/ });
+        expect(within(modalPrioridad).getByLabelText("Prioridad clinica")).toBeInTheDocument();
+        expect(within(modalPrioridad).queryByLabelText("Fecha estimada")).not.toBeInTheDocument();
+        fireEvent.click(within(modalPrioridad).getByRole("button", { name: "Cancelar" }));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: /^Editar prioridad/ })).not.toBeInTheDocument());
+
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Editar fecha estimada" }));
+        const modalFecha = await screen.findByRole("dialog", { name: /^Editar fecha estimada/ });
+        expect(within(modalFecha).getByLabelText("Fecha estimada")).toBeInTheDocument();
+        expect(within(modalFecha).queryByLabelText("Prioridad clinica")).not.toBeInTheDocument();
+    });
+
+    it("recarga y cierra al guardar una prioridad", async () => {
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(1));
+
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Editar prioridad" }));
+        const modalPrioridad = await screen.findByRole("dialog", { name: /^Editar prioridad/ });
+        fireEvent.click(within(modalPrioridad).getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: /^Editar prioridad/ })).not.toBeInTheDocument());
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+    });
+
+    it("recarga sin cerrar cuando el servidor bloquea la fecha", async () => {
+        vi.mocked(editarCita).mockResolvedValue({ ok: false, error: "La cita ya tiene llamadas registradas y no se puede modificar" });
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(1));
+
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Editar fecha estimada" }));
+        const modalFecha = await screen.findByRole("dialog", { name: /^Editar fecha estimada/ });
+        fireEvent.click(within(modalFecha).getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("La cita ya tiene llamadas registradas y no se puede modificar"));
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+        expect(screen.getByRole("dialog", { name: /^Editar fecha estimada/ })).toBeInTheDocument();
+    });
+
+    it("no muestra acciones de edicion cuando la cita no es editable", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValue({
+            ok: true,
+            data: {
+                solicitudes: [solicitudAsociada],
+                citas: [{
+                    id_cita: "CITA-1",
+                    solicitud_id: "SOL-2",
+                    estado_cita: "Solo llamada de aviso",
+                    observacion: null,
+                    priorizacion_clinica: "Alta",
+                    fecha_estimada_atencion: new Date(`${fechaCitaEditable}T00:00:00`),
+                    profesional: { nombre: "Medico" },
+                    prestacion: { nombre_prestacion: "Consulta" },
+                    editable: false,
+                    puedeRegistrarRechazo: true
+                }]
+            }
+        } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        expect(within(modalContexto).queryByRole("button", { name: "Editar prioridad" })).not.toBeInTheDocument();
+        expect(within(modalContexto).queryByRole("button", { name: "Editar fecha estimada" })).not.toBeInTheDocument();
     });
 
     it.each([
@@ -348,6 +554,69 @@ describe("RevisarSolicitudesView tabla compacta", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
         const rechazar = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
         expect(within(rechazar).getByText("Descripción: Base")).toBeInTheDocument();
+    });
+
+    it("limita la observacion de rechazo a 350 caracteres y muestra su contador", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+
+        const rechazar = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        const observacion = within(rechazar).getByRole("textbox") as HTMLTextAreaElement;
+        expect(observacion).toHaveAttribute("maxLength", "350");
+        expect(within(rechazar).getByText("0/350")).toBeInTheDocument();
+
+        fireEvent.change(observacion, { target: { value: "a".repeat(350) } });
+        expect(within(rechazar).getByText("350/350")).toBeInTheDocument();
+    });
+
+    it("muestra el orientador de la solicitud al realizarla", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+
+        const realizar = await screen.findByRole("dialog", { name: "Realizar solicitud" });
+        expect(within(realizar).getByText("Orientador: Orientadora Uno")).toBeInTheDocument();
+    });
+
+    it("muestra el fallback de orientador al rechazar una solicitud sin registro", async () => {
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: { solicitudes: [{ ...solicitudBase, orientador: null }], total: 1, page: 1, pageSize: 100, totalPages: 1 }
+        } as Awaited<ReturnType<typeof getSolicitudes>>);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+
+        const rechazar = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        expect(within(rechazar).getByText("Orientador: Sin registro")).toBeInTheDocument();
+    });
+
+    it("usa el orientador de la solicitud contextual al realizar desde otras solicitudes", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", orientador: { nombre: "Orientador Contextual" } }],
+                citas: []
+            }
+        } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const contexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(contexto).getByRole("button", { name: "Realizar" }));
+
+        const realizar = await screen.findByRole("dialog", { name: "Realizar solicitud" });
+        expect(within(realizar).getByText("Orientador: Orientador Contextual")).toBeInTheDocument();
+        expect(within(realizar).queryByText("Orientador: Orientadora Uno")).not.toBeInTheDocument();
     });
 });
 

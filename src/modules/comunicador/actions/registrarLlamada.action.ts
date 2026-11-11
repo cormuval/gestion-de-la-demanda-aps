@@ -13,8 +13,18 @@ import { computeEstadoCita } from "../utils/estadoCita";
 // types
 import { ERROR_CITA_CERRADA, ESTADO_CITA, ESTADOS_PENDIENTES, RESPUESTA_LLAMADA, RespuestaLlamada, esEstadoTerminal } from "../types/comunicador";
 
+const ERROR_PERMISO_DENEGADO = "No tienes permiso para esta operacion";
+
 export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<ResultadoAccion<{ estadoCita: string; solicitudRealizada: boolean }>> {
-    const user = await requirePermiso("comunicador.llamar");
+    let user: Awaited<ReturnType<typeof requirePermiso>>;
+    try {
+        user = await requirePermiso("comunicador.llamar");
+    } catch (error) {
+        if (error instanceof Error && error.message === ERROR_PERMISO_DENEGADO) {
+            return { ok: false, error: ERROR_PERMISO_DENEGADO };
+        }
+        throw error;
+    }
 
     const data = registrarLlamadaSchema.parse(input);
 

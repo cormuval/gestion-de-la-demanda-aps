@@ -7,6 +7,8 @@ vi.mock("../actions/registrarLlamada.action", () => ({ registrarLlamada: vi.fn()
 import { toast } from "sonner";
 import { registrarLlamada } from "../actions/registrarLlamada.action";
 import { RegistrarLlamadaModal } from "./RegistrarLlamadaModal";
+import { ORIGEN_LLAMADA } from "../schemas/llamada.schema";
+import { RESPUESTA_LLAMADA } from "../types/comunicador";
 
 const cita = {
     id_cita: "CITA-1",
@@ -30,6 +32,87 @@ beforeEach(() => {
 });
 
 describe("RegistrarLlamadaModal", () => {
+    it("en Gestion registra el rechazo fijo con la observacion recortada y sin controles del Comunicador", async () => {
+        vi.mocked(registrarLlamada).mockResolvedValue({
+            ok: true,
+            data: { estadoCita: "Cita Rechazada (No necesaria)", solicitudRealizada: false }
+        } as never);
+
+        render(
+            <RegistrarLlamadaModal
+                cita={cita}
+                telefonos="9 1234 5678"
+                correo="paciente@example.com"
+                modo="gestion_solicitudes"
+                onCerrar={vi.fn()}
+                onRegistrado={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole("dialog", { name: "Cierre administrativo de cita" })).toBeInTheDocument();
+        expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Registrar" })).not.toBeInTheDocument();
+        const observacion = screen.getByRole("textbox", { name: "Motivo del cierre" });
+        expect(observacion).toHaveAttribute("maxlength", "350");
+        expect(screen.getByText("0/350")).toBeInTheDocument();
+        expect(screen.getByText(RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA)).toBeInTheDocument();
+        expect(screen.getByText("Respuesta registrada").tagName).toBe("DIV");
+        expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+        expect(screen.queryByLabelText("Hora agendada")).not.toBeInTheDocument();
+
+        fireEvent.change(observacion, { target: { value: "  Ya no requiere esta prestacion  " } });
+        fireEvent.submit(screen.getByRole("button", { name: "Cerrar cita" }).closest("form")!);
+
+        await waitFor(() => expect(registrarLlamada).toHaveBeenCalledWith({
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+            observacion: "Ya no requiere esta prestacion",
+            hora_agendada: ""
+        }));
+    });
+
+    it("en Gestion muestra el error estructurado de la action", async () => {
+        vi.mocked(registrarLlamada).mockResolvedValue({
+            ok: false,
+            error: "No tienes permiso para esta operacion"
+        } as never);
+
+        render(
+            <RegistrarLlamadaModal
+                cita={cita}
+                telefonos="9 1234 5678"
+                correo="paciente@example.com"
+                modo="gestion_solicitudes"
+                onCerrar={vi.fn()}
+                onRegistrado={vi.fn()}
+            />
+        );
+
+        fireEvent.submit(screen.getByRole("button", { name: "Cerrar cita" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No tienes permiso para esta operacion"));
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("conserva en Comunicador el titulo, selector y observacion actuales", () => {
+        render(
+            <RegistrarLlamadaModal
+                cita={cita}
+                telefonos="9 1234 5678"
+                correo="paciente@example.com"
+                onCerrar={vi.fn()}
+                onRegistrado={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole("dialog", { name: "Registrar llamada" })).toBeInTheDocument();
+        expect(screen.getByRole("combobox", { name: "Respuesta" })).toBeInTheDocument();
+        expect(screen.getByRole("textbox", { name: "Observación" })).toBeInTheDocument();
+        expect(screen.getByRole("option", { name: RESPUESTA_LLAMADA.NO_CONTESTA })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Registrar" })).toBeInTheDocument();
+    });
+
     it("muestra el contexto de la cita: RUT, estado, estamento, prestacion, fecha estimada y observacion clinica", () => {
         render(
             <RegistrarLlamadaModal

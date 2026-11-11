@@ -18,6 +18,7 @@ import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 import { RESPUESTA_LLAMADA } from "../types/comunicador";
+import { ORIGEN_LLAMADA } from "../schemas/llamada.schema";
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -31,9 +32,24 @@ beforeEach(() => {
 });
 
 describe("registrarLlamada", () => {
-    it("propaga el rechazo cuando falta el permiso de llamar", async () => {
+    it("devuelve un error estructurado y no abre una transaccion cuando falta comunicador.llamar", async () => {
         (requirePermiso as any).mockRejectedValue(new Error("No tienes permiso para esta operacion"));
-        await expect(registrarLlamada({} as any)).rejects.toThrow("No tienes permiso para esta operacion");
+
+        await expect(registrarLlamada({} as any)).resolves.toEqual({
+            ok: false,
+            error: "No tienes permiso para esta operacion"
+        });
+
+        expect(requirePermiso).toHaveBeenCalledWith("comunicador.llamar");
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("propaga un fallo tecnico del guard sin presentarlo como falta de permiso", async () => {
+        (requirePermiso as any).mockRejectedValue(new Error("No fue posible consultar los permisos"));
+
+        await expect(registrarLlamada({} as any)).rejects.toThrow("No fue posible consultar los permisos");
+
+        expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it("propaga el rechazo de Zod", async () => {
@@ -73,6 +89,22 @@ describe("registrarLlamada", () => {
         expect(tx.solicitud.update).toHaveBeenCalledWith(expect.objectContaining({ data: { estado_solicitud: "Realizado" } }));
     });
 
+    it("guarda la observacion solo al crear la llamada y actualiza la cita con su estado exacto", async () => {
+        await registrarLlamada({
+            cita_id: "CITA-1",
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+            observacion: "  Solicitud ya resuelta  "
+        } as any);
+
+        expect(tx.llamada.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({ observacion: "Solicitud ya resuelta" })
+        }));
+        expect(tx.cita.update).toHaveBeenCalledWith({
+            where: { id_cita: "CITA-1" },
+            data: { estado_cita: "Cita Rechazada (No Necesaria)" }
+        });
+    });
+
     it("respuesta terminal con citas pendientes restantes -> NO cierra solicitud", async () => {
         tx.cita.count.mockResolvedValue(2);
         const r = await registrarLlamada({ cita_id: "CITA-1", respuesta: RESPUESTA_LLAMADA.RECHAZADA_SOLICITANTE } as any);
@@ -107,5 +139,33 @@ describe("registrarLlamada", () => {
         expect(tx.cita.update).not.toHaveBeenCalled();
         expect(tx.solicitud.update).not.toHaveBeenCalled();
         expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("Gestion valida llega a la transaccion y persiste la llamada", async () => {
+        await expect(registrarLlamada({
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+            observacion: "  Ya no requiere la prestacion  "
+        } as any)).resolves.toEqual({ ok: true, data: { estadoCita: "Cita Rechazada (No Necesaria)", solicitudRealizada: true } });
+
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(tx.llamada.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                respuesta_usuario: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+                observacion: "Ya no requiere la prestacion"
+            })
+        }));
+    });
+
+    it("Gestion con otra respuesta falla por Zod antes de abrir una transaccion", async () => {
+        await expect(registrarLlamada({
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.NO_CONTESTA
+        } as any)).rejects.toBeInstanceOf(ZodError);
+
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(tx.llamada.create).not.toHaveBeenCalled();
     });
 });

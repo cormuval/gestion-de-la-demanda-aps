@@ -65,6 +65,65 @@ beforeEach(() => {
 });
 
 describe("gestionarSolicitud", () => {
+    it("permite y persiste una observacion de rechazo de 350 caracteres", async () => {
+        const observacion = "a".repeat(350);
+        (prisma.solicitud.update as any).mockResolvedValueOnce({
+            id_solicitud: "SOL-1",
+            rut_usuario: "12345678-5",
+            accion: "Rechazar solicitud",
+            razon_rechazo: "Otra",
+            observacion_rechazo: observacion
+        });
+
+        const result = await gestionarSolicitud({
+            id_solicitud: "SOL-1",
+            accion: "Rechazar solicitud",
+            razon_rechazo: "Otra",
+            observacion_rechazo: observacion
+        });
+
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(prisma.solicitud.update).toHaveBeenCalledWith(
+            expect.objectContaining({ data: expect.objectContaining({ observacion_rechazo: observacion }) })
+        );
+        expect(result).toEqual(expect.objectContaining({ ok: true }));
+    });
+
+    it("rechaza una observacion de rechazo de 351 caracteres antes de abrir una transaccion", async () => {
+        await expect(
+            gestionarSolicitud({
+                id_solicitud: "SOL-1",
+                accion: "Rechazar solicitud",
+                razon_rechazo: "Otra",
+                observacion_rechazo: "a".repeat(351)
+            })
+        ).rejects.toThrow("Observacion maximo 350 caracteres");
+
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expectNoSuccessEffects();
+    });
+
+    it("normaliza una observacion de rechazo de solo espacios a null", async () => {
+        (prisma.solicitud.update as any).mockResolvedValueOnce({
+            id_solicitud: "SOL-1",
+            rut_usuario: "12345678-5",
+            accion: "Rechazar solicitud",
+            razon_rechazo: "Otra",
+            observacion_rechazo: null
+        });
+
+        await gestionarSolicitud({
+            id_solicitud: "SOL-1",
+            accion: "Rechazar solicitud",
+            razon_rechazo: "Otra",
+            observacion_rechazo: "   "
+        });
+
+        expect(prisma.solicitud.update).toHaveBeenCalledWith(
+            expect.objectContaining({ data: expect.objectContaining({ observacion_rechazo: null }) })
+        );
+    });
+
     it("rechaza solicitud en transaccion guardando razon y observacion", async () => {
         (prisma.solicitud.update as any).mockResolvedValueOnce({
             id_solicitud: "SOL-1",
