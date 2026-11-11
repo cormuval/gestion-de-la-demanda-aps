@@ -12,6 +12,8 @@ import type { PrioridadClinica } from "../utils/citas";
 // utils
 import { calcularPriorizacionCita, esCitaEditable, evaluarFechaEstimada } from "../utils/citas";
 
+const ERROR_FECHA_ESTIMADA_ANTERIOR = "La fecha estimada no puede ser anterior a hoy";
+
 export interface CitaEditada {
     id_cita: string;
     priorizacion_clinica: PrioridadClinica;
@@ -37,7 +39,7 @@ export async function editarCita(input: EditarCitaInput): Promise<ResultadoAccio
     if (!centroId) return { ok: false, error: "El funcionario activo no tiene centro asignado" };
 
     const fecha = evaluarFechaEstimada(data.fecha_estimada_atencion);
-    if (!fecha.ok) return { ok: false, error: fecha.error };
+    if (!fecha.ok && fecha.error !== ERROR_FECHA_ESTIMADA_ANTERIOR) return { ok: false, error: fecha.error };
 
     const result = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id_cita FROM citas WHERE id_cita = ${data.id_cita} FOR UPDATE`;
@@ -60,12 +62,24 @@ export async function editarCita(input: EditarCitaInput): Promise<ResultadoAccio
             return { ok: false as const, error: "La cita ya tiene llamadas registradas y no se puede modificar" };
         }
 
+        let fechaActualizada: Date;
+        if (fecha.ok) {
+            fechaActualizada = fecha.fecha;
+        } else {
+            const fechaPersistida = cita.fecha_estimada_atencion;
+            const fechaPersistidaInput = fechaPersistida?.toISOString().slice(0, 10);
+            if (!fechaPersistida || fechaPersistidaInput !== data.fecha_estimada_atencion) {
+                return { ok: false as const, error: fecha.error };
+            }
+            fechaActualizada = fechaPersistida;
+        }
+
         const priorizacion = calcularPriorizacionCita(data.priorizacion_clinica, cita.usuario?.priorizacion_administrativa);
         const citaEditada = await tx.cita.update({
             where: { id_cita: cita.id_cita },
             data: {
                 priorizacion_clinica: data.priorizacion_clinica,
-                fecha_estimada_atencion: fecha.fecha,
+                fecha_estimada_atencion: fechaActualizada,
                 priorizacion
             },
             select: {

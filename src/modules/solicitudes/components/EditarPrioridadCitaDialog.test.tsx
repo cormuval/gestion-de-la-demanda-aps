@@ -39,6 +39,37 @@ beforeEach(() => {
 });
 
 describe("EditarPrioridadCitaDialog", () => {
+    it("preserva la fecha calendario UTC al editar la prioridad", async () => {
+        const fechaCalendario = new Date("2026-01-27T00:00:00.000Z");
+        vi.mocked(editarCita).mockResolvedValue({
+            ok: true,
+            data: {
+                id_cita: "CITA-1",
+                priorizacion_clinica: "Media",
+                priorizacion: 50,
+                fecha_estimada_atencion: fechaCalendario
+            }
+        });
+
+        render(
+            <EditarPrioridadCitaDialog
+                cita={{ ...cita, fecha_estimada_atencion: fechaCalendario }}
+                open
+                onOpenChange={vi.fn()}
+                onActualizada={vi.fn()}
+            />
+        );
+
+        fireEvent.change(screen.getByRole("combobox", { name: "Prioridad clinica" }), { target: { value: "Media" } });
+        fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+        await waitFor(() => expect(editarCita).toHaveBeenCalledWith({
+            id_cita: "CITA-1",
+            priorizacion_clinica: "Media",
+            fecha_estimada_atencion: "2026-01-27"
+        }));
+    });
+
     it("muestra solo prioridad y conserva la fecha vigente al guardar", async () => {
         vi.mocked(editarCita).mockResolvedValue({
             ok: true,
