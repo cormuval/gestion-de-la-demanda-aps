@@ -908,6 +908,7 @@ function SolicitudMeta({ solicitud }: { solicitud: SolicitudRow }) {
             {solicitud.descripcion && (
                 <p className="whitespace-pre-wrap break-words sm:col-span-3">Descripción: {solicitud.descripcion}</p>
             )}
+            <p className="sm:col-span-3">Orientador: {solicitud.orientador?.nombre ?? "Sin registro"}</p>
         </div>
     );
 }
@@ -1082,7 +1083,15 @@ function RechazoModal({
                         </Select>
                     </Field>
                     <Field label="Observacion rechazo">
-                        <Textarea value={observacion} onChange={(e) => onObservacionChange(e.target.value)} />
+                        <Textarea
+                            value={observacion}
+                            maxLength={350}
+                            aria-describedby="observacion-rechazo-contador"
+                            onChange={(e) => onObservacionChange(e.target.value)}
+                        />
+                        <p id="observacion-rechazo-contador" className="text-right text-sm text-muted-foreground" aria-live="polite">
+                            {observacion.length}/350
+                        </p>
                     </Field>
                     <div className="flex justify-end gap-2">
                         <Button type="button" variant="outline" onClick={onClose}>

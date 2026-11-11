@@ -59,7 +59,8 @@ const solicitudBase = {
         centro_id: "650"
     },
     tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
-    motivo: { nombre_motivo: "Control" }
+    motivo: { nombre_motivo: "Control" },
+    orientador: { nombre: "Orientadora Uno" }
 };
 
 beforeEach(() => {
@@ -421,6 +422,69 @@ describe("RevisarSolicitudesView tabla compacta", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
         const rechazar = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
         expect(within(rechazar).getByText("Descripción: Base")).toBeInTheDocument();
+    });
+
+    it("limita la observacion de rechazo a 350 caracteres y muestra su contador", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+
+        const rechazar = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        const observacion = within(rechazar).getByRole("textbox") as HTMLTextAreaElement;
+        expect(observacion).toHaveAttribute("maxLength", "350");
+        expect(within(rechazar).getByText("0/350")).toBeInTheDocument();
+
+        fireEvent.change(observacion, { target: { value: "a".repeat(350) } });
+        expect(within(rechazar).getByText("350/350")).toBeInTheDocument();
+    });
+
+    it("muestra el orientador de la solicitud al realizarla", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Realizar solicitud/i }));
+
+        const realizar = await screen.findByRole("dialog", { name: "Realizar solicitud" });
+        expect(within(realizar).getByText("Orientador: Orientadora Uno")).toBeInTheDocument();
+    });
+
+    it("muestra el fallback de orientador al rechazar una solicitud sin registro", async () => {
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: { solicitudes: [{ ...solicitudBase, orientador: null }], total: 1, page: 1, pageSize: 100, totalPages: 1 }
+        } as Awaited<ReturnType<typeof getSolicitudes>>);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Rechazar solicitud/i }));
+
+        const rechazar = await screen.findByRole("dialog", { name: "Rechazar solicitud" });
+        expect(within(rechazar).getByText("Orientador: Sin registro")).toBeInTheDocument();
+    });
+
+    it("usa el orientador de la solicitud contextual al realizar desde otras solicitudes", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", orientador: { nombre: "Orientador Contextual" } }],
+                citas: []
+            }
+        } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const contexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(contexto).getByRole("button", { name: "Realizar" }));
+
+        const realizar = await screen.findByRole("dialog", { name: "Realizar solicitud" });
+        expect(within(realizar).getByText("Orientador: Orientador Contextual")).toBeInTheDocument();
+        expect(within(realizar).queryByText("Orientador: Orientadora Uno")).not.toBeInTheDocument();
     });
 });
 

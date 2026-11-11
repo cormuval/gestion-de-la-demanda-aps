@@ -43,7 +43,7 @@ export const gestionarSolicitudSchema = z.discriminatedUnion("accion", [
         id_solicitud: z.string().trim().min(1, "Solicitud requerida"),
         accion: z.literal(ACCION_RECHAZAR_SOLICITUD),
         razon_rechazo: z.enum(RAZONES_RECHAZO),
-        observacion_rechazo: z.string().trim().max(200, "Observacion maximo 200 caracteres").optional().default("")
+        observacion_rechazo: z.string().trim().max(350, "Observacion maximo 350 caracteres").optional().default("")
     }),
     z.object({
         id_solicitud: z.string().trim().min(1, "Solicitud requerida"),
