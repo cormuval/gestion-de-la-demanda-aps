@@ -47,13 +47,12 @@ export interface DetalleFiltro {
 
 /**
  * Traduccion legible de los filtros aplicados, para los chips del panel.
- * Orden fijo; la temporalidad base no se lista (no es un criterio activo).
+ * La temporalidad siempre aparece (incluido el valor inicial); orden fijo con RUT segundo.
  */
 export function detalleFiltrosActivos(valor: CitasFiltrosUI, opciones: Opciones): DetalleFiltro[] {
     const detalle: DetalleFiltro[] = [];
-    if (valor.temporalidad && valor.temporalidad !== FILTROS_INICIALES.temporalidad) {
-        detalle.push({ etiqueta: "Temporalidad", valor: valor.temporalidad });
-    }
+    if (valor.temporalidad) detalle.push({ etiqueta: "Temporalidad", valor: valor.temporalidad });
+    if (valor.rut) detalle.push({ etiqueta: "RUT", valor: valor.rut });
     if (valor.estado) detalle.push({ etiqueta: "Estado", valor: valor.estado });
     if (valor.profesional_id) {
         const profesional = opciones.profesionales.find((p) => String(p.id) === String(valor.profesional_id));
@@ -66,7 +65,6 @@ export function detalleFiltrosActivos(valor: CitasFiltrosUI, opciones: Opciones)
     if (valor.fechaDesde && valor.fechaHasta) detalle.push({ etiqueta: "Fecha estimada", valor: `${valor.fechaDesde} a ${valor.fechaHasta}` });
     else if (valor.fechaDesde) detalle.push({ etiqueta: "Fecha estimada", valor: `desde ${valor.fechaDesde}` });
     else if (valor.fechaHasta) detalle.push({ etiqueta: "Fecha estimada", valor: `hasta ${valor.fechaHasta}` });
-    if (valor.rut) detalle.push({ etiqueta: "RUT", valor: valor.rut });
     if (valor.sector) detalle.push({ etiqueta: "Sector", valor: valor.sector });
     if (valor.texto) detalle.push({ etiqueta: "Observación clínica", valor: valor.texto });
     return detalle;
@@ -102,6 +100,9 @@ export function CitasFiltros({ opciones, valor, onCambio }: {
                         </option>
                     ))}
                 </Select>
+            </Field>
+            <Field label="RUT paciente">
+                <Input value={valor.rut} onChange={(e) => set("rut", e.target.value)} placeholder="Ej: 12345678" />
             </Field>
             <Field label="Estado">
                 <Select value={valor.estado} onChange={(e) => set("estado", e.target.value)}>
@@ -144,9 +145,6 @@ export function CitasFiltros({ opciones, valor, onCambio }: {
             </Field>
             <Field label="Fecha hasta">
                 <Input type="date" value={valor.fechaHasta} onChange={(e) => set("fechaHasta", e.target.value)} />
-            </Field>
-            <Field label="RUT paciente">
-                <Input value={valor.rut} onChange={(e) => set("rut", e.target.value)} placeholder="Ej: 12345678" />
             </Field>
             <Field label="Sector">
                 <Input value={valor.sector} onChange={(e) => set("sector", e.target.value)} placeholder="Ej: Amarillo, 1, 2" />

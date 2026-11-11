@@ -563,14 +563,32 @@ describe("ComunicadorView filtros por defecto y detalle activo", () => {
         expect(vi.mocked(getCitasPendientes).mock.calls[0][0]).toMatchObject({ temporalidad: "Agendamientos próximos" });
     });
 
-    it("la temporalidad por defecto no cuenta como filtro activo", async () => {
+    it("muestra siempre el badge de temporalidad y no la cuenta como filtro activo", async () => {
         vi.mocked(getCitasPendientes).mockResolvedValue(respuestaConLista([]));
 
         render(<ComunicadorView />);
 
+        await screen.findByText("Tabla con 0 citas. Página 1");
+        expect(screen.getByText("Temporalidad: Agendamientos próximos")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Filtros" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Filtros" })).not.toHaveTextContent("0");
-        expect(screen.queryByText(/Temporalidad:/)).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Filtros (1 activos)" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Limpiar filtros/ })).not.toBeInTheDocument();
+    });
+
+    it("un borrador sin aplicar no cambia los badges de la consulta vigente", async () => {
+        vi.mocked(getCitasPendientes).mockResolvedValue(respuestaConLista([]));
+
+        render(<ComunicadorView />);
+        await screen.findByText("Tabla con 0 citas. Página 1");
+
+        fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+        const panel = await screen.findByRole("dialog", { name: "Filtros" });
+        fireEvent.change(within(panel).getByPlaceholderText("Ej: 12345678"), { target: { value: "77777777-7" } });
+        fireEvent.click(within(panel).getByRole("button", { name: "Cerrar" }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
+        expect(screen.queryByText("RUT: 77777777-7")).not.toBeInTheDocument();
+        expect(screen.getByText("Temporalidad: Agendamientos próximos")).toBeInTheDocument();
     });
 
     it("muestra los filtros aplicados como chips que desaparecen al limpiar", async () => {
@@ -593,6 +611,8 @@ describe("ComunicadorView filtros por defecto y detalle activo", () => {
         fireEvent.click(screen.getByRole("button", { name: /Limpiar filtros/ }));
 
         await waitFor(() => expect(screen.queryByText("RUT: 99999999-9")).not.toBeInTheDocument());
+        // Limpiar restaura la temporalidad inicial y su badge vuelve a mostrarla.
+        expect(screen.getByText("Temporalidad: Agendamientos próximos")).toBeInTheDocument();
         expect(vi.mocked(getCitasPendientes).mock.calls[2][0]).toMatchObject({ temporalidad: "Agendamientos próximos" });
         expect((vi.mocked(getCitasPendientes).mock.calls[2][0] as { rut?: string }).rut).toBeFalsy();
     });
