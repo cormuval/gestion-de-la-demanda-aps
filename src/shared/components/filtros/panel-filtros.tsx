@@ -49,7 +49,7 @@ export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplic
                     </Button>
                 )}
                 {activosDetalle.length > 0 && (
-                    <div className="flex min-w-0 flex-wrap gap-2">
+                    <div className="flex min-w-0 flex-wrap justify-end gap-2">
                         {activosDetalle.map((f) => (
                             <Badge
                                 key={`${f.etiqueta}:${f.valor}`}

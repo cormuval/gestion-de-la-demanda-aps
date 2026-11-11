@@ -97,6 +97,22 @@ describe("PanelFiltros", () => {
         expect(chip.compareDocumentPosition(boton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(limpiar.compareDocumentPosition(boton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
+
+    it("alinea cada fila de badges a la derecha, creciendo hacia la izquierda", () => {
+        renderPanel({
+            activos: 2,
+            activosDetalle: [
+                { etiqueta: "Estado", valor: "Sin llamadas" },
+                { etiqueta: "RUT", valor: "12345678-5" }
+            ]
+        });
+
+        const chip = screen.getByText("Estado: Sin llamadas");
+        // El texto vive en un span interno del Badge; el contenedor es el padre del Badge.
+        const contenedor = chip.parentElement!.parentElement as HTMLElement;
+        expect(contenedor.tagName).toBe("DIV");
+        expect(contenedor.className).toContain("justify-end");
+    });
 });
 
 describe("contarFiltrosActivos", () => {
