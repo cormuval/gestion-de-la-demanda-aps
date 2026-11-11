@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 describe("getOtrasSolicitudes", () => {
-    it("consulta solicitudes En Curso del centro sin filtrar por accion y trae citas pendientes", async () => {
+    it("consulta solicitudes En Curso del centro y solo trae citas de otra solicitud En Curso", async () => {
         const result = await getOtrasSolicitudes("12.345.678-5", "SOL-1");
 
         expect(prisma.solicitud.findMany).toHaveBeenCalledWith(
@@ -48,7 +48,14 @@ describe("getOtrasSolicitudes", () => {
                 where: {
                     rut_usuario: "12345678-5",
                     centro_id: "650",
-                    estado_cita: { in: ["Sin llamadas", "No contesta (1)", "No contesta (2)", "Solo llamada de aviso"] }
+                    estado_cita: { in: ["Sin llamadas", "No contesta (1)", "No contesta (2)", "Solo llamada de aviso"] },
+                    solicitud: {
+                        is: {
+                            id_solicitud: { not: "SOL-1" },
+                            estado_solicitud: "En Curso",
+                            centro_id: "650"
+                        }
+                    }
                 },
                 include: { profesional: true, prestacion: true, _count: { select: { llamadas: true } } }
             })
@@ -58,8 +65,8 @@ describe("getOtrasSolicitudes", () => {
             data: {
                 solicitudes: [{ id_solicitud: "SOL-2", accion: "Realizar solicitud" }],
                 citas: [
-                    { id_cita: "CITA-1", estado_cita: "Sin llamadas", editable: true },
-                    { id_cita: "CITA-2", estado_cita: "Sin llamadas", editable: false }
+                    { id_cita: "CITA-1", estado_cita: "Sin llamadas", editable: true, puedeRegistrarRechazo: true },
+                    { id_cita: "CITA-2", estado_cita: "Sin llamadas", editable: false, puedeRegistrarRechazo: true }
                 ]
             }
         });
@@ -93,6 +100,19 @@ describe("getOtrasSolicitudes", () => {
             ok: true,
             data: { solicitudes: [], citas: [] }
         });
+        expect(prisma.cita.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    solicitud: {
+                        is: {
+                            id_solicitud: { not: "SOL-1" },
+                            estado_solicitud: "En Curso",
+                            centro_id: "650"
+                        }
+                    }
+                })
+            })
+        );
     });
 
     it("devuelve error de configuracion cuando el funcionario no tiene centro", async () => {

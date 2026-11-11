@@ -22,3 +22,7 @@ export interface CitaCascada {
 export interface CitaCascadaConEdicion extends CitaCascada {
     editable: boolean;
 }
+
+export interface CitaCascadaContexto extends CitaCascadaConEdicion {
+    puedeRegistrarRechazo: boolean;
+}

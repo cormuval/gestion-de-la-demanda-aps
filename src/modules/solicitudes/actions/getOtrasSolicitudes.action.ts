@@ -43,7 +43,18 @@ export async function getOtrasSolicitudes(rutUsuario: string, solicitudActualId:
             orderBy: [{ priorizacion_admin: "desc" }, { fecha_inicio: "asc" }]
         }),
         prisma.cita.findMany({
-            where: { rut_usuario: rut, centro_id: centroId, estado_cita: { in: [...ESTADOS_PENDIENTES] } },
+            where: {
+                rut_usuario: rut,
+                centro_id: centroId,
+                estado_cita: { in: [...ESTADOS_PENDIENTES] },
+                solicitud: {
+                    is: {
+                        id_solicitud: { not: solicitudActualId },
+                        estado_solicitud: "En Curso",
+                        centro_id: centroId
+                    }
+                }
+            },
             include: { profesional: true, prestacion: true, _count: { select: { llamadas: true } } },
             orderBy: [{ fecha_estimada_atencion: "asc" }, { fecha_creacion: "asc" }]
         })
@@ -51,7 +62,8 @@ export async function getOtrasSolicitudes(rutUsuario: string, solicitudActualId:
 
     const citas = citasRaw.map(({ _count, ...cita }) => ({
         ...cita,
-        editable: esCitaEditable({ estado_cita: cita.estado_cita, cantidadLlamadas: _count.llamadas })
+        editable: esCitaEditable({ estado_cita: cita.estado_cita, cantidadLlamadas: _count.llamadas }),
+        puedeRegistrarRechazo: true
     }));
 
     const payload = { solicitudes, citas };
