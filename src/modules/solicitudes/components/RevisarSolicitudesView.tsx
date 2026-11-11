@@ -45,7 +45,8 @@ import { TablaSkeleton } from "@/shared/components/feedback/tabla-skeleton";
 import { PanelFiltros, contarFiltrosActivos } from "@/shared/components/filtros/panel-filtros";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
-import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
+import { EditarFechaEstimadaCitaDialog } from "@/modules/solicitudes/components/EditarFechaEstimadaCitaDialog";
+import { EditarPrioridadCitaDialog } from "@/modules/solicitudes/components/EditarPrioridadCitaDialog";
 import { ListaPendientes } from "@/modules/solicitudes/components/PendientesCascada";
 import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
 import { RegistrarLlamadaModal, type CitaParaLlamada } from "@/modules/comunicador/components/RegistrarLlamadaModal";
@@ -212,7 +213,8 @@ export function RevisarSolicitudesView() {
     const [otrasSolicitudBase, setOtrasSolicitudBase] = useState<SolicitudRow | null>(null);
     const [otrasContexto, setOtrasContexto] = useState<OtrasSolicitudesResponse | null>(null);
     const [otrasError, setOtrasError] = useState<string | null>(null);
-    const [citaEditando, setCitaEditando] = useState<CitaCascadaConEdicion | null>(null);
+    const [citaEditandoPrioridad, setCitaEditandoPrioridad] = useState<CitaCascadaConEdicion | null>(null);
+    const [citaEditandoFecha, setCitaEditandoFecha] = useState<CitaCascadaConEdicion | null>(null);
     const [citaLlamando, setCitaLlamando] = useState<{ cita: CitaParaLlamada; telefonos: string; correo: string } | null>(null);
     const [loadingOtras, setLoadingOtras] = useState(false);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioEditFormState>(emptyUsuarioForm);
@@ -228,7 +230,15 @@ export function RevisarSolicitudesView() {
     const filtrosAplicadosRef = useRef<SolicitudFiltros>(FILTROS_VACIOS);
     // Solicitud cuya vigencia se esta verificando; ignora pulsaciones repetidas.
     const verificandoRef = useRef<string | null>(null);
-    const hayModalAbierto = Boolean(rechazoSolicitud || realizarSolicitud || otrasSolicitudBase || citaEditando || citaLlamando || editingUsuario);
+    const hayModalAbierto = Boolean(
+        rechazoSolicitud
+        || realizarSolicitud
+        || otrasSolicitudBase
+        || citaEditandoPrioridad
+        || citaEditandoFecha
+        || citaLlamando
+        || editingUsuario
+    );
 
     useRefrescoAutomatico(() => loadSolicitudes(filtrosAplicadosRef.current, { silencioso: true }), { pausado: hayModalAbierto });
 
@@ -831,7 +841,8 @@ export function RevisarSolicitudesView() {
                     onRealizar={openRealizar}
                     onRechazar={openRechazo}
                     onEditarUsuario={openEditarUsuario}
-                    onEditarCita={setCitaEditando}
+                    onEditarPrioridadCita={setCitaEditandoPrioridad}
+                    onEditarFechaEstimadaCita={setCitaEditandoFecha}
                     onRegistrarRechazoCita={openRegistrarRechazoCita}
                 />
             )}
@@ -848,12 +859,25 @@ export function RevisarSolicitudesView() {
                 />
             )}
 
-            {citaEditando && otrasSolicitudBase && (
-                <EditarCitaDialog
-                    cita={citaEditando}
+            {citaEditandoPrioridad && otrasSolicitudBase && (
+                <EditarPrioridadCitaDialog
+                    cita={citaEditandoPrioridad}
                     open
                     onOpenChange={(open) => {
-                        if (!open) setCitaEditando(null);
+                        if (!open) setCitaEditandoPrioridad(null);
+                    }}
+                    onActualizada={async () => {
+                        await cargarContexto(otrasSolicitudBase);
+                    }}
+                />
+            )}
+
+            {citaEditandoFecha && otrasSolicitudBase && (
+                <EditarFechaEstimadaCitaDialog
+                    cita={citaEditandoFecha}
+                    open
+                    onOpenChange={(open) => {
+                        if (!open) setCitaEditandoFecha(null);
                     }}
                     onActualizada={async () => {
                         await cargarContexto(otrasSolicitudBase);
@@ -1115,7 +1139,8 @@ function OtrasSolicitudesModal({
     onRealizar,
     onRechazar,
     onEditarUsuario,
-    onEditarCita,
+    onEditarPrioridadCita,
+    onEditarFechaEstimadaCita,
     onRegistrarRechazoCita
 }: {
     solicitudBase: SolicitudRow;
@@ -1127,7 +1152,8 @@ function OtrasSolicitudesModal({
     onRealizar: (solicitud: SolicitudRow) => void;
     onRechazar: (solicitud: SolicitudRow) => void;
     onEditarUsuario: (solicitud: SolicitudRow) => void;
-    onEditarCita: (cita: CitaContexto) => void;
+    onEditarPrioridadCita: (cita: CitaContexto) => void;
+    onEditarFechaEstimadaCita: (cita: CitaContexto) => void;
     onRegistrarRechazoCita: (cita: CitaContexto) => void;
 }) {
     const estaVacio = contexto !== null && contexto.solicitudes.length === 0 && contexto.citas.length === 0;
@@ -1194,12 +1220,18 @@ function OtrasSolicitudesModal({
                                         Cerrar cita
                                     </Button>
                                 )}
-                                {cita.editable && (
-                                    <Button type="button" variant="outline" size="sm" onClick={() => onEditarCita(cita)}>
-                                        <Pencil data-icon="inline-start" />
-                                        Editar
-                                    </Button>
-                                )}
+                                {cita.editable ? (
+                                    <>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => onEditarPrioridadCita(cita)}>
+                                            <Pencil data-icon="inline-start" />
+                                            Editar prioridad
+                                        </Button>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => onEditarFechaEstimadaCita(cita)}>
+                                            <CalendarPlus data-icon="inline-start" />
+                                            Editar fecha estimada
+                                        </Button>
+                                    </>
+                                ) : null}
                             </div>
                         )}
                     />
