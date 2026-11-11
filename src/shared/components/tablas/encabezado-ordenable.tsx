@@ -23,7 +23,15 @@ export function EncabezadoOrdenable<K extends string>({ columna, orden, onOrden,
     const Icono = direccion === "asc" ? ArrowUp : direccion === "desc" ? ArrowDown : ArrowUpDown;
     return (
         <TableHead className={className} aria-sort={direccion === "asc" ? "ascending" : direccion === "desc" ? "descending" : "none"}>
-            <Button type="button" variant="ghost" size="sm" className="-ml-3" onClick={() => onOrden(siguienteOrden(orden, columna))}>
+            {/* Estilo neutro local: sobrescribe el hover verde del variante ghost (bg-accent) sin
+                tocar Button global; mantiene el foco visible con el anillo estandar del tema. */}
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="-ml-3 hover:bg-muted hover:text-foreground active:bg-muted/60"
+                onClick={() => onOrden(siguienteOrden(orden, columna))}
+            >
                 {children}
                 <Icono aria-hidden="true" data-icon="inline-end" />
             </Button>
