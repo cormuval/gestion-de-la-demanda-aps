@@ -7,7 +7,7 @@ import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 import type { ResultadoAccion } from "@/shared/types/resultado";
 // schemas
-import { ORIGEN_LLAMADA, registrarLlamadaSchema, RegistrarLlamadaInput } from "../schemas/llamada.schema";
+import { registrarLlamadaSchema, RegistrarLlamadaInput } from "../schemas/llamada.schema";
 // utils
 import { computeEstadoCita } from "../utils/estadoCita";
 // types
@@ -17,9 +17,6 @@ export async function registrarLlamada(input: RegistrarLlamadaInput): Promise<Re
     const user = await requirePermiso("comunicador.llamar");
 
     const data = registrarLlamadaSchema.parse(input);
-    if (data.origen !== ORIGEN_LLAMADA.COMUNICADOR) {
-        return { ok: false, error: "Origen de llamada no autorizado" };
-    }
 
     const resultado = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id_cita FROM citas WHERE id_cita = ${data.cita_id} FOR UPDATE`;

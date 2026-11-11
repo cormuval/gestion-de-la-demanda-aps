@@ -128,12 +128,29 @@ describe("registrarLlamada", () => {
         expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
 
-    it("rechaza un origen Gestion manipulado antes de abrir una transaccion", async () => {
+    it("Gestion valida llega a la transaccion y persiste la llamada", async () => {
         await expect(registrarLlamada({
             cita_id: "CITA-1",
             origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
-            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA
-        } as any)).resolves.toEqual({ ok: false, error: "Origen de llamada no autorizado" });
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+            observacion: "  Ya no requiere la prestacion  "
+        } as any)).resolves.toEqual({ ok: true, data: { estadoCita: "Cita Rechazada (No Necesaria)", solicitudRealizada: true } });
+
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(tx.llamada.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                respuesta_usuario: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+                observacion: "Ya no requiere la prestacion"
+            })
+        }));
+    });
+
+    it("Gestion con otra respuesta falla por Zod antes de abrir una transaccion", async () => {
+        await expect(registrarLlamada({
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.NO_CONTESTA
+        } as any)).rejects.toBeInstanceOf(ZodError);
 
         expect(prisma.$transaction).not.toHaveBeenCalled();
         expect(tx.llamada.create).not.toHaveBeenCalled();
