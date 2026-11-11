@@ -48,6 +48,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shar
 import { EditarCitaDialog } from "@/modules/solicitudes/components/EditarCitaDialog";
 import { ListaPendientes } from "@/modules/solicitudes/components/PendientesCascada";
 import { UsuarioEditFormState, UsuarioEditModal } from "@/modules/solicitudes/components/UsuarioEditModal";
+import { RegistrarLlamadaModal, type CitaParaLlamada } from "@/modules/comunicador/components/RegistrarLlamadaModal";
 // hooks
 import { useRefrescoAutomatico } from "@/shared/hooks/useRefrescoAutomatico";
 // lib
@@ -212,6 +213,7 @@ export function RevisarSolicitudesView() {
     const [otrasContexto, setOtrasContexto] = useState<OtrasSolicitudesResponse | null>(null);
     const [otrasError, setOtrasError] = useState<string | null>(null);
     const [citaEditando, setCitaEditando] = useState<CitaCascadaConEdicion | null>(null);
+    const [citaLlamando, setCitaLlamando] = useState<{ cita: CitaParaLlamada; telefonos: string; correo: string } | null>(null);
     const [loadingOtras, setLoadingOtras] = useState(false);
     const [usuarioForm, setUsuarioForm] = useState<UsuarioEditFormState>(emptyUsuarioForm);
     const [editingUsuario, setEditingUsuario] = useState<SolicitudRow | null>(null);
@@ -226,7 +228,7 @@ export function RevisarSolicitudesView() {
     const filtrosAplicadosRef = useRef<SolicitudFiltros>(FILTROS_VACIOS);
     // Solicitud cuya vigencia se esta verificando; ignora pulsaciones repetidas.
     const verificandoRef = useRef<string | null>(null);
-    const hayModalAbierto = Boolean(rechazoSolicitud || realizarSolicitud || otrasSolicitudBase || citaEditando || editingUsuario);
+    const hayModalAbierto = Boolean(rechazoSolicitud || realizarSolicitud || otrasSolicitudBase || citaEditando || citaLlamando || editingUsuario);
 
     useRefrescoAutomatico(() => loadSolicitudes(filtrosAplicadosRef.current, { silencioso: true }), { pausado: hayModalAbierto });
 
@@ -390,6 +392,36 @@ export function RevisarSolicitudesView() {
         setOtrasContexto(null);
         setOtrasError(null);
         await cargarContexto(solicitud);
+    }
+
+    function openRegistrarRechazoCita(cita: CitaContexto) {
+        const solicitudContextual = otrasContexto?.solicitudes.find((solicitud) => solicitud.id_solicitud === cita.solicitud_id);
+        const usuario = solicitudContextual?.usuario;
+        if (!usuario) return;
+
+        const nombreUsuario = [usuario.nombre, usuario.apellido].filter(Boolean).join(" ");
+        const telefonos = [usuario.telefono, usuario.telefono_alternativo].filter(Boolean).join(" · ");
+        setCitaLlamando({
+            cita: {
+                id_cita: cita.id_cita,
+                rut_usuario: usuario.rut,
+                estado_cita: cita.estado_cita,
+                nombre_usuario: nombreUsuario,
+                nombre_social: usuario.nombre_social,
+                profesion: cita.profesional?.nombre ?? null,
+                prestacion: cita.prestacion?.nombre_prestacion ?? null,
+                fecha_estimada_atencion: cita.fecha_estimada_atencion,
+                observacion: cita.observacion
+            },
+            telefonos,
+            correo: usuario.correo_contacto ?? ""
+        });
+    }
+
+    function cerrarLlamadaYRecargarContexto(mensaje?: string) {
+        setCitaLlamando(null);
+        if (mensaje) toast.success(mensaje);
+        if (otrasSolicitudBase) void cargarContexto(otrasSolicitudBase);
     }
 
     function openEditarUsuario(solicitud: SolicitudRow) {
@@ -800,6 +832,19 @@ export function RevisarSolicitudesView() {
                     onRechazar={openRechazo}
                     onEditarUsuario={openEditarUsuario}
                     onEditarCita={setCitaEditando}
+                    onRegistrarRechazoCita={openRegistrarRechazoCita}
+                />
+            )}
+
+            {citaLlamando && (
+                <RegistrarLlamadaModal
+                    cita={citaLlamando.cita}
+                    telefonos={citaLlamando.telefonos}
+                    correo={citaLlamando.correo}
+                    modo="gestion_solicitudes"
+                    onCerrar={() => setCitaLlamando(null)}
+                    onRegistrado={(mensaje) => cerrarLlamadaYRecargarContexto(mensaje)}
+                    onCitaCerrada={() => cerrarLlamadaYRecargarContexto()}
                 />
             )}
 
@@ -1061,7 +1106,8 @@ function OtrasSolicitudesModal({
     onRealizar,
     onRechazar,
     onEditarUsuario,
-    onEditarCita
+    onEditarCita,
+    onRegistrarRechazoCita
 }: {
     solicitudBase: SolicitudRow;
     contexto: OtrasSolicitudesResponse | null;
@@ -1073,6 +1119,7 @@ function OtrasSolicitudesModal({
     onRechazar: (solicitud: SolicitudRow) => void;
     onEditarUsuario: (solicitud: SolicitudRow) => void;
     onEditarCita: (cita: CitaContexto) => void;
+    onRegistrarRechazoCita: (cita: CitaContexto) => void;
 }) {
     const estaVacio = contexto !== null && contexto.solicitudes.length === 0 && contexto.citas.length === 0;
 
@@ -1130,14 +1177,22 @@ function OtrasSolicitudesModal({
                                 </div>
                             );
                         }}
-                        accionesCita={(cita) =>
-                            cita.editable ? (
-                                <Button type="button" variant="outline" size="sm" onClick={() => onEditarCita(cita)}>
-                                    <Pencil data-icon="inline-start" />
-                                    Editar
-                                </Button>
-                            ) : null
-                        }
+                        accionesCita={(cita) => (
+                            <div className="flex flex-wrap justify-end gap-2">
+                                {cita.puedeRegistrarRechazo && (
+                                    <Button type="button" variant="outline" size="sm" onClick={() => onRegistrarRechazoCita(cita)}>
+                                        <X data-icon="inline-start" />
+                                        Registrar rechazo
+                                    </Button>
+                                )}
+                                {cita.editable && (
+                                    <Button type="button" variant="outline" size="sm" onClick={() => onEditarCita(cita)}>
+                                        <Pencil data-icon="inline-start" />
+                                        Editar
+                                    </Button>
+                                )}
+                            </div>
+                        )}
                     />
                 ) : null}
             </DialogContent>

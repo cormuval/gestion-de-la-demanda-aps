@@ -11,6 +11,7 @@ vi.mock("@/modules/solicitudes/actions/guardarUsuario.action", () => ({ actualiz
 vi.mock("@/modules/solicitudes/actions/getOtrasSolicitudes.action", () => ({ getOtrasSolicitudes: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/editarCita.action", () => ({ editarCita: vi.fn() }));
 vi.mock("@/modules/solicitudes/actions/verificarSolicitudPendiente.action", () => ({ verificarSolicitudPendiente: vi.fn() }));
+vi.mock("@/modules/comunicador/actions/registrarLlamada.action", () => ({ registrarLlamada: vi.fn() }));
 vi.mock("@/shared/components/ui/dropdown-menu", () => ({
     DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -30,8 +31,10 @@ import { getSolicitudes } from "@/modules/solicitudes/actions/getSolicitudes.act
 import { gestionarSolicitud } from "@/modules/solicitudes/actions/gestionarSolicitud.action";
 import { actualizarUsuario } from "@/modules/solicitudes/actions/guardarUsuario.action";
 import { verificarSolicitudPendiente } from "@/modules/solicitudes/actions/verificarSolicitudPendiente.action";
+import { registrarLlamada } from "@/modules/comunicador/actions/registrarLlamada.action";
 // types
 import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestion";
+import { ERROR_CITA_CERRADA } from "@/modules/comunicador/types/comunicador";
 // components
 import { RevisarSolicitudesView } from "./RevisarSolicitudesView";
 // lib
@@ -83,12 +86,17 @@ beforeEach(() => {
                     fecha_estimada_atencion: new Date("2026-10-01T00:00:00"),
                     profesional: { nombre: "Medico" },
                     prestacion: { nombre_prestacion: "Consulta" },
-                    editable: true
+                    editable: true,
+                    puedeRegistrarRechazo: true
                 }
             ]
         }
     } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
     vi.mocked(verificarSolicitudPendiente).mockResolvedValue({ ok: true, data: { pendiente: true, estado: "En Curso" } });
+    vi.mocked(registrarLlamada).mockResolvedValue({
+        ok: true,
+        data: { estadoCita: "Cita Rechazada (No necesaria)", solicitudRealizada: false }
+    } as never);
 });
 
 async function openGestionMenu() {
@@ -102,6 +110,71 @@ function abrirFiltros() {
 }
 
 describe("RevisarSolicitudesView contexto de citas", () => {
+    it("permite registrar rechazo solo cuando la cita tiene permiso y recarga el contexto al guardar", async () => {
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar rechazo" }));
+
+        const modalLlamada = await screen.findByRole("dialog", { name: "Registrar llamada" });
+        expect(within(modalLlamada).getByText("Juan Perez")).toBeInTheDocument();
+        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Registrar" }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument());
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+    });
+
+    it("cierra el registro de rechazo y recarga el contexto si otro funcionario cerro la cita", async () => {
+        vi.mocked(registrarLlamada).mockResolvedValue({ ok: false, error: ERROR_CITA_CERRADA } as never);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar rechazo" }));
+        const modalLlamada = await screen.findByRole("dialog", { name: "Registrar llamada" });
+        fireEvent.click(within(modalLlamada).getByRole("button", { name: "Registrar" }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument());
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+    });
+
+    it("no ofrece registrar rechazo si la cita editable no tiene permiso", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValue({
+            ok: true,
+            data: {
+                solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "Realizar solicitud" }],
+                citas: [{
+                    id_cita: "CITA-1",
+                    solicitud_id: "SOL-2",
+                    estado_cita: "Sin llamadas",
+                    observacion: null,
+                    priorizacion_clinica: "Alta",
+                    fecha_estimada_atencion: new Date("2026-10-01T00:00:00"),
+                    profesional: { nombre: "Medico" },
+                    prestacion: { nombre_prestacion: "Consulta" },
+                    editable: true,
+                    puedeRegistrarRechazo: false
+                }]
+            }
+        } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        render(<RevisarSolicitudesView />);
+
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+
+        const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        expect(within(modalContexto).queryByRole("button", { name: "Registrar rechazo" })).not.toBeInTheDocument();
+        expect(within(modalContexto).getByRole("button", { name: "Editar" })).toBeInTheDocument();
+    });
+
     it("identifica al paciente con sus nombres legal y social", async () => {
         render(<RevisarSolicitudesView />);
         expect(await screen.findByText("Juan Perez")).toBeVisible();
