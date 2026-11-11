@@ -20,18 +20,23 @@ origen.
 
 Mejorar la gestion integral del paciente desde **Revisar solicitudes** para que una gestora pueda:
 
-1. registrar, sobre una cita pendiente de otra solicitud en curso del mismo paciente, una llamada
-   restringida a la respuesta **Cita Rechazada (No Necesaria)**;
+1. cerrar administrativamente una cita pendiente de otra solicitud en curso del mismo paciente,
+   reutilizando internamente la respuesta **Cita Rechazada (No Necesaria)**;
 2. ingresar hasta 350 caracteres en la observacion de rechazo de una solicitud; y
-3. identificar al orientador que ingreso la solicitud antes de realizarla o rechazarla.
+3. identificar al orientador que ingreso la solicitud antes de realizarla o rechazarla; y
+4. editar por separado la prioridad clinica o la fecha estimada de una cita elegible.
 
 ## Alcance
 
 ### Incluido
 
-- Accion **Registrar llamada** en las citas elegibles de **Otras solicitudes y citas**.
+- Accion **Cerrar cita** en las citas elegibles de **Otras solicitudes y citas**.
 - Reutilizacion del flujo transaccional actual de `registrarLlamada`.
-- Modal de llamada en modo restringido, con respuesta fija y solo un campo editable.
+- Modal **Cierre administrativo de cita**, con la respuesta tecnica fija y solo el campo
+  **Motivo del cierre** editable.
+- Boton **Cerrar cita** con la misma variante primaria del boton **Llamar** de Comunicador.
+- Acciones independientes **Editar prioridad** y **Editar fecha estimada**, cada una con su propio
+  modal y un unico campo visible.
 - Persistencia de la observacion exclusivamente en `llamadas.observacion`.
 - Actualizacion de los estados de cita y solicitud con las reglas actuales.
 - Limite de 350 caracteres para `observacion_rechazo` al rechazar solicitudes.
@@ -64,6 +69,11 @@ Mejorar la gestion integral del paciente desde **Revisar solicitudes** para que 
 | Cierre de solicitud | Regla actual: `Realizado` solo cuando no quedan citas pendientes | Mantiene el comportamiento del Comunicador |
 | Observacion de rechazo de solicitud | 350 caracteres en UI y Zod | Alinea cliente y servidor con el limite requerido |
 | Orientador ausente | Mostrar `Orientador: Sin registro` | Evita ocultar el dato o dejar un espacio ambiguo |
+| Nombre de cierre | Boton **Cerrar cita** y modal **Cierre administrativo de cita** | Cubre atencion ya realizada, duplicidad u otra cita vigente sin afirmar que hubo una llamada |
+| Jerarquia visual del cierre | Variante primaria, igual a **Llamar** en Comunicador | Identifica la accion principal sobre la cita |
+| Edicion de cita | Dos botones y dos modales: **Editar prioridad** / **Editar fecha estimada** | Cada accion declara exactamente el dato que modifica |
+| Contenido de edicion | Cada modal muestra exclusivamente su campo editable | Evita presentar como editable o informativo el otro atributo |
+| Persistencia de edicion | Reusar `editarCita`, enviando el valor vigente del campo no visible | Conserva validacion, concurrencia y auditoria sin duplicar backend |
 
 ## Diseno
 
@@ -83,21 +93,21 @@ El contrato de cada cita agregara una propiedad explicita, por ejemplo `puedeReg
 calculada en el servidor. `editable`, usada para corregir una cita sin llamadas, conserva su regla
 actual y es independiente de esta nueva accion.
 
-No se habilitara **Registrar llamada** en la seccion de citas huerfanas ni en citas que por una carrera
+No se habilitara **Cerrar cita** en la seccion de citas huerfanas ni en citas que por una carrera
 de concurrencia hayan dejado de estar pendientes. La action de registro volvera a validar el estado.
 
-### 2. Modo restringido del modal de llamada
+### 2. Cierre administrativo de cita
 
 `src/modules/comunicador/components/RegistrarLlamadaModal.tsx` aceptara una configuracion explicita
 de origen o modo, sin duplicar el componente. El modo normal conservara exactamente el comportamiento
 actual de Comunicador. El modo de Gestion tendra estas reglas:
 
-- titulo **Registrar llamada** y datos informativos actuales del paciente y la cita;
+- titulo **Cierre administrativo de cita** y datos informativos actuales del paciente y la cita;
 - respuesta fija visible: **Cita Rechazada (No Necesaria)**, sin `Select`;
-- unico control editable: **Observacion**;
+- unico control editable: **Motivo del cierre**;
 - observacion opcional, recortada con `trim`, con `maxLength={350}` y contador `N/350`;
 - sin campo de hora agendada ni otros campos de respuesta;
-- botones **Cancelar** y **Registrar**.
+- botones **Cancelar** y **Cerrar cita**.
 
 La composicion respetara shadcn/ui: `Dialog` con `DialogTitle`, `FieldGroup`/`Field` para el
 formulario, `Textarea` para la observacion, `Button` para acciones, espaciado mediante `gap-*` y
@@ -145,13 +155,29 @@ resultante.
 ### 4. Integracion en Revisar solicitudes
 
 En `src/modules/solicitudes/components/RevisarSolicitudesView.tsx`, `OtrasSolicitudesModal` agregara
-la accion **Registrar llamada** junto a cada cita con `puedeRegistrarRechazo = true`. La accion abrira
+la accion primaria **Cerrar cita** junto a cada cita con `puedeRegistrarRechazo = true`. La accion abrira
 `RegistrarLlamadaModal` en modo Gestion con los datos de la cita y el contacto del paciente ya
 disponible o consultado mediante el flujo existente.
 
-Una cita puede mostrar **Editar** y **Registrar llamada** de acuerdo con reglas independientes. Una
-cita sin llamadas puede admitir ambas acciones; al abrir un modal se mantendra el contexto padre y
-se evitara superponer interacciones. Al completar cualquiera de ellas se recargara el contexto.
+El boton **Cerrar cita** usara la misma variante primaria de `Button` que **Llamar** en
+`CitasPendientesTabla`; no se copiaran clases de color manuales. Las ediciones permaneceran como
+acciones secundarias `outline`.
+
+El boton generico **Editar** se reemplazara por:
+
+- **Editar prioridad**, que abre `EditarPrioridadCitaDialog` y muestra exclusivamente el `Select` de
+  priorizacion clinica;
+- **Editar fecha estimada**, que abre `EditarFechaEstimadaCitaDialog` y muestra exclusivamente el
+  `Input type="date"`.
+
+Ambos botones se muestran solo cuando `cita.editable` conserva su valor actual: estado
+`Sin llamadas` y cero llamadas registradas. Los dos modales reutilizaran una base interna comun para
+guardar, presentar errores y recargar el contexto. Al enviar, cada modal llamara `editarCita` con el
+campo modificado y con el valor vigente del otro campo tomado de la cita, sin mostrarlo en pantalla.
+
+Una cita puede mostrar las acciones de edicion y **Cerrar cita** de acuerdo con reglas independientes;
+al abrir un modal se mantendra el contexto padre y se evitara superponer interacciones. Al completar
+cualquiera de ellas se recargara el contexto.
 
 La action `registrarLlamada` seguira exigiendo `comunicador.llamar`. Si un usuario con acceso a
 Gestion no tiene ese permiso, el servidor no escribira y la interfaz mostrara el mensaje de acceso
@@ -194,8 +220,8 @@ y no altera el envio de los formularios.
 1. La gestora abre **Otras solicitudes y citas** desde una solicitud base.
 2. El servidor devuelve las otras solicitudes en curso y sus citas pendientes del mismo paciente y
    centro, marcando las citas elegibles.
-3. La gestora selecciona **Registrar llamada** en una cita.
-4. El modal muestra la respuesta fija y solicita solo la observacion.
+3. La gestora selecciona **Cerrar cita** en una cita.
+4. El modal de cierre muestra la respuesta fija y solicita solo el motivo del cierre.
 5. La action valida `comunicador.llamar`, origen, respuesta, observacion, centro y estado bajo bloqueo.
 6. Se crea una fila en `llamadas` y se actualiza `citas.estado_cita`; `citas.razon_rechazo` queda sin
    cambios.
@@ -241,9 +267,14 @@ El desarrollo seguira TDD.
 
 - `getOtrasSolicitudes` solo marca citas pendientes de otras solicitudes `En Curso` visibles;
 - no habilita la accion para citas de la solicitud base, cerradas o huerfanas;
-- **Registrar llamada** abre el modal en modo restringido;
+- **Cerrar cita** abre **Cierre administrativo de cita** en modo restringido;
+- el boton **Cerrar cita** usa la misma variante visual primaria que **Llamar**;
 - no existe selector de respuesta ni campo de hora;
-- solo la observacion es editable y muestra el limite `350`;
+- solo **Motivo del cierre** es editable y muestra el limite `350`;
+- **Editar prioridad** abre un modal que solo muestra prioridad clinica;
+- **Editar fecha estimada** abre un modal que solo muestra fecha estimada;
+- ambos modales de edicion conservan la elegibilidad actual y envian sin mostrar el valor vigente del
+  otro campo;
 - exito y cierre concurrente recargan el contexto;
 - los errores de permiso se presentan sin cerrar silenciosamente el flujo.
 
@@ -269,10 +300,12 @@ El desarrollo seguira TDD.
 
 ## Criterios de aceptacion
 
-- [ ] Desde **Otras solicitudes y citas** se puede registrar una llamada solo sobre una cita pendiente
+- [ ] Desde **Otras solicitudes y citas** se puede cerrar administrativamente solo una cita pendiente
   perteneciente a otra solicitud `En Curso` del mismo paciente y centro.
-- [ ] El modal restringido fija la respuesta **Cita Rechazada (No Necesaria)** y permite editar
-  unicamente una observacion opcional de hasta 350 caracteres.
+- [ ] El boton se llama **Cerrar cita**, usa la misma variante primaria que **Llamar**, y abre
+  **Cierre administrativo de cita**.
+- [ ] El modal de cierre fija la respuesta **Cita Rechazada (No Necesaria)** y permite editar
+  unicamente **Motivo del cierre**, opcional y de hasta 350 caracteres.
 - [ ] El registro exige `comunicador.llamar` y conserva las validaciones de centro y concurrencia.
 - [ ] La observacion se guarda exclusivamente en `llamadas.observacion`; `citas.razon_rechazo` no se
   modifica.
@@ -283,4 +316,7 @@ El desarrollo seguira TDD.
   en servidor.
 - [ ] Realizar y Rechazar muestran el nombre del orientador debajo de la descripcion, con fallback
   `Sin registro`.
+- [ ] Una cita editable muestra **Editar prioridad** y **Editar fecha estimada** en lugar de **Editar**.
+- [ ] Cada modal de edicion muestra exclusivamente el campo que modifica y recarga el contexto tras
+  guardar.
 - [ ] Las pruebas, TypeScript, lint y build finalizan correctamente.
