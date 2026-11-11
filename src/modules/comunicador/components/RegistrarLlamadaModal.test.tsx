@@ -53,6 +53,7 @@ describe("RegistrarLlamadaModal", () => {
         expect(observacion).toHaveAttribute("maxlength", "350");
         expect(screen.getByText("0/350")).toBeInTheDocument();
         expect(screen.getByText(RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA)).toBeInTheDocument();
+        expect(screen.getByText("Respuesta registrada").tagName).toBe("DIV");
         expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
         expect(screen.queryByLabelText("Hora agendada")).not.toBeInTheDocument();
 
@@ -66,6 +67,29 @@ describe("RegistrarLlamadaModal", () => {
             observacion: "Ya no requiere esta prestacion",
             hora_agendada: ""
         }));
+    });
+
+    it("en Gestion muestra el error estructurado de la action", async () => {
+        vi.mocked(registrarLlamada).mockResolvedValue({
+            ok: false,
+            error: "No tienes permiso para esta operacion"
+        } as never);
+
+        render(
+            <RegistrarLlamadaModal
+                cita={cita}
+                telefonos="9 1234 5678"
+                correo="paciente@example.com"
+                modo="gestion_solicitudes"
+                onCerrar={vi.fn()}
+                onRegistrado={vi.fn()}
+            />
+        );
+
+        fireEvent.submit(screen.getByRole("button", { name: "Registrar" }).closest("form")!);
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No tienes permiso para esta operacion"));
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
     it("conserva en Comunicador el selector de respuestas", () => {

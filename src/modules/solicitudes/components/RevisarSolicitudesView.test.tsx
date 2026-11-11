@@ -63,6 +63,21 @@ const solicitudBase = {
     orientador: { nombre: "Orientadora Uno" }
 };
 
+const solicitudAsociada = {
+    ...solicitudBase,
+    id_solicitud: "SOL-2",
+    accion: "Realizar solicitud",
+    usuario: {
+        ...solicitudBase.usuario,
+        nombre: "Paciente",
+        apellido: "Asociada",
+        nombre_social: "Social Asociada",
+        telefono: "32 222 2222",
+        telefono_alternativo: "9 8765 4321",
+        correo_contacto: "asociada@example.com"
+    }
+};
+
 beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getRevisionCatalogos).mockResolvedValue({
@@ -76,7 +91,7 @@ beforeEach(() => {
     vi.mocked(getOtrasSolicitudes).mockResolvedValue({
         ok: true,
         data: {
-            solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "Realizar solicitud" }],
+            solicitudes: [solicitudAsociada],
             citas: [
                 {
                     id_cita: "CITA-1",
@@ -111,7 +126,7 @@ function abrirFiltros() {
 }
 
 describe("RevisarSolicitudesView contexto de citas", () => {
-    it("permite registrar rechazo solo cuando la cita tiene permiso y recarga el contexto al guardar", async () => {
+    it("abre la llamada con los datos de la solicitud asociada por solicitud_id y recarga al guardar", async () => {
         render(<RevisarSolicitudesView />);
 
         await screen.findByText("SOL-1");
@@ -119,10 +134,14 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
-        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar rechazo" }));
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar llamada" }));
 
         const modalLlamada = await screen.findByRole("dialog", { name: "Registrar llamada" });
-        expect(within(modalLlamada).getByText("Juan Perez")).toBeInTheDocument();
+        expect(within(modalLlamada).getByText("Paciente Asociada")).toBeInTheDocument();
+        expect(within(modalLlamada).getByText("Nombre social: Social Asociada")).toBeInTheDocument();
+        expect(within(modalLlamada).getByText("Teléfonos: 32 222 2222 · 9 8765 4321")).toBeInTheDocument();
+        expect(within(modalLlamada).getByText("Correo: asociada@example.com")).toBeInTheDocument();
+        expect(within(modalLlamada).queryByText("Juan Perez")).not.toBeInTheDocument();
         fireEvent.click(within(modalLlamada).getByRole("button", { name: "Registrar" }));
 
         await waitFor(() => expect(screen.queryByRole("dialog", { name: "Registrar llamada" })).not.toBeInTheDocument());
@@ -138,7 +157,7 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
-        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar rechazo" }));
+        fireEvent.click(within(modalContexto).getByRole("button", { name: "Registrar llamada" }));
         const modalLlamada = await screen.findByRole("dialog", { name: "Registrar llamada" });
         fireEvent.click(within(modalLlamada).getByRole("button", { name: "Registrar" }));
 
@@ -172,7 +191,7 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
 
         const modalContexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
-        expect(within(modalContexto).queryByRole("button", { name: "Registrar rechazo" })).not.toBeInTheDocument();
+        expect(within(modalContexto).queryByRole("button", { name: "Registrar llamada" })).not.toBeInTheDocument();
         expect(within(modalContexto).getByRole("button", { name: "Editar" })).toBeInTheDocument();
     });
 

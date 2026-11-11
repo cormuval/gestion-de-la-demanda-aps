@@ -7,7 +7,7 @@ import { registrarLlamada } from "../actions/registrarLlamada.action";
 import { NombrePaciente } from "@/shared/components/pacientes/nombre-paciente";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/shared/components/ui/field";
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -117,7 +117,7 @@ export function RegistrarLlamadaModal({ cita, telefonos, correo, modo = "comunic
                     <FieldGroup>
                         {esGestionSolicitudes ? (
                             <Field>
-                                <FieldLabel>Respuesta registrada</FieldLabel>
+                                <FieldTitle>Respuesta registrada</FieldTitle>
                                 <p className="text-sm">{RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA}</p>
                             </Field>
                         ) : (

@@ -32,11 +32,24 @@ beforeEach(() => {
 });
 
 describe("registrarLlamada", () => {
-    it("propaga el rechazo cuando falta el permiso de llamar", async () => {
+    it("devuelve un error estructurado y no abre una transaccion cuando falta comunicador.llamar", async () => {
         (requirePermiso as any).mockRejectedValue(new Error("No tienes permiso para esta operacion"));
-        await expect(registrarLlamada({} as any)).rejects.toThrow("No tienes permiso para esta operacion");
+
+        await expect(registrarLlamada({} as any)).resolves.toEqual({
+            ok: false,
+            error: "No tienes permiso para esta operacion"
+        });
 
         expect(requirePermiso).toHaveBeenCalledWith("comunicador.llamar");
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("propaga un fallo tecnico del guard sin presentarlo como falta de permiso", async () => {
+        (requirePermiso as any).mockRejectedValue(new Error("No fue posible consultar los permisos"));
+
+        await expect(registrarLlamada({} as any)).rejects.toThrow("No fue posible consultar los permisos");
+
+        expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it("propaga el rechazo de Zod", async () => {

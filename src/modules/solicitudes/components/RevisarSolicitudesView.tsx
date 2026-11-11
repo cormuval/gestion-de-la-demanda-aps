@@ -1191,7 +1191,7 @@ function OtrasSolicitudesModal({
                                 {cita.puedeRegistrarRechazo && (
                                     <Button type="button" variant="outline" size="sm" onClick={() => onRegistrarRechazoCita(cita)}>
                                         <X data-icon="inline-start" />
-                                        Registrar rechazo
+                                        Registrar llamada
                                     </Button>
                                 )}
                                 {cita.editable && (
