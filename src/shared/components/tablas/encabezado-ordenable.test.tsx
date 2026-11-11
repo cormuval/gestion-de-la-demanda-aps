@@ -51,7 +51,7 @@ describe("EncabezadoOrdenable", () => {
         expect(tipo).toHaveAttribute("aria-sort", "ascending");
     });
 
-    it("usa colores neutros en hover y activacion, sin el acento verde", () => {
+    it("usa colores neutros en hover, foco y activacion, sin el acento verde ni el anillo del tema", () => {
         render(<TablaOrdenable />);
         const boton = within(screen.getByRole("columnheader", { name: "Fecha" })).getByRole("button", { name: "Fecha" });
         expect(boton.className).not.toMatch(/bg-accent/);
@@ -59,7 +59,8 @@ describe("EncabezadoOrdenable", () => {
         expect(boton.className).toContain("hover:bg-muted");
         expect(boton.className).toContain("hover:text-foreground");
         expect(boton.className).toContain("active:bg-muted");
-        // El indicador de foco de teclado sigue visible.
-        expect(boton.className).toContain("focus-visible:ring-ring");
+        // Foco neutro de contraste suficiente (foreground), sin el anillo teal del tema y siempre visible.
+        expect(boton.className).toContain("focus-visible:ring-foreground");
+        expect(boton.className).not.toMatch(/ring-ring/);
     });
 });
