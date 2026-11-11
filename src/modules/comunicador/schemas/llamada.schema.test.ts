@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { registrarLlamadaSchema, citasFiltrosSchema } from "./llamada.schema";
+import { ORIGEN_LLAMADA, registrarLlamadaSchema, citasFiltrosSchema } from "./llamada.schema";
 import { RESPUESTA_LLAMADA } from "../types/comunicador";
 
 describe("registrarLlamadaSchema", () => {
+    it("asigna Comunicador como origen por defecto", () => {
+        const r = registrarLlamadaSchema.parse({ cita_id: "CITA-1", respuesta: RESPUESTA_LLAMADA.NO_CONTESTA });
+
+        expect(r.origen).toBe(ORIGEN_LLAMADA.COMUNICADOR);
+    });
+
     it("hora_agendada obligatoria en 'Cita Aceptada'", () => {
         const r = registrarLlamadaSchema.safeParse({ cita_id: "CITA-1", respuesta: RESPUESTA_LLAMADA.ACEPTADA });
         expect(r.success).toBe(false);
@@ -18,6 +24,46 @@ describe("registrarLlamadaSchema", () => {
     it("rechaza respuesta inválida", () => {
         const r = registrarLlamadaSchema.safeParse({ cita_id: "CITA-1", respuesta: "otra" });
         expect(r.success).toBe(false);
+    });
+
+    it("Gestion acepta solamente el rechazo no necesario y recorta la observacion", () => {
+        const r = registrarLlamadaSchema.parse({
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+            observacion: "  No requiere la prestacion  "
+        });
+
+        expect(r.observacion).toBe("No requiere la prestacion");
+    });
+
+    it("Gestion acepta una observacion vacia", () => {
+        const r = registrarLlamadaSchema.parse({
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+            observacion: "   "
+        });
+
+        expect(r.observacion).toBe("");
+    });
+
+    it("Gestion acepta observacion de 350 caracteres y rechaza 351", () => {
+        const base = {
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA
+        };
+
+        expect(registrarLlamadaSchema.safeParse({ ...base, observacion: "a".repeat(350) }).success).toBe(true);
+        expect(registrarLlamadaSchema.safeParse({ ...base, observacion: "a".repeat(351) }).success).toBe(false);
+    });
+
+    it("Gestion rechaza otra respuesta y una hora agendada", () => {
+        const base = { cita_id: "CITA-1", origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES };
+
+        expect(registrarLlamadaSchema.safeParse({ ...base, respuesta: RESPUESTA_LLAMADA.NO_CONTESTA }).success).toBe(false);
+        expect(registrarLlamadaSchema.safeParse({ ...base, respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA, hora_agendada: "2026-08-01T10:00" }).success).toBe(false);
     });
 });
 

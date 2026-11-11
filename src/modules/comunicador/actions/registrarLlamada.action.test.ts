@@ -18,6 +18,7 @@ import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 import { AuditLogger } from "@/shared/lib/logger";
 import { RESPUESTA_LLAMADA } from "../types/comunicador";
+import { ORIGEN_LLAMADA } from "../schemas/llamada.schema";
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -34,6 +35,8 @@ describe("registrarLlamada", () => {
     it("propaga el rechazo cuando falta el permiso de llamar", async () => {
         (requirePermiso as any).mockRejectedValue(new Error("No tienes permiso para esta operacion"));
         await expect(registrarLlamada({} as any)).rejects.toThrow("No tienes permiso para esta operacion");
+
+        expect(requirePermiso).toHaveBeenCalledWith("comunicador.llamar");
     });
 
     it("propaga el rechazo de Zod", async () => {
@@ -73,6 +76,22 @@ describe("registrarLlamada", () => {
         expect(tx.solicitud.update).toHaveBeenCalledWith(expect.objectContaining({ data: { estado_solicitud: "Realizado" } }));
     });
 
+    it("guarda la observacion solo al crear la llamada y actualiza la cita con su estado exacto", async () => {
+        await registrarLlamada({
+            cita_id: "CITA-1",
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA,
+            observacion: "  Solicitud ya resuelta  "
+        } as any);
+
+        expect(tx.llamada.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({ observacion: "Solicitud ya resuelta" })
+        }));
+        expect(tx.cita.update).toHaveBeenCalledWith({
+            where: { id_cita: "CITA-1" },
+            data: { estado_cita: "Cita Rechazada (No Necesaria)" }
+        });
+    });
+
     it("respuesta terminal con citas pendientes restantes -> NO cierra solicitud", async () => {
         tx.cita.count.mockResolvedValue(2);
         const r = await registrarLlamada({ cita_id: "CITA-1", respuesta: RESPUESTA_LLAMADA.RECHAZADA_SOLICITANTE } as any);
@@ -107,5 +126,16 @@ describe("registrarLlamada", () => {
         expect(tx.cita.update).not.toHaveBeenCalled();
         expect(tx.solicitud.update).not.toHaveBeenCalled();
         expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
+    });
+
+    it("rechaza un origen Gestion manipulado antes de abrir una transaccion", async () => {
+        await expect(registrarLlamada({
+            cita_id: "CITA-1",
+            origen: ORIGEN_LLAMADA.GESTION_SOLICITUDES,
+            respuesta: RESPUESTA_LLAMADA.RECHAZADA_NO_NECESARIA
+        } as any)).resolves.toEqual({ ok: false, error: "Origen de llamada no autorizado" });
+
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(tx.llamada.create).not.toHaveBeenCalled();
     });
 });
