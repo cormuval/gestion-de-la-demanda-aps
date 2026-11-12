@@ -22,7 +22,7 @@ function formatFecha(value: Date | string): string {
 function CitaRow<C extends CitaCascada>({ cita, accionesCita }: { cita: C; accionesCita?: (cita: C) => ReactNode }) {
     return (
         <div className="rounded-md border bg-muted/20 p-3">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                     <p className="text-sm font-medium"><CodigoId id={cita.id_cita} /></p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -34,7 +34,7 @@ function CitaRow<C extends CitaCascada>({ cita, accionesCita }: { cita: C; accio
                     </div>
                     {cita.observacion && <p className="mt-2 text-sm text-muted-foreground">{cita.observacion}</p>}
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
+                <div className="flex w-full shrink-0 flex-col items-end gap-2 sm:w-auto">
                     <Badge variant="warning">
                         <AlertTriangle data-icon="inline-start" />
                         {cita.estado_cita ?? "Sin estado"}
@@ -83,7 +83,7 @@ export function ListaPendientes<S extends SolicitudCascada, C extends CitaCascad
                 const citasSolicitud = citasPorSolicitud.get(solicitud.id_solicitud) ?? [];
                 return (
                     <div key={solicitud.id_solicitud} className="rounded-md border p-3">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
                                 <p className="text-sm font-medium"><CodigoId id={solicitud.id_solicitud} /></p>
                                 <p className="mt-1 text-sm text-muted-foreground">
@@ -95,7 +95,7 @@ export function ListaPendientes<S extends SolicitudCascada, C extends CitaCascad
                                 </p>
                                 {solicitud.descripcion && <p className="mt-1 text-sm text-muted-foreground">{solicitud.descripcion}</p>}
                             </div>
-                            <div className="flex shrink-0 flex-col items-end gap-2">
+                            <div className="flex w-full shrink-0 flex-col items-end gap-2 sm:w-auto">
                                 <Badge variant="warning">
                                     <AlertTriangle data-icon="inline-start" />
                                     {solicitud.estado_solicitud}

@@ -38,7 +38,7 @@ export function PanelFiltros({ descripcion, activos, onAplicar, onLimpiar, aplic
     }
 
     return (
-        <div className="flex min-w-0 flex-1 items-start gap-2">
+        <div className="flex min-w-0 flex-1 basis-full sm:basis-0 items-start gap-2">
             {/* Area flexible del detalle: badges y Limpiar crecen a la izquierda del boton y pasan
                 a nuevas filas cuando no caben; Filtros queda fijo al extremo derecho sin encogerse. */}
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
