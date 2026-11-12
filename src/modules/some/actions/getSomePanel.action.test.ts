@@ -226,9 +226,9 @@ describe("getSomePanel", () => {
         (requirePermiso as any).mockResolvedValue(funcionarioAdmin);
         habilitarTodosLosCentros();
         (prisma.centro.findMany as any).mockResolvedValue([{ id_centro: "605", nombre_centro: "Centro 605" }]);
-        (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "08712946-2", nombre: "Andrea Alarcon" }]);
+        (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "10000003-2", nombre: "Funcionaria Demo" }]);
         (prisma.solicitud.findMany as any)
-            .mockResolvedValueOnce([{ rut_orientador: "08712946-2", fecha_inicio: hoy }])
+            .mockResolvedValueOnce([{ rut_orientador: "10000003-2", fecha_inicio: hoy }])
             .mockResolvedValueOnce([]);
         (prisma.cita.findMany as any)
             .mockResolvedValueOnce([])
@@ -242,7 +242,7 @@ describe("getSomePanel", () => {
         expect(result.totales.solicitudesIngresadas).toBe(1);
         expect(result.productividad).toEqual([
             expect.objectContaining({
-                rut: "08712946-2",
+                rut: "10000003-2",
                 solicitudesIngresadas: 1
             })
         ]);
@@ -331,7 +331,7 @@ describe("getSomePanel", () => {
         (requirePermiso as any).mockResolvedValue(funcionarioAdmin);
         habilitarTodosLosCentros();
         (prisma.centro.findMany as any).mockResolvedValue([{ id_centro: "605", nombre_centro: "Centro 605" }]);
-        (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "08712946-2", nombre: "Andrea Alarcon" }]);
+        (prisma.funcionario.findMany as any).mockResolvedValue([{ rut: "10000003-2", nombre: "Funcionaria Demo" }]);
         (prisma.solicitud.findMany as any)
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([]);

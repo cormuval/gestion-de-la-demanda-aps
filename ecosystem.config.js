@@ -1,4 +1,4 @@
-// Configuracion pm2 para produccion (servidor informesdiarios).
+// Configuracion pm2 para produccion.
 // La app se sirve con `next start` en el puerto 3010 detras de nginx (vhost gd2.cmvalparaiso.cl).
 // El deploy la publica con: pm2 startOrReload ecosystem.config.js --update-env
 module.exports = {

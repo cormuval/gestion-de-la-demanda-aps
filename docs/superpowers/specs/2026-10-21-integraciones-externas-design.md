@@ -12,7 +12,7 @@ Dos sistemas externos crean solicitudes en la base de AppSheet:
 | Origen | Código actual | Conexión | Escribe |
 | --- | --- | --- | --- |
 | Simple | gi (`gestion-informacion-das`): `src/app/api/data/solicitud-simple/route.ts` | `mysql2` a `gestionDemanda` (hardcodeado) | solicitud + contacto del paciente |
-| Derivación interna | GAS (`informe-diario-2.0`): `back-end/informe_diario/derivacionInternasGD.js` | JDBC directo a `gi.cmvalparaiso.cl:3306` | validada: solicitud + cita; pendiente: solo solicitud |
+| Derivación interna | GAS (`informe-diario-2.0`): `back-end/informe_diario/derivacionInternasGD.js` | JDBC directo al MySQL de gi | validada: solicitud + cita; pendiente: solo solicitud |
 
 Apuntarlos a la base nueva no basta:
 
