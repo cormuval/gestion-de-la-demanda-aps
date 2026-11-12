@@ -5,12 +5,20 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { PayloadToken } from '../types/solicitudWeb';
 
 export function firmarToken(payload: PayloadToken, secreto: string): string {
+    if (secreto === '') {
+        throw new Error('El secreto del token no puede estar vacío.');
+    }
+
     const json: string = JSON.stringify(payload);
     const firma: string = createHmac('sha256', secreto).update(json).digest('base64url');
     return `${Buffer.from(json).toString('base64url')}.${firma}`;
 }
 
 export function verificarToken(token: string, secreto: string, ahora: number = Date.now()): PayloadToken | null {
+    if (secreto === '') {
+        return null;
+    }
+
     try {
         const partes: string[] = token.split('.');
         if (partes.length !== 2 || partes.some((parte) => !/^[A-Za-z0-9_-]+$/.test(parte))) {

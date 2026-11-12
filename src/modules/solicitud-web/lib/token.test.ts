@@ -10,6 +10,21 @@ const secreto: string = 'secreto-ficticio-de-prueba';
 const payload: PayloadToken = { rut: '12345678-5', centro_id: 'centro-prueba', exp: 2000 };
 
 describe('token de solicitud web', () => {
+    it('no firma con un secreto vacío', () => {
+        expect(() => firmarToken(payload, '')).toThrow(Error);
+    });
+
+    it('rechaza verificar con un secreto vacío incluso una firma válida para esa clave', () => {
+        const json: string = JSON.stringify(payload);
+        const firma: string = createHmac('sha256', '').update(json).digest('base64url');
+        expect(verificarToken(`${Buffer.from(json).toString('base64url')}.${firma}`, '', 1000)).toBeNull();
+    });
+
+    it('rechaza una firma truncada con el payload intacto', () => {
+        const [contenido, firma] = firmarToken(payload, secreto).split('.');
+        expect(verificarToken(`${contenido}.${firma.slice(0, -4)}`, secreto, 1000)).toBeNull();
+    });
+
     it('conserva el payload al firmar y verificar', () => {
         expect(verificarToken(firmarToken(payload, secreto), secreto, 1000)).toEqual(payload);
     });

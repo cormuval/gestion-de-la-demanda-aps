@@ -3,19 +3,28 @@ interface Ventana {
     consultas: number;
 }
 
-interface Limitador {
+export interface Limitador {
     permitir(clave: string, ahora?: number): boolean;
 }
 
 export function crearLimitador(maximo: number, ventanaMs: number): Limitador {
     const ventanas: Map<string, Ventana> = new Map();
+    let ultimaLimpieza: number | undefined;
 
     return {
         permitir(clave: string, ahora: number = Date.now()): boolean {
-            for (const [claveActual, ventana] of ventanas) {
-                if (ahora - ventana.inicio >= ventanaMs) {
-                    ventanas.delete(claveActual);
+            const actual: Ventana | undefined = ventanas.get(clave);
+            if (actual && ahora - actual.inicio >= ventanaMs) {
+                ventanas.delete(clave);
+            }
+
+            if (ultimaLimpieza === undefined || ahora - ultimaLimpieza >= ventanaMs) {
+                for (const [claveActual, ventana] of ventanas) {
+                    if (ahora - ventana.inicio >= ventanaMs) {
+                        ventanas.delete(claveActual);
+                    }
                 }
+                ultimaLimpieza = ahora;
             }
 
             const ventana: Ventana = ventanas.get(clave) ?? { inicio: ahora, consultas: 0 };
