@@ -42,7 +42,7 @@ describe("OtrasCitasPacienteModal", () => {
         const { rerender } = render(<OtrasCitasPacienteModal rutUsuario="12.345.678-5" citaActualId="CITA-1" onCerrar={vi.fn()} />);
         await screen.findByText("Kinesiología · Consulta");
 
-        rerender(<OtrasCitasPacienteModal rutUsuario="9.876.543-3" citaActualId="CITA-2" onCerrar={vi.fn()} />);
+        rerender(<OtrasCitasPacienteModal rutUsuario="1.000.003-3" citaActualId="CITA-2" onCerrar={vi.fn()} />);
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Centro no configurado"));
         expect(screen.queryByText("Kinesiología · Consulta")).not.toBeInTheDocument();
@@ -63,7 +63,7 @@ describe("OtrasCitasPacienteModal", () => {
             }]
         });
 
-        render(<OtrasCitasPacienteModal rutUsuario="6800332-6" citaActualId="CITA-1" onCerrar={vi.fn()} />);
+        render(<OtrasCitasPacienteModal rutUsuario="1000007-6" citaActualId="CITA-1" onCerrar={vi.fn()} />);
 
         await screen.findByText("Médico · Control Cronico");
         expect(screen.getByText("Atrasada")).toBeInTheDocument();

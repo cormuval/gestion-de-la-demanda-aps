@@ -36,7 +36,7 @@ const catalogos: Catalogos = {
 
 const referencias: Referencias = {
     funcionarios: new Set(["11121161-2"]),
-    usuarios: new Set(["19154200-2"]),
+    usuarios: new Set(["10000017-2"]),
     solicitudes: new Set(["SOL-1"]),
     citas: new Set(["CITA-1"])
 };
@@ -45,7 +45,7 @@ const solicitud: SolicitudOrigen = {
     id_solicitud: "SOL-1",
     fecha_inicio: new Date("2025-03-01T10:00:00Z"),
     rut_orientador: "11121161-2",
-    rut_usuario: "19.154.200-2",
+    rut_usuario: "10.000.017-2",
     tipo_solicitud_id: "3",
     motivo_id: "null",
     ultimo_control: "",
@@ -64,7 +64,7 @@ const solicitud: SolicitudOrigen = {
 const cita: CitaOrigen = {
     id_cita: "CITA-1",
     solicitud_id: "SOL-1",
-    rut_usuario: "191542002",
+    rut_usuario: "100000172",
     rut_gestor: null,
     tipo_prestacion: "Agendar una hora con profesional",
     profesional_id: "",
@@ -82,7 +82,7 @@ const cita: CitaOrigen = {
 const llamada: LlamadaOrigen = {
     id_llamada: "LL-1",
     cita_id: "CITA-1",
-    rut_usuario: "19154200-2",
+    rut_usuario: "10000017-2",
     rut_comunicador: "11121161-2",
     respuesta_usuario: "No contesta",
     observacion: null,
@@ -93,7 +93,7 @@ const llamada: LlamadaOrigen = {
 
 function usuario(parcial: Partial<UsuarioOrigen>): UsuarioOrigen {
     return {
-        rut: "19154200-2",
+        rut: "10000017-2",
         nombre: "Ana",
         apellido: "Rojas",
         nombre_social: null,
@@ -122,8 +122,8 @@ describe("reglas transversales", () => {
     });
 
     it("normaliza el RUT como la app", () => {
-        expect(rutNormalizado("27244773K")).toBe("27244773-K");
-        expect(rutNormalizado("19.154.200-2")).toBe("19154200-2");
+        expect(rutNormalizado("10000013K")).toBe("10000013-K");
+        expect(rutNormalizado("10.000.017-2")).toBe("10000017-2");
         expect(rutNormalizado("7763116-k")).toBe("7763116-K");
         expect(rutNormalizado("")).toBeNull();
     });
@@ -199,15 +199,15 @@ describe("usuarios", () => {
 
     it("conserva un paciente por RUT, el de datos mas completos", () => {
         const original = new Map<UsuarioDestino, string>();
-        const a = transformarUsuario(usuario({ rut: "27244773K" }));
-        const b = transformarUsuario(usuario({ rut: "27244773-K", telefono: "912345678" }));
+        const a = transformarUsuario(usuario({ rut: "10000013K" }));
+        const b = transformarUsuario(usuario({ rut: "10000013-K", telefono: "912345678" }));
         if (!a.ok || !b.ok) throw new Error("fixture invalido");
-        original.set(a.data, "27244773K");
-        original.set(b.data, "27244773-K");
+        original.set(a.data, "10000013K");
+        original.set(b.data, "10000013-K");
         const { aceptados, rechazos } = deduplicarUsuarios([a.data, b.data], original);
         expect(aceptados).toHaveLength(1);
         expect(aceptados[0].telefono).toBe("912345678");
-        expect(rechazos[0]).toMatchObject({ clave: "27244773K", regla: "R2 paciente duplicado por RUT" });
+        expect(rechazos[0]).toMatchObject({ clave: "10000013K", regla: "R2 paciente duplicado por RUT" });
     });
 });
 
@@ -215,7 +215,7 @@ describe("solicitudes", () => {
     it("normaliza y anula referencias opcionales inexistentes con advertencia", () => {
         const r = transformarSolicitud(solicitud, catalogos, referencias);
         if (!r.ok) throw new Error(r.rechazo.detalle);
-        expect(r.data).toMatchObject({ rut_usuario: "19154200-2", motivo_id: null, estado_solicitud: "En Curso", ultimo_control: null, rut_gestor: null });
+        expect(r.data).toMatchObject({ rut_usuario: "10000017-2", motivo_id: null, estado_solicitud: "En Curso", ultimo_control: null, rut_gestor: null });
         expect(r.advertencias).toHaveLength(1);
     });
 
@@ -253,7 +253,7 @@ describe("citas", () => {
     it("resuelve la prestacion por nombre y anula IDs vacios", () => {
         const r = transformarCita(cita, catalogos, referencias);
         if (!r.ok) throw new Error(r.rechazo.detalle);
-        expect(r.data).toMatchObject({ prestacion_id: 5, profesional_id: null, rut_usuario: "19154200-2" });
+        expect(r.data).toMatchObject({ prestacion_id: 5, profesional_id: null, rut_usuario: "10000017-2" });
         expect(resolverPrestacion("99", catalogos)).toBe("invalido");
     });
 

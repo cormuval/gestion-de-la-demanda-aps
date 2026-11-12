@@ -16,7 +16,7 @@ describe("RUT chileno", () => {
     });
 
     it("acepta digito verificador K", () => {
-        expect(esRutChilenoValido("1.000.005-K")).toBe(true);
+        expect(esRutChilenoValido("1.000.019-K")).toBe(true);
     });
 
     it("rechaza RUT invalido", () => {

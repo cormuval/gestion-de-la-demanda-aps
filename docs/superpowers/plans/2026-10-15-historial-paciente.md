@@ -153,7 +153,7 @@
 - [ ] **Step 1:** Contra la base de ensayo, ejecutar el SQL de la migración de la Task 1 y verificar que cada rol tiene `historial.ver`.
 - [ ] **Step 2:** Con `npm run dev`, verificar:
   - el item del menú aparece;
-  - buscar `28193038-9` muestra las solicitudes de Reina Isabel II;
+  - buscar `10000005-9` muestra las solicitudes del paciente de prueba;
   - las rechazadas aparecen con su fecha de validación y las citas con sus llamadas.
 
   El login con Google lo hace el usuario.
