@@ -21,17 +21,18 @@ function parsearFecha(valor: unknown): Date | null {
 
 export function mapearPercapita(registro: Record<string, unknown>): PacientePercapita | null {
     if (typeof registro.NOMBRES !== "string" || !registro.NOMBRES.trim()
-        || registro.COD_CENTRO === null || registro.COD_CENTRO === undefined
+        || (typeof registro.COD_CENTRO !== "number" && typeof registro.COD_CENTRO !== "string")
         || String(registro.COD_CENTRO).trim() === "") return null;
 
     const apellido = [registro.APELLIDO_PATERNO, registro.APELLIDO_MATERNO]
         .filter((valor): valor is string => typeof valor === "string" && Boolean(valor.trim()))
         .map((valor) => valor.trim())
         .join(" ")
-        .slice(0, 50);
+        .slice(0, 50)
+        .trim();
 
     return {
-        nombre: registro.NOMBRES.slice(0, 50),
+        nombre: registro.NOMBRES.trim().slice(0, 50),
         apellido,
         fecha_nacimiento: parsearFecha(registro.FECHA_NACIMIENTO),
         genero: typeof registro.GENERO === "string" && registro.GENERO ? registro.GENERO : null,
@@ -49,6 +50,7 @@ export async function consultarPercapita(rut: string): Promise<ResultadoPercapit
         destino.searchParams.set("rut", normalizarRut(rut));
         const respuesta = await fetch(destino.toString(), {
             headers: { "api-key": clave },
+            redirect: "error",
             signal: AbortSignal.timeout(10_000),
         });
         if (respuesta.status === 404) return { estado: "NO_INSCRITO" };

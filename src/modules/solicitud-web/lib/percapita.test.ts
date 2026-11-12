@@ -106,3 +106,28 @@ describe("mapearPercapita", () => {
         },
     );
 });
+
+describe("saneamiento del per cápita", () => {
+    it("rechaza redirecciones al consultar gi", async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify(registro), { status: 200 }));
+        await consultarPercapita("12345678-5");
+        expect(fetchMock.mock.calls[0][1].redirect).toBe("error");
+    });
+    it("limpia espacios del nombre antes de recortarlo", () => {
+        expect(mapearPercapita({ ...registro, NOMBRES: "  " + "A".repeat(60) + "  " })?.nombre)
+            .toBe("A".repeat(50));
+        expect(mapearPercapita({ ...registro, NOMBRES: " PACIENTE " })?.nombre).toBe("PACIENTE");
+    });
+    it("elimina el espacio final que puede producir el recorte del apellido", () => {
+        expect(mapearPercapita({ ...registro, APELLIDO_PATERNO: "A".repeat(49) })?.apellido)
+            .toBe("A".repeat(49));
+    });
+    it.each([true, false, {}, [], null, undefined, "", "   "])(
+        "rechaza código de centro inválido %j", (centro) => {
+            expect(mapearPercapita({ ...registro, COD_CENTRO: centro })).toBeNull();
+        },
+    );
+    it.each([615, "615"])("acepta código de centro %j", (centro) => {
+        expect(mapearPercapita({ ...registro, COD_CENTRO: centro })?.centro_id).toBe("615");
+    });
+});

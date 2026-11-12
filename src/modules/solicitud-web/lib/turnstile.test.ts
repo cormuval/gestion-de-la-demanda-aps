@@ -55,3 +55,28 @@ describe("verificarCaptcha", () => {
         expect(await verificarCaptcha("token-ficticio", null)).toBe(false);
     });
 });
+
+describe("límites de Turnstile", () => {
+    it("usa un timeout de cinco segundos en la petición", async () => {
+        const signal = new AbortController().signal;
+        const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(signal);
+        try {
+            fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
+            expect(await verificarCaptcha("token-ficticio", null)).toBe(true);
+            expect(timeout).toHaveBeenCalledWith(5_000);
+            expect(fetchMock.mock.calls[0][1].signal).toBe(signal);
+        } finally {
+            timeout.mockRestore();
+        }
+    });
+    it("rechaza tokens de más de 2048 caracteres sin consultar", async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
+        expect(await verificarCaptcha("a".repeat(2049), null)).toBe(false);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+    it("acepta tokens de exactamente 2048 caracteres", async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
+        expect(await verificarCaptcha("a".repeat(2048), null)).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+});
