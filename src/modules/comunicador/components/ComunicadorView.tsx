@@ -207,7 +207,7 @@ export function ComunicadorView() {
 
             <Card>
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-                    <div className="space-y-1.5">
+                    <div className="min-w-0 space-y-1.5">
                         <CardTitle>Citaciones pendientes</CardTitle>
                         <CardDescription>{orden ? "Orden manual de esta página" : "Ordenadas de mayor a menor prioridad."}</CardDescription>
                     </div>

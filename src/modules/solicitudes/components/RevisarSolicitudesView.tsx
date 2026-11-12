@@ -595,7 +595,7 @@ export function RevisarSolicitudesView() {
 
             <Card>
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-                    <div className="space-y-1.5">
+                    <div className="min-w-0 space-y-1.5">
                         <CardTitle>Solicitudes pendientes</CardTitle>
                         <CardDescription>
                             {data.total} solicitudes encontradas. Pagina {data.page} de {data.totalPages}.
@@ -1165,7 +1165,7 @@ function OtrasSolicitudesModal({
                 if (!open) onClose();
             }}
         >
-            <DialogContent className="max-h-[86vh] max-w-5xl overflow-y-auto">
+            <DialogContent className="max-h-[86vh] max-w-5xl overflow-y-auto max-sm:w-[calc(100%-2rem)]">
                 <DialogHeader>
                     <DialogTitle>Solicitudes y citas en curso</DialogTitle>
                     <DialogDescription>RUT {solicitudBase.rut_usuario} · solo tu centro</DialogDescription>
