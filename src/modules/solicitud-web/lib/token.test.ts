@@ -7,7 +7,7 @@ import { firmarToken, verificarToken } from './token';
 import type { PayloadToken } from '../types/solicitudWeb';
 
 const secreto: string = 'secreto-ficticio-de-prueba';
-const payload: PayloadToken = { rut: '12345678-5', centro_id: 'centro-prueba', exp: 2000 };
+const payload: PayloadToken = { rut: '12345678-5', exp: 2000 };
 
 describe('token de solicitud web', () => {
     it('no firma con un secreto vacío', () => {

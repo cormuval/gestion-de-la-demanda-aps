@@ -6,6 +6,13 @@ import { prisma } from "@/shared/lib/prisma";
 import { verificarCatalogos } from "@/modules/integraciones/services/catalogos";
 import { ErrorIntegracion } from "@/modules/integraciones/services/errores";
 
+// schemas
+import { DISCAPACIDAD_USUARIO, GENEROS_USUARIO } from "@/modules/solicitudes/schemas/usuario.schema";
+
+// utils
+import { calcularEdad, calcularPriorizacionAdministrativa } from "@/modules/solicitudes/utils/priorizacion";
+import { normalizarTelefono } from "../utils/telefono";
+
 // types
 import type { EnvioSolicitudWeb } from "../schemas/solicitudWeb.schema";
 import type { PacientePercapita } from "../types/solicitudWeb";
@@ -27,6 +34,13 @@ interface EntradaSolicitudWeb {
 
 export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promise<ResultadoSolicitudWeb> {
     const { rut, centro_id, envio, percapita } = entrada;
+    const ahora = entrada.ahora ?? new Date();
+    const discapacidades = {
+        "Tengo credencial de discapacidad": DISCAPACIDAD_USUARIO[2],
+        "Cuido de forma principal a una persona con discapacidad": DISCAPACIDAD_USUARIO[1],
+        "Ninguna de las anteriores": DISCAPACIDAD_USUARIO[0]
+    };
+    const genero = percapita.genero?.toUpperCase();
     try {
         return await prisma.$transaction(async (tx): Promise<ResultadoSolicitudWeb> => {
             await verificarCatalogos(tx, {
@@ -47,8 +61,16 @@ export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promi
                 telefono: envio.telefono,
                 telefono_alternativo: envio.telefono_alternativo,
                 correo_contacto: envio.correo,
-                discapacidad: envio.discapacidad
+                discapacidad: discapacidades[envio.discapacidad]
             };
+            const fechaNacimiento = paciente ? paciente.fecha_nacimiento : percapita.fecha_nacimiento;
+            const priorizacion = paciente?.priorizacion_administrativa ?? calcularPriorizacionAdministrativa({
+                fechaNacimiento,
+                discapacidad: paciente?.discapacidad || contacto.discapacidad,
+                gestante: null,
+                fechaReferencia: ahora
+            });
+            const edad = calcularEdad(fechaNacimiento, ahora);
             let descripcion = envio.descripcion;
             if (!paciente) {
                 await tx.usuario.create({
@@ -57,7 +79,9 @@ export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promi
                         nombre: percapita.nombre,
                         apellido: percapita.apellido.trim().slice(0, 50),
                         fecha_nacimiento: percapita.fecha_nacimiento,
-                        genero: percapita.genero,
+                        genero: genero === "F" || genero === "FEMENINO" ? GENEROS_USUARIO[0]
+                            : genero === "M" || genero === "MASCULINO" ? GENEROS_USUARIO[1] : null,
+                        priorizacion_administrativa: priorizacion,
                         centro_id,
                         ...contacto
                     }
@@ -69,10 +93,17 @@ export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promi
                         faltantes[campo] = contacto[campo];
                     }
                 }
-                if (Object.keys(faltantes).length > 0) {
-                    await tx.usuario.update({ where: { rut }, data: faltantes });
+                const prioridadFaltante = paciente.priorizacion_administrativa === null;
+                if (Object.keys(faltantes).length > 0 || prioridadFaltante) {
+                    await tx.usuario.update({
+                        where: { rut },
+                        data: {
+                            ...faltantes,
+                            ...(prioridadFaltante ? { priorizacion_administrativa: priorizacion } : {})
+                        }
+                    });
                 }
-                if (paciente.telefono && paciente.telefono !== envio.telefono) {
+                if (paciente.telefono && (normalizarTelefono(paciente.telefono) ?? paciente.telefono) !== (normalizarTelefono(envio.telefono) ?? envio.telefono)) {
                     descripcion += `\n\nTeléfono indicado en el formulario web: ${envio.telefono}`;
                 }
             }
@@ -81,7 +112,9 @@ export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promi
             await tx.solicitud.create({
                 data: {
                     id_solicitud,
-                    fecha_inicio: entrada.ahora ?? new Date(),
+                    fecha_inicio: ahora,
+                    priorizacion_admin: priorizacion,
+                    ultimo_control: edad === null ? null : String(edad),
                     rut_usuario: rut,
                     tipo_solicitud_id: envio.tipo_solicitud_id,
                     motivo_id: null,

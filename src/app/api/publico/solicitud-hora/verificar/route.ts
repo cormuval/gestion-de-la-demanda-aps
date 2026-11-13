@@ -48,7 +48,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         const centro = await prisma.centro.findUnique({ where: { id_centro: centro_id }, select: { id_centro: true } });
         if (!centro) return finalizar({ ok: false, motivo: "NO_INSCRITO" }, 200, false, " sin centro");
         const tipos = await tiposHabilitados(centro_id);
-        const token = firmarToken({ rut, centro_id, exp: Date.now() + 20 * 60_000 }, secreto);
+        const token = firmarToken({ rut, exp: Date.now() + 20 * 60_000 }, secreto);
         return finalizar({ ok: true, token, tipos }, 200, true);
     } catch {
         return finalizar({ ok: false, motivo: "NO_DISPONIBLE" }, 200);

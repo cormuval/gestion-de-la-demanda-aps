@@ -47,13 +47,14 @@ export async function POST(request: Request): Promise<NextResponse> {
             return finalizar({ error: "DATOS", campos }, 400);
         }
         const envio = validacion.data;
-        const tipos = await tiposHabilitados(payload.centro_id);
+        const resultado = await consultarPercapita(rut);
+        if (resultado.estado !== "INSCRITO") return finalizar({ error: "NO_DISPONIBLE" }, 503);
+        const centro_id = resultado.paciente.centro_id;
+        const tipos = await tiposHabilitados(centro_id);
         if (!tipos.some((tipo) => tipo.id === envio.tipo_solicitud_id)) {
             return finalizar({ error: "DATOS", campos: ["tipo_solicitud_id"] }, 400);
         }
-        const resultado = await consultarPercapita(rut);
-        if (resultado.estado !== "INSCRITO") return finalizar({ error: "NO_DISPONIBLE" }, 503);
-        const registro = await registrarSolicitudWeb({ rut, centro_id: payload.centro_id, envio, percapita: resultado.paciente });
+        const registro = await registrarSolicitudWeb({ rut, centro_id, envio, percapita: resultado.paciente });
         if (!registro.ok) return finalizar({ error: "INTERNO" }, 500);
         return finalizar({ ok: true }, 201, true, registro.estado === "DUPLICADA" ? " duplicada" : "");
     } catch {

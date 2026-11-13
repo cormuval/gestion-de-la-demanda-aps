@@ -49,12 +49,32 @@ beforeEach(() => {
     vi.stubEnv("SOLICITUD_WEB_ORIGEN", "https://formulario.example.test");
     vi.stubEnv("SOLICITUD_WEB_TOKEN_SECRET", "secreto-ficticio");
     permitir.mockReturnValue(true);
-    vi.mocked(verificarToken).mockReturnValue({ rut: "12345678-5", centro_id: "501", exp: Date.now() + 1000 });
+    vi.mocked(verificarToken).mockReturnValue({ rut: "12345678-5", exp: Date.now() + 1000 });
     vi.mocked(consultarPercapita).mockResolvedValue({ estado: "INSCRITO", paciente });
     vi.mocked(tiposHabilitados).mockResolvedValue([{ id: 1, nombre: "Consulta" }]);
     vi.mocked(registrarSolicitudWeb).mockResolvedValue({ ok: true, estado: "CREADA", id_solicitud: "WEB-ficticia" });
 });
 describe("envío público", () => {
+    it("acepta dos orígenes exactos ignorando espacios y vacíos", async () => {
+        vi.stubEnv("SOLICITUD_WEB_ORIGEN", " https://formulario.example.test, ,https://segundo.example.test, ");
+        for (const origen of ["https://formulario.example.test", "https://segundo.example.test"]) {
+            expect(OPTIONS(peticion({}, origen)).headers.get("access-control-allow-origin")).toBe(origen);
+            expect((await POST(peticion(entrada, origen))).headers.get("access-control-allow-origin")).toBe(origen);
+        }
+        expect(OPTIONS(peticion({}, "https://segundo.example.test.evil")).headers.has("access-control-allow-origin")).toBe(false);
+    });
+    it("valida tipo con centro reconsultado antes de registrar", async () => {
+        vi.mocked(consultarPercapita).mockResolvedValue({ estado: "INSCRITO", paciente: { ...paciente, centro_id: "999" } });
+        vi.mocked(tiposHabilitados).mockImplementation(async (centro) => centro === "999" ? [] : [{ id: 1, nombre: "Consulta" }]);
+        await comprobar(entrada, 400, { error: "DATOS", campos: ["tipo_solicitud_id"] });
+        expect(vi.mocked(consultarPercapita).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(tiposHabilitados).mock.invocationCallOrder[0]);
+        expect(tiposHabilitados).toHaveBeenCalledWith("999");
+        expect(registrarSolicitudWeb).not.toHaveBeenCalled();
+    });
+    it("envía el centro del per cápita reconsultado", async () => {
+        await comprobar(entrada, 201, { ok: true });
+        expect(registrarSolicitudWeb).toHaveBeenCalledWith(expect.objectContaining({ centro_id: "501" }));
+    });
     it("prioriza x-real-ip sobre cualquier cadena reenviada", async () => {
         const request = peticion(entrada);
         request.headers.set("x-real-ip", " 192.0.2.3 ");
@@ -147,6 +167,7 @@ describe("envío público", () => {
     it.each(["NO_INSCRITO", "NO_DISPONIBLE"] as const)("per cápita %s", async (estado) => {
         vi.mocked(consultarPercapita).mockResolvedValue({ estado });
         await comprobar(entrada, 503, { error: "NO_DISPONIBLE" });
+        expect(tiposHabilitados).not.toHaveBeenCalled();
     });
     it("creada", async () => { await comprobar(entrada, 201, { ok: true }); });
     it("duplicada responde idéntico y audita", async () => {

@@ -36,13 +36,12 @@ export function verificarToken(token: string, secreto: string, ahora: number = D
         const payload: unknown = JSON.parse(json);
         if (typeof payload !== 'object' || payload === null
             || !('rut' in payload) || typeof payload.rut !== 'string'
-            || !('centro_id' in payload) || typeof payload.centro_id !== 'string'
             || !('exp' in payload) || typeof payload.exp !== 'number'
             || !Number.isFinite(payload.exp) || payload.exp <= ahora) {
             return null;
         }
 
-        return { rut: payload.rut, centro_id: payload.centro_id, exp: payload.exp };
+        return { rut: payload.rut, exp: payload.exp };
     } catch {
         return null;
     }

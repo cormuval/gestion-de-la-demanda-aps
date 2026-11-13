@@ -161,7 +161,7 @@ describe("verificar solicitud pública", () => {
         const antes = Date.now();
         await comprobar(entrada, 200, { ok: true, token: "token-opaco", tipos: [{ id: 1, nombre: "Consulta" }] });
         expect(consultarPercapita).toHaveBeenCalledWith("12345678-5");
-        expect(firmarToken).toHaveBeenCalledWith({ rut: "12345678-5", centro_id: "501", exp: expect.any(Number) }, "secreto-ficticio");
+        expect(firmarToken).toHaveBeenCalledWith({ rut: "12345678-5", exp: expect.any(Number) }, "secreto-ficticio");
         expect(vi.mocked(firmarToken).mock.calls[0][0].exp).toBeGreaterThanOrEqual(antes + 20 * 60_000);
     });
 });

@@ -13,7 +13,8 @@ export function ipDe(request: Request): string | null {
 
 export function encabezadosCors(request: Request): Record<string, string> {
     const origen = request.headers.get("origin");
-    if (!origen || origen !== process.env.SOLICITUD_WEB_ORIGEN) return { "Vary": "Origin" };
+    const permitidos = process.env.SOLICITUD_WEB_ORIGEN?.split(",").map((valor) => valor.trim()).filter(Boolean) ?? [];
+    if (!origen || !permitidos.includes(origen)) return { "Vary": "Origin" };
     return {
         "Access-Control-Allow-Origin": origen,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
