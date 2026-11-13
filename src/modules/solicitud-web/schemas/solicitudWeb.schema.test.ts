@@ -13,6 +13,20 @@ const minimo = {
 };
 
 describe("verificarSchema", () => {
+    it("acepta captcha de 2048 caracteres y rechaza 2049", () => {
+        expect(verificarSchema.safeParse({ rut: "12345678-5", captcha: "a".repeat(2048) }).success).toBe(true);
+        const resultado = verificarSchema.safeParse({ rut: "12345678-5", captcha: "a".repeat(2049) });
+        expect(resultado.success).toBe(false);
+        if (!resultado.success) expect(resultado.error.issues[0].path).toEqual(["captcha"]);
+    });
+
+    it("limita el RUT original a 20 caracteres antes de normalizar", () => {
+        expect(verificarSchema.parse({ rut: " ".repeat(10) + "12345678-5", captcha: "captcha" }).rut).toBe("12345678-5");
+        const resultado = verificarSchema.safeParse({ rut: " ".repeat(11) + "12345678-5", captcha: "captcha" });
+        expect(resultado.success).toBe(false);
+        if (!resultado.success) expect(resultado.error.issues[0].path).toEqual(["rut"]);
+    });
+
     it("normaliza el RUT antes de validarlo", () => {
         expect(verificarSchema.parse({ rut: "12.345.678-5", captcha: "captcha" }).rut).toBe("12345678-5");
     });
@@ -28,6 +42,47 @@ describe("verificarSchema", () => {
 });
 
 describe("envioSchema", () => {
+    it.each([
+        ["token", 512], ["sitio_web", 200]
+    ])("acepta el límite de %s y rechaza un carácter adicional", (campo, limite) => {
+        expect(envioSchema.safeParse({ ...minimo, [campo]: "a".repeat(limite) }).success).toBe(true);
+        const resultado = envioSchema.safeParse({ ...minimo, [campo]: "a".repeat(limite + 1) });
+        expect(resultado.success).toBe(false);
+        if (!resultado.success) expect(resultado.error.issues[0].path).toEqual([campo]);
+    });
+
+    it.each(["telefono", "telefono_alternativo"])("limita %s a 30 caracteres antes de normalizar", (campo) => {
+        expect(envioSchema.parse({ ...minimo, [campo]: " ".repeat(21) + "912345678" })[campo as "telefono" | "telefono_alternativo"])
+            .toBe("+56912345678");
+        const resultado = envioSchema.safeParse({ ...minimo, [campo]: " ".repeat(22) + "912345678" });
+        expect(resultado.success).toBe(false);
+        if (!resultado.success) expect(resultado.error.issues[0].path).toEqual([campo]);
+    });
+
+    it("limita también el teléfono alternativo vacío antes de recortar espacios", () => {
+        expect(envioSchema.parse({ ...minimo, telefono_alternativo: " ".repeat(30) }).telefono_alternativo).toBeNull();
+        const resultado = envioSchema.safeParse({ ...minimo, telefono_alternativo: " ".repeat(31) });
+        expect(resultado.success).toBe(false);
+        if (!resultado.success) expect(resultado.error.issues[0].path).toEqual(["telefono_alternativo"]);
+    });
+
+    it("acepta un id textual de 10 dígitos y rechaza 11 aunque normalice al mismo número", () => {
+        expect(envioSchema.parse({ ...minimo, tipo_solicitud_id: "0000000003" }).tipo_solicitud_id).toBe(3);
+        const resultado = envioSchema.safeParse({ ...minimo, tipo_solicitud_id: "00000000003" });
+        expect(resultado.success).toBe(false);
+        if (!resultado.success) expect(resultado.error.issues[0].path).toEqual(["tipo_solicitud_id"]);
+    });
+
+    it.each([1, "1", 2147483647, "2147483647"])("acepta el id en el límite entero %s", (tipo_solicitud_id) => {
+        expect(envioSchema.parse({ ...minimo, tipo_solicitud_id }).tipo_solicitud_id).toBe(Number(tipo_solicitud_id));
+    });
+
+    it.each([0, "0", 2147483648, "2147483648"])("rechaza el id fuera del rango entero %s", (tipo_solicitud_id) => {
+        const resultado = envioSchema.safeParse({ ...minimo, tipo_solicitud_id });
+        expect(resultado.success).toBe(false);
+        if (!resultado.success) expect(resultado.error.issues[0].path).toEqual(["tipo_solicitud_id"]);
+    });
+
     it("normaliza el teléfono y convierte opcionales omitidos en null", () => {
         expect(envioSchema.parse(minimo)).toMatchObject({
             telefono: "+56912345678", correo: null, nombre_social: null, telefono_alternativo: null
