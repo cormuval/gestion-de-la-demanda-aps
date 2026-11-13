@@ -4,6 +4,26 @@ import { esRutChilenoValido, normalizarRut } from "@/modules/solicitudes/utils/r
 // types
 import type { PacientePercapita, ResultadoPercapita } from "../types/solicitudWeb";
 
+// El per cápita identifica el establecimiento con su código DEIS; gd usa su propio id_centro.
+// NOMBRE_CENTRO viene inconsistente en el per cápita, por eso se traduce solo por código.
+const CENTRO_POR_CODIGO_DEIS: Record<string, string> = {
+    "106300": "610", // Placeres
+    "106301": "650", // Esperanza
+    "106302": "615", // Barón
+    "106303": "655", // Reina Isabel II
+    "106304": "605", // Placilla
+    "106306": "630", // Las Cañas
+    "106307": "635", // Mena
+    "106309": "645", // Cordillera
+    "106311": "625", // Quebrada Verde
+    "106312": "640", // Puertas Negras
+    "106330": "620", // Rodelillo
+    "106334": "621", // Padre Damián
+    "106401": "600", // Laguna Verde
+    "106711": "626", // CECOSF Porvenir Bajo
+    "201086": "627" // CECOSF Juan Pablo II
+};
+
 function parsearFecha(valor: unknown): Date | null {
     if (typeof valor !== "string") return null;
     const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
@@ -36,7 +56,8 @@ export function mapearPercapita(registro: Record<string, unknown>): PacientePerc
         apellido,
         fecha_nacimiento: parsearFecha(registro.FECHA_NACIMIENTO),
         genero: typeof registro.GENERO === "string" && registro.GENERO ? registro.GENERO : null,
-        centro_id: String(registro.COD_CENTRO),
+        // Un código fuera de la tabla queda tal cual: la ruta no lo encuentra en `centros` y responde NO_INSCRITO.
+        centro_id: CENTRO_POR_CODIGO_DEIS[String(registro.COD_CENTRO).trim()] ?? String(registro.COD_CENTRO).trim(),
     };
 }
 
