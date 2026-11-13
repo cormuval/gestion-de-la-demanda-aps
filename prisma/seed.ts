@@ -112,6 +112,20 @@ async function main() {
         }
     }
 
+    // Identidad técnica del formulario: siempre inactiva, también en producción.
+    // El upsert usa solo su RUT para no modificar otros funcionarios por coincidencia de correo.
+    const orientadorWeb = {
+        email: "formulario.web@sistema.local",
+        nombre: "Formulario web",
+        rol_id: roleByName.get("Orientador")!.id_rol,
+        estado: "Inactivo"
+    };
+    await prisma.funcionario.upsert({
+        where: { rut: "11111113-8" },
+        update: orientadorWeb,
+        create: { rut: "11111113-8", ...orientadorWeb }
+    });
+
     if (!SEED_DEMO) {
         return;
     }
