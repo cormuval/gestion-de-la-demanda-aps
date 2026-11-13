@@ -20,7 +20,7 @@
 - **Auditoría:** nunca registra teléfono ni correo; sí registra RUT, ruta y resultado.
 - **Per cápita:** solo se consulta desde el servidor de gd, con el header `api-key: GI_API_KEY`, en `GET {GI_PERCAPITA_URL}?rut=<rut>` y con timeout de 10 s.
 - **Token:** `base64url(JSON payload).base64url(HMAC-SHA256(payload, SOLICITUD_WEB_TOKEN_SECRET))`, con payload `{ rut, centro_id, exp }` y `exp` = ahora + 20 min, en ms epoch.
-- **Límites por IP:** `verificar` 10 cada 15 min; envío 5 cada 60 min. La IP es el primer valor de `X-Forwarded-For`.
+- **Límites por IP:** `verificar` 10 cada 15 min; envío 5 cada 60 min. La IP es `X-Real-IP` (nginx pone `$remote_addr`); si no viene, el último valor de `X-Forwarded-For`.
 - **CORS:** solo para el origen `SOLICITUD_WEB_ORIGEN`; otros orígenes no reciben headers CORS.
 - **Variables nuevas:** `GI_PERCAPITA_URL`, `GI_API_KEY`, `TURNSTILE_SECRET_KEY`, `SOLICITUD_WEB_TOKEN_SECRET`, `SOLICITUD_WEB_ORIGEN`. Van en `.env.example` sin valor y nunca se escriben valores reales en el repo.
 - **Paciente existente:** solo se asignan los campos vacíos (null o `""`); nunca se sobrescribe un valor.
