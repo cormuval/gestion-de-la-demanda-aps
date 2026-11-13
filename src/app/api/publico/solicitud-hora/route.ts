@@ -23,15 +23,22 @@ export async function POST(request: Request): Promise<NextResponse> {
         return responder(request, cuerpo, status);
     }
     try {
-        if (!limitadorEnvio.permitir(ipDe(request) ?? "sin-ip")) return finalizar({ error: "LIMITE" }, 429);
+        if (!limitadorEnvio.permitir(ipDe(request) ?? "sin-ip")) return responder(request, { error: "LIMITE" }, 429);
         let cuerpo: unknown;
-        try { cuerpo = await request.json(); } catch { return finalizar({ error: "DATOS", campos: [] }, 400); }
+        if (Number(request.headers.get("content-length")) > 16384) return finalizar({ error: "DATOS" }, 413);
+        try {
+            const texto = await request.text();
+            if (texto.length > 16384) return finalizar({ error: "DATOS" }, 413);
+            cuerpo = JSON.parse(texto);
+        } catch { return finalizar({ error: "DATOS", campos: [] }, 400); }
         const objeto = typeof cuerpo === "object" && cuerpo !== null && !Array.isArray(cuerpo) ? cuerpo : {};
         if ("sitio_web" in objeto && typeof objeto.sitio_web === "string" && objeto.sitio_web.length > 0) {
             return finalizar({ ok: true }, 201, true, " trampa");
         }
         const token = "token" in objeto && typeof objeto.token === "string" ? objeto.token : "";
-        const payload = verificarToken(token, process.env.SOLICITUD_WEB_TOKEN_SECRET ?? "");
+        const secreto = process.env.SOLICITUD_WEB_TOKEN_SECRET;
+        if (!secreto) return finalizar({ error: "TOKEN" }, 400);
+        const payload = verificarToken(token, secreto);
         if (!payload) return finalizar({ error: "TOKEN" }, 400);
         rut = payload.rut;
         const validacion = envioSchema.safeParse(cuerpo);

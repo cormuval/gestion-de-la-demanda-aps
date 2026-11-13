@@ -5,6 +5,7 @@ import { consultarPercapita } from "@/modules/solicitud-web/lib/percapita";
 import { tiposHabilitados } from "@/modules/solicitud-web/services/tiposHabilitados";
 
 import { POST, OPTIONS } from "./route";
+import { ipDe } from "@/modules/solicitud-web/lib/http";
 
 vi.mock("@/shared/lib/logger", () => ({ AuditLogger: { logDataAccess: vi.fn() } }));
 vi.mock("@/modules/solicitud-web/lib/percapita", () => ({ consultarPercapita: vi.fn() }));
@@ -54,6 +55,52 @@ beforeEach(() => {
     vi.mocked(registrarSolicitudWeb).mockResolvedValue({ ok: true, estado: "CREADA", id_solicitud: "WEB-ficticia" });
 });
 describe("envío público", () => {
+    it("prioriza x-real-ip sobre cualquier cadena reenviada", async () => {
+        const request = peticion(entrada);
+        request.headers.set("x-real-ip", " 192.0.2.3 ");
+        await POST(request);
+        expect(permitir).toHaveBeenCalledWith("192.0.2.3");
+    });
+    it("un prefijo falsificado no cambia la clave del límite", async () => {
+        for (const prefijo of ["198.51.100.1", "198.51.100.2, 198.51.100.3"]) {
+            const request = peticion(entrada);
+            request.headers.set("x-forwarded-for", `${prefijo}, 192.0.2.2`);
+            await POST(request);
+        }
+        expect(permitir.mock.calls).toEqual([["192.0.2.2"], ["192.0.2.2"]]);
+    });
+    it("sin encabezados de IP devuelve null", () => {
+        expect(ipDe(new Request("http://localhost"))).toBeNull();
+    });
+    it("Vary Origin está presente con origen ajeno o ausente", async () => {
+        const request = peticion(entrada, "https://otro.example.test");
+        expect((await POST(request)).headers.get("vary")).toBe("Origin");
+        expect(OPTIONS(request).headers.get("vary")).toBe("Origin");
+        request.headers.delete("origin");
+        expect(OPTIONS(request).headers.get("vary")).toBe("Origin");
+    });
+    it("rechaza content-length mayor al límite antes de leer el cuerpo", async () => {
+        const request = peticion(entrada);
+        request.headers.set("content-length", "16385");
+        const leer = vi.spyOn(request, "text");
+        const respuesta = await POST(request);
+        expect(respuesta.status).toBe(413);
+        expect(await respuesta.json()).toEqual({ error: "DATOS" });
+        expect(leer).not.toHaveBeenCalled();
+        expect(consultarPercapita).not.toHaveBeenCalled();
+    });
+    it("rechaza texto mayor al límite sin content-length antes de parsear JSON", async () => {
+        const respuesta = await POST(peticion("x".repeat(16385)));
+        expect(respuesta.status).toBe(413);
+        expect(await respuesta.json()).toEqual({ error: "DATOS" });
+        expect(consultarPercapita).not.toHaveBeenCalled();
+    });
+    it("acepta exactamente 16384 caracteres y bytes declarados", async () => {
+        const contenido = JSON.stringify(entrada);
+        const request = peticion(contenido + " ".repeat(16384 - contenido.length));
+        request.headers.set("content-length", "16384");
+        expect((await POST(request)).status).toBe(201);
+    });
     it("aplica CORS también a respuestas POST", async () => {
         expect((await POST(peticion(entrada))).headers.get("access-control-allow-origin")).toBe("https://formulario.example.test");
         expect((await POST(peticion(entrada, "https://otro.example.test"))).headers.has("access-control-allow-origin")).toBe(false);
@@ -68,16 +115,23 @@ describe("envío público", () => {
         expect(permitida.headers.get("vary")).toBe("Origin");
         expect((await OPTIONS(peticion({}, "https://otro.example.test"))).headers.has("access-control-allow-origin")).toBe(false);
     });
-    it("limita por la primera IP reenviada", async () => {
+    it("limita por la última IP reenviada sin auditar", async () => {
         permitir.mockReturnValue(false);
         await comprobar(entrada, 429, { error: "LIMITE" });
-        expect(permitir).toHaveBeenCalledWith("192.0.2.1");
+        expect(permitir).toHaveBeenCalledWith("192.0.2.2");
+        expect(AuditLogger.logDataAccess).not.toHaveBeenCalled();
     });
     it("campo trampa simula éxito sin validar token ni guardar", async () => {
         await comprobar({ sitio_web: "robot" }, 201, { ok: true });
         expect(registrarSolicitudWeb).not.toHaveBeenCalled();
         expect(verificarToken).not.toHaveBeenCalled();
         expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { name: "Formulario web" }, "solicitudes", { details: "/api/publico/solicitud-hora rut=- → 201 trampa" });
+    });
+    it("sin secreto rechaza TOKEN sin consultar per cápita", async () => {
+        vi.stubEnv("SOLICITUD_WEB_TOKEN_SECRET", "");
+        await comprobar(entrada, 400, { error: "TOKEN" });
+        expect(consultarPercapita).not.toHaveBeenCalled();
+        expect(registrarSolicitudWeb).not.toHaveBeenCalled();
     });
     it("token vencido", async () => {
         vi.mocked(verificarToken).mockReturnValue(null);

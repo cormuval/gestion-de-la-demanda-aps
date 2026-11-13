@@ -25,23 +25,28 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     try {
         const ip = ipDe(request);
-        if (!limitadorVerificar.permitir(ip ?? "sin-ip")) return finalizar({ error: "LIMITE" }, 429);
+        if (!limitadorVerificar.permitir(ip ?? "sin-ip")) return responder(request, { error: "LIMITE" }, 429);
         let cuerpo: unknown;
-        try { cuerpo = await request.json(); } catch { return finalizar({ error: "RUT" }, 400); }
+        if (Number(request.headers.get("content-length")) > 16384) return finalizar({ error: "DATOS" }, 413);
+        try {
+            const texto = await request.text();
+            if (texto.length > 16384) return finalizar({ error: "DATOS" }, 413);
+            cuerpo = JSON.parse(texto);
+        } catch { return finalizar({ error: "RUT" }, 400); }
+        const secreto = process.env.SOLICITUD_WEB_TOKEN_SECRET;
+        if (!secreto) return finalizar({ ok: false, motivo: "NO_DISPONIBLE" }, 200, false, " sin secreto");
+        const captcha = verificarSchema.shape.captcha.safeParse(
+            typeof cuerpo === "object" && cuerpo !== null && "captcha" in cuerpo ? cuerpo.captcha : undefined
+        );
+        if (!captcha.success || !await verificarCaptcha(captcha.data, ip)) return finalizar({ error: "CAPTCHA" }, 400);
         const validacion = verificarSchema.safeParse(cuerpo);
-        if (!validacion.success) {
-            const captcha = validacion.error.issues.some((issue) => issue.path[0] === "captcha");
-            return finalizar({ error: captcha ? "CAPTCHA" : "RUT" }, 400);
-        }
+        if (!validacion.success) return finalizar({ error: "RUT" }, 400);
         rut = validacion.data.rut;
-        if (!await verificarCaptcha(validacion.data.captcha, ip)) return finalizar({ error: "CAPTCHA" }, 400);
         const resultado = await consultarPercapita(rut);
         if (resultado.estado !== "INSCRITO") return finalizar({ ok: false, motivo: resultado.estado }, 200);
         const centro_id = resultado.paciente.centro_id;
         const centro = await prisma.centro.findUnique({ where: { id_centro: centro_id }, select: { id_centro: true } });
         if (!centro) return finalizar({ ok: false, motivo: "NO_INSCRITO" }, 200, false, " sin centro");
-        const secreto = process.env.SOLICITUD_WEB_TOKEN_SECRET;
-        if (!secreto) return finalizar({ ok: false, motivo: "NO_DISPONIBLE" }, 200);
         const tipos = await tiposHabilitados(centro_id);
         const token = firmarToken({ rut, centro_id, exp: Date.now() + 20 * 60_000 }, secreto);
         return finalizar({ ok: true, token, tipos }, 200, true);
