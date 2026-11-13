@@ -1,7 +1,7 @@
 // lib
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { tx, prismaMock, auditar } = vi.hoisted(() => {
+const { tx, prismaMock } = vi.hoisted(() => {
     const tx = {
         solicitud: { findFirst: vi.fn(), create: vi.fn() },
         usuario: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -10,12 +10,10 @@ const { tx, prismaMock, auditar } = vi.hoisted(() => {
     };
     return {
         tx,
-        prismaMock: { $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)) },
-        auditar: vi.fn()
+        prismaMock: { $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)) }
     };
 });
 vi.mock("@/shared/lib/prisma", () => ({ prisma: prismaMock }));
-vi.mock("@/shared/lib/logger", () => ({ AuditLogger: { logDataAccess: auditar } }));
 
 // services
 import { registrarSolicitudWeb } from "./registrarSolicitudWeb";
@@ -152,19 +150,7 @@ describe("registrarSolicitudWeb", () => {
         expect(await registrarSolicitudWeb(entrada)).toEqual({
             ok: false, codigo: "INTERNO", error: "Error interno del servidor"
         });
+        expect(consola.mock.calls).toEqual([["Error"]]);
         consola.mockRestore();
-    });
-
-    it.each(["CREADA", "DUPLICADA", "CATALOGO"] as const)("audita %s sin teléfono ni correo", async (estado) => {
-        if (estado === "DUPLICADA") tx.solicitud.findFirst.mockResolvedValue({ id_solicitud: "anterior" });
-        if (estado === "CATALOGO") tx.tipoSolicitud.findUnique.mockResolvedValue(null);
-        await registrarSolicitudWeb(entrada);
-        expect(auditar).toHaveBeenCalledWith(
-            "CREATE", estado !== "CATALOGO", { rut: "12345678-5" }, "solicitudes",
-            { details: `/api/publico/solicitud-hora: ${estado}` }
-        );
-        const auditoria = JSON.stringify(auditar.mock.calls);
-        expect(auditoria).not.toContain(entrada.envio.telefono);
-        expect(auditoria).not.toContain(entrada.envio.correo);
     });
 });

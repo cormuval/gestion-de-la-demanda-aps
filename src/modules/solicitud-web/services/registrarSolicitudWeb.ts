@@ -1,11 +1,10 @@
 // lib
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/shared/lib/prisma";
-import { AuditLogger } from "@/shared/lib/logger";
 
 // services
 import { verificarCatalogos } from "@/modules/integraciones/services/catalogos";
-import { aResultado, ErrorIntegracion } from "@/modules/integraciones/services/errores";
+import { ErrorIntegracion } from "@/modules/integraciones/services/errores";
 
 // types
 import type { EnvioSolicitudWeb } from "../schemas/solicitudWeb.schema";
@@ -28,15 +27,15 @@ interface EntradaSolicitudWeb {
 
 export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promise<ResultadoSolicitudWeb> {
     const { rut, centro_id, envio, percapita } = entrada;
-    let resultado: ResultadoSolicitudWeb;
     try {
-        resultado = await prisma.$transaction(async (tx): Promise<ResultadoSolicitudWeb> => {
+        return await prisma.$transaction(async (tx): Promise<ResultadoSolicitudWeb> => {
             await verificarCatalogos(tx, {
                 tipo_solicitud_id: envio.tipo_solicitud_id,
                 motivo_id: null,
                 rut_funcionario: RUT_ORIENTADOR_WEB
             });
 
+            // Riesgo aceptado: findFirst no excluye duplicados de envíos simultáneos.
             const duplicada = await tx.solicitud.findFirst({
                 where: { rut_usuario: rut, tipo_solicitud_id: envio.tipo_solicitud_id, estado_solicitud: "En Curso" }
             });
@@ -99,17 +98,10 @@ export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promi
             return { ok: true, estado: "CREADA", id_solicitud };
         });
     } catch (error) {
-        const traducido = aResultado(error instanceof ErrorIntegracion && error.codigo === "CATALOGO"
-            ? error
-            : new ErrorIntegracion("INTERNO", "Error interno del servidor"));
-        resultado = {
-            ok: false,
-            codigo: !traducido.ok && traducido.codigo === "CATALOGO" ? "CATALOGO" : "INTERNO",
-            error: !traducido.ok ? traducido.error : "Error interno del servidor"
-        };
+        if (error instanceof ErrorIntegracion && error.codigo === "CATALOGO") {
+            return { ok: false, codigo: "CATALOGO", error: error.message };
+        }
+        console.error(error instanceof Error ? error.name : "Error");
+        return { ok: false, codigo: "INTERNO", error: "Error interno del servidor" };
     }
-    await AuditLogger.logDataAccess("CREATE", resultado.ok, { rut }, "solicitudes", {
-        details: `/api/publico/solicitud-hora: ${resultado.ok ? resultado.estado : resultado.codigo}`
-    });
-    return resultado;
 }
