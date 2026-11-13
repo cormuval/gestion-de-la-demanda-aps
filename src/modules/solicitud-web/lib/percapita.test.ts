@@ -8,7 +8,7 @@ const registro = {
     APELLIDO_MATERNO: "SOTO",
     FECHA_NACIMIENTO: "2000-02-29",
     GENERO: "F",
-    COD_CENTRO: 615,
+    COD_CENTRO: 106302,
 };
 const fetchMock = vi.fn();
 
@@ -127,7 +127,17 @@ describe("saneamiento del per cápita", () => {
             expect(mapearPercapita({ ...registro, COD_CENTRO: centro })).toBeNull();
         },
     );
-    it.each([615, "615"])("acepta código de centro %j", (centro) => {
+    it.each([106302, "106302", " 106302 "])("traduce el código DEIS %j al id_centro de gd", (centro) => {
         expect(mapearPercapita({ ...registro, COD_CENTRO: centro })?.centro_id).toBe("615");
+    });
+    it.each([
+        [106300, "610"], [106301, "650"], [106303, "655"], [106304, "605"], [106306, "630"],
+        [106307, "635"], [106309, "645"], [106311, "625"], [106312, "640"], [106330, "620"],
+        [106334, "621"], [106401, "600"], [106711, "626"], [201086, "627"]
+    ])("traduce DEIS %j a %j", (codigo, centro) => {
+        expect(mapearPercapita({ ...registro, COD_CENTRO: codigo })?.centro_id).toBe(centro);
+    });
+    it("deja el código sin traducir si no está en la tabla (la ruta lo trata como sin centro)", () => {
+        expect(mapearPercapita({ ...registro, COD_CENTRO: 999999 })?.centro_id).toBe("999999");
     });
 });
