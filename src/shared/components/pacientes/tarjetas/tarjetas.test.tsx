@@ -8,16 +8,35 @@ import { LlamadaTarjeta } from "./llamada-tarjeta";
 import type { SolicitudTarjetaDatos, CitaTarjetaDatos } from "@/shared/types/tarjetasPaciente";
 
 const solicitud: SolicitudTarjetaDatos = {
-    id_solicitud: "solicitud-123", motivo: "Consulta", tipo: null, descripcion: "Texto largo",
-    estado_solicitud: "Realizado", razon_rechazo: null, orientador: "Ana", gestor: "Luis",
-    fecha_inicio: "2025-12-30T15:00:00Z", fecha_cierre: null
+    id_solicitud: "solicitud-123",
+    motivo: "Consulta",
+    tipo: null,
+    descripcion: "Texto largo",
+    estado_solicitud: "Realizado",
+    razon_rechazo: null,
+    orientador: "Ana",
+    gestor: "Luis",
+    fecha_inicio: "2025-12-30T15:00:00Z",
+    fecha_cierre: null
 };
 const cita: CitaTarjetaDatos = {
-    id_cita: "cita-123", estamento: "Médico", prestacion: "Control", estado_cita: "Cita Aceptada",
-    gestor: "Gestor", observacion: "Observación", fecha_cierre: null,
-    hora_agendada: "2026-01-15T13:45:00Z", fecha_estimada_atencion: "2026-03-26T00:00:00Z",
-    priorizacion_clinica: "Alta", llamadas: [{ id_llamada: "llamada-123", fecha_llamada: null,
-        respuesta_usuario: "Cita Aceptada", comunicador: null, observacion: null }]
+    id_cita: "cita-123",
+    estamento: "Médico",
+    prestacion: "Control",
+    estado_cita: "Cita Aceptada",
+    gestor: "Gestor",
+    observacion: "Observación",
+    fecha_cierre: null,
+    hora_agendada: "2026-01-15T13:45:00Z",
+    fecha_estimada_atencion: "2026-03-26T00:00:00Z",
+    priorizacion_clinica: "Alta",
+    llamadas: [{
+        id_llamada: "llamada-123",
+        fecha_llamada: null,
+        respuesta_usuario: "Cita Aceptada",
+        comunicador: null,
+        observacion: null
+    }]
 };
 const tarjetaSolicitud = (datos = solicitud, cantidad = 1, abierta = false) => (
     <SolicitudTarjeta solicitud={datos} cantidadCitas={cantidad} citasAbiertasInicial={abierta} textoSinCitas="Sin citas registradas.">
@@ -104,7 +123,18 @@ describe("tarjetas", () => {
         expect(screen.getByRole("button", { name: "Cerrar cita" })).toBeInTheDocument();
     });
     it("omite textos libres y prioridad ausentes", () => {
-        render(<><SolicitudTarjeta solicitud={{ ...solicitud, descripcion: "", estado_solicitud: "Rechazado", razon_rechazo: null }} cantidadCitas={0} citasAbiertasInicial={false} textoSinCitas="Sin citas" /><CitaTarjeta cita={{ ...cita, observacion: null, priorizacion_clinica: null }} detallePendiente /><LlamadaTarjeta llamada={cita.llamadas[0]} /></>);
+        render(
+            <>
+                <SolicitudTarjeta
+                    solicitud={{ ...solicitud, descripcion: "", estado_solicitud: "Rechazado", razon_rechazo: null }}
+                    cantidadCitas={0}
+                    citasAbiertasInicial={false}
+                    textoSinCitas="Sin citas"
+                />
+                <CitaTarjeta cita={{ ...cita, observacion: null, priorizacion_clinica: null }} detallePendiente />
+                <LlamadaTarjeta llamada={cita.llamadas[0]} />
+            </>
+        );
         expect(screen.queryByText(/Descripción del paciente:/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Razón de rechazo:/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Observación del gestor\/a:/)).not.toBeInTheDocument();

@@ -154,7 +154,7 @@ const VOUCHER_EN_CURSO: VoucherSolicitud = {
 };
 
 describe("HistorialPacienteView", () => {
-    it("las citas parten cerradas y una nueva búsqueda las vuelve a cerrar", async () => {
+    it("las citas parten colapsadas y se abren con Ver citas (n)", async () => {
         vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_COMPLETO });
         render(<HistorialPacienteView />);
         escribirRut("12345678-5");
@@ -163,16 +163,10 @@ describe("HistorialPacienteView", () => {
         expect(boton).toHaveAttribute("aria-expanded", "false");
         fireEvent.click(boton);
         expect(screen.getByRole("button", { name: "Ver llamadas (2)" })).toBeInTheDocument();
-        buscar();
-        await waitFor(() => expect(screen.getByRole("button", { name: "Ver citas (2)" })).toHaveAttribute("aria-expanded", "false"));
     });
 
-    it("conserva el orden recibido, muestra ambos gestores y oculta detalles de pendientes", async () => {
-        const historial = structuredClone(HISTORIAL_COMPLETO);
-        historial.solicitudes[1].citas[0].gestor = "Gestor Cita";
-        historial.solicitudes[1].citas[0].priorizacion_clinica = "Alta";
-        historial.solicitudes[1].citas[0].fecha_estimada_atencion = new Date("2026-03-26T00:00:00Z");
-        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: historial });
+    it("muestra En Curso primero", async () => {
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_COMPLETO });
         render(<HistorialPacienteView />);
         escribirRut("12345678-5");
         buscar();
@@ -180,11 +174,43 @@ describe("HistorialPacienteView", () => {
         expect(screen.getAllByRole("article").map((articulo) => articulo.getAttribute("data-testid"))).toEqual([
             "solicitud-SOL-1", "solicitud-SOL-2", "solicitud-SOL-3"
         ]);
+    });
+
+    it("no muestra fecha estimada ni priorización en el historial", async () => {
+        const historial = structuredClone(HISTORIAL_COMPLETO);
+        historial.solicitudes[1].citas[0].priorizacion_clinica = "Alta";
+        historial.solicitudes[1].citas[0].fecha_estimada_atencion = new Date("2026-03-26T00:00:00Z");
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: historial });
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        fireEvent.click(await screen.findByRole("button", { name: "Ver citas (2)" }));
+        expect(screen.queryByText("Alta")).not.toBeInTheDocument();
+        expect(screen.queryByText("Fecha estimada:")).not.toBeInTheDocument();
+    });
+
+    it("muestra Gestor/a en la solicitud y en la cita", async () => {
+        const historial = structuredClone(HISTORIAL_COMPLETO);
+        historial.solicitudes[1].citas[0].gestor = "Gestor Cita";
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: historial });
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        await screen.findByText("Juana Perez");
         expect(within(screen.getByTestId("solicitud-SOL-2")).getByText("Gestor Dos")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "Ver citas (2)" }));
         expect(within(screen.getByTestId("cita-CITA-1")).getByText("Gestor Cita")).toBeInTheDocument();
-        expect(screen.queryByText("Alta")).not.toBeInTheDocument();
-        expect(screen.queryByText("Fecha estimada:")).not.toBeInTheDocument();
+    });
+
+    it("una búsqueda nueva vuelve a colapsar las citas", async () => {
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_COMPLETO });
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        const boton = await screen.findByRole("button", { name: "Ver citas (2)" });
+        fireEvent.click(boton);
+        buscar();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Ver citas (2)" })).toHaveAttribute("aria-expanded", "false"));
     });
 
     it("busca por RUT y muestra paciente y resumen", async () => {

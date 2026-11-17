@@ -174,9 +174,14 @@ export function HistorialPacienteView() {
                                     citasAbiertasInicial={false}
                                     textoSinCitas="Sin citas registradas."
                                     acciones={solicitud.estado_solicitud === "En Curso" && (
-                                        <Button type="button" variant="outline" size="sm" disabled={cargandoVoucher}
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={cargandoVoucher}
                                             onClick={() => reimprimirVoucher(solicitud.id_solicitud)}
-                                            aria-label={`${etiqueta} ${solicitud.id_solicitud}`}>
+                                            aria-label={`${etiqueta} ${solicitud.id_solicitud}`}
+                                        >
                                             <Printer data-icon="inline-start" />{etiqueta}
                                         </Button>
                                     )}

@@ -24,32 +24,63 @@ export function SolicitudTarjeta({ solicitud, cantidadCitas, citasAbiertasInicia
         <article data-testid={`solicitud-${solicitud.id_solicitud}`} aria-labelledby={`solicitud-${solicitud.id_solicitud}`} className="flex flex-col gap-3 rounded-md border p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <div className="min-w-0">
-                    <p id={`solicitud-${solicitud.id_solicitud}`}><span className="font-medium">Solicitud:</span> <CodigoId id={solicitud.id_solicitud} /></p>
+                    <p id={`solicitud-${solicitud.id_solicitud}`}>
+                        <span className="font-medium">Solicitud:</span>{" "}
+                        <CodigoId id={solicitud.id_solicitud} />
+                    </p>
                     <p className="text-lg"><span className="font-semibold">Motivo:</span> {solicitud.motivo ?? "—"}</p>
                     {solicitud.descripcion?.trim() && (
-                        <p className="whitespace-pre-line break-words"><span className="font-medium">Descripción del paciente:</span> {solicitud.descripcion}</p>
+                        <p className="whitespace-pre-line break-words">
+                            <span className="font-medium">Descripción del paciente:</span>{" "}
+                            {solicitud.descripcion}
+                        </p>
                     )}
                     {solicitud.estado_solicitud === "Rechazado" && solicitud.razon_rechazo?.trim() && (
-                        <p className="whitespace-pre-line break-words"><span className="font-medium">Razón de rechazo:</span> {solicitud.razon_rechazo}</p>
+                        <p className="whitespace-pre-line break-words">
+                            <span className="font-medium">Razón de rechazo:</span>{" "}
+                            {solicitud.razon_rechazo}
+                        </p>
                     )}
                 </div>
                 <div className="flex flex-col gap-1 sm:items-end">
                     <EstadoBadge rotulo="Estado de la solicitud" estado={solicitud.estado_solicitud} tono={tonoEstadoSolicitud(solicitud.estado_solicitud)} />
-                    <p><span className="font-medium">Orientador/a:</span> {solicitud.orientador ?? "—"}</p>
-                    <p><span className="font-medium">Gestor/a:</span> {solicitud.gestor ?? "—"}</p>
-                    <p><span className="font-medium">Fecha de creación:</span> {formatearFecha(solicitud.fecha_inicio)}</p>
-                    <p><span className="font-medium">Fecha de cierre:</span> {formatearFecha(solicitud.fecha_cierre)}</p>
+                    <p>
+                        <span className="font-medium">Orientador/a:</span>{" "}
+                        {solicitud.orientador ?? "—"}
+                    </p>
+                    <p>
+                        <span className="font-medium">Gestor/a:</span>{" "}
+                        {solicitud.gestor ?? "—"}
+                    </p>
+                    <p>
+                        <span className="font-medium">Fecha de creación:</span>{" "}
+                        {formatearFecha(solicitud.fecha_inicio)}
+                    </p>
+                    <p>
+                        <span className="font-medium">Fecha de cierre:</span>{" "}
+                        {formatearFecha(solicitud.fecha_cierre)}
+                    </p>
                     {acciones}
                 </div>
             </div>
             {cantidadCitas === 0 ? <p>{textoSinCitas}</p> : (
                 <>
                     <div>
-                        <Button type="button" variant="outline" aria-expanded={abiertas} aria-controls={`citas-${solicitud.id_solicitud}`} onClick={() => setAbiertas(!abiertas)}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            aria-expanded={abiertas}
+                            aria-controls={`citas-${solicitud.id_solicitud}`}
+                            onClick={() => setAbiertas(!abiertas)}
+                    >
                             Ver citas ({cantidadCitas})
                         </Button>
                     </div>
-                    {abiertas && <div id={`citas-${solicitud.id_solicitud}`} className="flex flex-col gap-3 border-l-4 border-primary/40 pl-3">{children}</div>}
+                    {abiertas && (
+                        <div id={`citas-${solicitud.id_solicitud}`} className="flex flex-col gap-3 border-l-4 border-primary/40 pl-3">
+                            {children}
+                        </div>
+                    )}
                 </>
             )}
         </article>

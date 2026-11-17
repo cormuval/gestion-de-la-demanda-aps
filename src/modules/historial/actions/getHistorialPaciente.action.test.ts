@@ -26,13 +26,24 @@ beforeEach(() => {
 describe("getHistorialPaciente", () => {
     it("entrega solicitudes En Curso primero y cada grupo por fecha descendente", async () => {
         const crear = (id: string, estado: string, fecha: string) => ({
-            id_solicitud: id, estado_solicitud: estado, fecha_inicio: new Date(fecha),
-            descripcion: null, accion: null, razon_rechazo: null, fecha_validacion: null,
-            tipoSolicitud: null, motivo: null, orientador: null, gestor: null, citas: []
+            id_solicitud: id,
+            estado_solicitud: estado,
+            fecha_inicio: new Date(fecha),
+            descripcion: null,
+            accion: null,
+            razon_rechazo: null,
+            fecha_validacion: null,
+            tipoSolicitud: null,
+            motivo: null,
+            orientador: null,
+            gestor: null,
+            citas: []
         });
         (prisma.solicitud.findMany as any).mockResolvedValueOnce([
-            crear("A", "Realizado", "2026-11-02"), crear("B", "En Curso", "2026-05-01"),
-            crear("C", "Rechazado", "2026-10-19"), crear("D", "En Curso", "2026-07-01")
+            crear("A", "Realizado", "2026-11-02"),
+            crear("B", "En Curso", "2026-05-01"),
+            crear("C", "Rechazado", "2026-10-19"),
+            crear("D", "En Curso", "2026-07-01")
         ]);
         const resultado = await getHistorialPaciente("12345678-5");
         expect(resultado.ok && resultado.data.solicitudes.map((s) => s.id_solicitud)).toEqual(["D", "B", "A", "C"]);
@@ -185,6 +196,8 @@ describe("getHistorialPaciente", () => {
         expect(solicitud.fecha_cierre).toEqual(d2);
 
         const cita = solicitud.citas[0];
+        expect(cita.gestor).toBe("Gestor Cita");
+        expect(cita.priorizacion_clinica).toBe("Alta");
         expect(cita.hora_agendada).toEqual(new Date("2026-07-01T13:30:00Z"));
         expect(cita.cerrada).toBe(true);
         expect(cita.fecha_cierre).toEqual(d2);

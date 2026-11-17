@@ -24,36 +24,68 @@ export function CitaTarjeta({ cita, detallePendiente = false, acciones }: {
         <div data-testid={`cita-${cita.id_cita}`} className="flex flex-col gap-3 rounded-md border p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <div className="min-w-0">
-                    <p><span className="font-medium">Cita:</span> <CodigoId id={cita.id_cita} /></p>
+                    <p>
+                        <span className="font-medium">Cita:</span>{" "}
+                        <CodigoId id={cita.id_cita} />
+                    </p>
                     <p>{cita.estamento ?? "—"} · {cita.prestacion ?? "—"}</p>
                     {cita.observacion?.trim() && (
-                        <p className="whitespace-pre-line break-words"><span className="font-medium">Observación del gestor/a:</span> {cita.observacion}</p>
+                        <p className="whitespace-pre-line break-words">
+                            <span className="font-medium">Observación del gestor/a:</span>{" "}
+                            {cita.observacion}
+                        </p>
                     )}
                     {detallePendiente && (
                         <>
-                            {cita.priorizacion_clinica?.trim() && <Badge variant="muted">{cita.priorizacion_clinica}</Badge>}
-                            <p><span className="font-medium">Fecha estimada:</span> {formatearFechaCalendario(cita.fecha_estimada_atencion)}</p>
+                            {cita.priorizacion_clinica?.trim() && (
+                                <Badge variant="muted">{cita.priorizacion_clinica}</Badge>
+                            )}
+                            <p>
+                                <span className="font-medium">Fecha estimada:</span>{" "}
+                                {formatearFechaCalendario(cita.fecha_estimada_atencion)}
+                            </p>
                         </>
                     )}
                 </div>
                 <div className="flex flex-col gap-1 sm:items-end">
                     <EstadoBadge rotulo="Estado de la cita" estado={cita.estado_cita} tono={tonoEstadoCita(cita.estado_cita)} suave />
-                    <p><span className="font-medium">Gestor/a:</span> {cita.gestor ?? "—"}</p>
-                    <p><span className="font-medium">Cierre de la cita:</span> {formatearFecha(cita.fecha_cierre)}</p>
+                    <p>
+                        <span className="font-medium">Gestor/a:</span>{" "}
+                        {cita.gestor ?? "—"}
+                    </p>
+                    <p>
+                        <span className="font-medium">Cierre de la cita:</span>{" "}
+                        {formatearFecha(cita.fecha_cierre)}
+                    </p>
                     {cita.estado_cita === ESTADO_CITA.ACEPTADA && (
-                        <p><span className="font-medium">Fecha y hora agendadas:</span> {cita.hora_agendada ? formatearFechaHora(cita.hora_agendada) : "Fecha y hora no registradas"}</p>
+                        <p>
+                            <span className="font-medium">Fecha y hora agendadas:</span>{" "}
+                            {cita.hora_agendada ? formatearFechaHora(cita.hora_agendada) : "Fecha y hora no registradas"}
+                        </p>
                     )}
                     {acciones}
                 </div>
             </div>
             <div>
-                <Button type="button" variant="outline" aria-expanded={abiertas} aria-controls={`llamadas-${cita.id_cita}`} onClick={() => setAbiertas(!abiertas)}>
+                <Button
+                    type="button"
+                    variant="outline"
+                    aria-expanded={abiertas}
+                    aria-controls={`llamadas-${cita.id_cita}`}
+                    onClick={() => setAbiertas(!abiertas)}
+                    >
                     Ver llamadas ({cita.llamadas.length})
                 </Button>
             </div>
             {abiertas && (
                 <div id={`llamadas-${cita.id_cita}`} className="flex flex-col gap-2">
-                    {cita.llamadas.length ? cita.llamadas.map((llamada) => <LlamadaTarjeta key={llamada.id_llamada} llamada={llamada} />) : <p>Sin llamadas registradas.</p>}
+                    {cita.llamadas.length ? (
+                        cita.llamadas.map((llamada) => (
+                            <LlamadaTarjeta key={llamada.id_llamada} llamada={llamada} />
+                        ))
+                    ) : (
+                        <p>Sin llamadas registradas.</p>
+                    )}
                 </div>
             )}
         </div>
