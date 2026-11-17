@@ -39,6 +39,28 @@ describe("getOtrasSolicitudes", () => {
         expect(result.ok && result.data.solicitudes[0].citas.map((cita) => [cita.editable, cita.puedeRegistrarRechazo])).toEqual([[true, true], [false, true], [false, false]]);
     });
 
+    it("selecciona solo los campos del usuario usados por las acciones", async () => {
+        await getOtrasSolicitudes("12345678-5", "SOL-1");
+        const args = vi.mocked(prisma.solicitud.findMany).mock.calls[0][0]!;
+        expect(args.select?.usuario).toEqual({
+            select: {
+                rut: true,
+                nombre: true,
+                apellido: true,
+                nombre_social: true,
+                correo_contacto: true,
+                sector: true,
+                genero: true,
+                fecha_nacimiento: true,
+                telefono: true,
+                telefono_alternativo: true,
+                gestante: true,
+                discapacidad: true,
+                centro_id: true
+            }
+        });
+    });
+
     it("resuelve centro desde funcionario si la sesion no trae centro", async () => {
         (requirePermiso as any).mockResolvedValueOnce({
             rut: "22.222.222-2",

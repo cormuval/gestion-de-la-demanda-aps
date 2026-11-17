@@ -41,6 +41,24 @@ export async function getOtrasSolicitudes(rutUsuario: string, solicitudActualId:
         },
         select: {
             ...SOLICITUD_CASCADA_SELECT,
+            rut_usuario: true,
+            usuario: {
+                select: {
+                    rut: true,
+                    nombre: true,
+                    apellido: true,
+                    nombre_social: true,
+                    correo_contacto: true,
+                    sector: true,
+                    genero: true,
+                    fecha_nacimiento: true,
+                    telefono: true,
+                    telefono_alternativo: true,
+                    gestante: true,
+                    discapacidad: true,
+                    centro_id: true
+                }
+            },
             citas: { ...SOLICITUD_CASCADA_SELECT.citas, where: { centro_id: centroId } }
         },
         orderBy: [{ priorizacion_admin: "desc" }, { fecha_inicio: "asc" }]

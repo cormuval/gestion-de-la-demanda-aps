@@ -64,14 +64,11 @@ import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestio
 import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
 
 type SolicitudesResponse = Extract<Awaited<ReturnType<typeof getSolicitudes>>, { ok: true }>["data"];
-type SolicitudRow = Omit<SolicitudesResponse["solicitudes"][number], "tipoSolicitud" | "motivo" | "orientador" | "gestor"> & {
-    tipoSolicitud: { nombre_tipo_solicitud: string } | null;
-    motivo: { nombre_motivo: string } | null;
-    orientador: { nombre: string } | null;
-    gestor: { nombre: string } | null;
-};
 type RevisionCatalogos = Extract<Awaited<ReturnType<typeof getRevisionCatalogos>>, { ok: true }>["data"];
 type OtrasSolicitudesResponse = Extract<Awaited<ReturnType<typeof getOtrasSolicitudes>>, { ok: true }>["data"];
+type SolicitudRow = Pick<OtrasSolicitudesResponse["solicitudes"][number],
+    "id_solicitud" | "rut_usuario" | "usuario" | "tipoSolicitud" | "motivo" | "orientador" | "descripcion"
+>;
 type GestionResumen = Extract<Awaited<ReturnType<typeof gestionarSolicitud>>, { ok: true }>["data"]["resumen"];
 type CitaContexto = OtrasSolicitudesResponse["solicitudes"][number]["citas"][number];
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
@@ -410,7 +407,8 @@ export function RevisarSolicitudesView() {
     }
 
     function openRegistrarRechazoCita(cita: CitaContexto) {
-        const usuario = otrasSolicitudBase?.usuario;
+        const solicitudContextual = otrasContexto?.solicitudes.find((solicitud) => solicitud.id_solicitud === cita.solicitud_id);
+        const usuario = solicitudContextual?.usuario;
         if (!usuario) return;
 
         const nombreUsuario = [usuario.nombre, usuario.apellido].filter(Boolean).join(" ");
@@ -1196,11 +1194,11 @@ function OtrasSolicitudesModal({
                                 <div className="flex flex-wrap justify-end gap-2">
                                     {enEspera ? (
                                         <>
-                                            <Button type="button" variant="outline" onClick={() => onRealizar({ ...solicitudBase, ...solicitud })}>
+                                            <Button type="button" variant="outline" onClick={() => onRealizar(solicitud)}>
                                                 <Check data-icon="inline-start" />
                                                 Realizar
                                             </Button>
-                                            <Button type="button" variant="outline" onClick={() => onRechazar({ ...solicitudBase, ...solicitud })}>
+                                            <Button type="button" variant="outline" onClick={() => onRechazar(solicitud)}>
                                                 <X data-icon="inline-start" />
                                                 Rechazar
                                             </Button>
@@ -1208,7 +1206,7 @@ function OtrasSolicitudesModal({
                                     ) : (
                                         <Badge variant="muted">Validada</Badge>
                                     )}
-                                    <Button type="button" variant="outline" onClick={() => onEditarUsuario({ ...solicitudBase, ...solicitud })}>
+                                    <Button type="button" variant="outline" onClick={() => onEditarUsuario(solicitud)}>
                                         <Edit data-icon="inline-start" />
                                         Usuario
                                     </Button>

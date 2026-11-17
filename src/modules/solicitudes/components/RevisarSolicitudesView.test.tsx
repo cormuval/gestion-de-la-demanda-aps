@@ -58,6 +58,11 @@ const solicitudBase = {
         apellido: "Perez",
         nombre_social: "Social Perez",
         genero: "Masculino",
+        fecha_nacimiento: null,
+        sector: null,
+        telefono: null,
+        telefono_alternativo: null,
+        correo_contacto: null,
         gestante: "No aplica",
         discapacidad: "El usuario no poseé una credencial de discapacidad y no es cuidador(a) de una persona con discapacidad.",
         centro_id: "650"
@@ -159,6 +164,90 @@ function abrirFiltros() {
 }
 
 describe("RevisarSolicitudesView contexto de citas", () => {
+    it("contexto: tras editar el usuario, reabrir Usuario usa los datos recargados", async () => {
+        const usuarioActualizado = {
+            ...solicitudAsociada.usuario,
+            telefono: "9 1111 2222"
+        };
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{
+                    ...solicitudAsociada,
+                    citas: []
+                }]
+            }
+        } as Awaited<ReturnType<typeof getOtrasSolicitudes>>).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{
+                    ...solicitudAsociada,
+                    usuario: usuarioActualizado,
+                    citas: []
+                }]
+            }
+        } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
+        vi.mocked(actualizarUsuario).mockResolvedValue({ ok: true } as Awaited<ReturnType<typeof actualizarUsuario>>);
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const contexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(contexto).getByRole("button", { name: "Usuario" }));
+        const modal = await screen.findByRole("dialog", { name: "Editar usuario" });
+        fireEvent.change(within(modal).getByDisplayValue("32 222 2222"), { target: { value: "9 1111 2222" } });
+        fireEvent.submit(within(modal).getByRole("button", { name: "Guardar usuario" }).closest("form")!);
+        await waitFor(() => expect(getOtrasSolicitudes).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar usuario" })).not.toBeInTheDocument());
+        fireEvent.click(within(contexto).getByRole("button", { name: "Usuario" }));
+        const modalReabierto = await screen.findByRole("dialog", { name: "Editar usuario" });
+        expect(within(modalReabierto).getByDisplayValue("9 1111 2222")).toBeInTheDocument();
+    });
+
+    it("contexto: el cierre de cita usa el teléfono recargado del usuario", async () => {
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{ ...solicitudBase, usuario: solicitudAsociada.usuario }],
+                total: 1,
+                page: 1,
+                pageSize: 100,
+                totalPages: 1
+            }
+        } as unknown as Awaited<ReturnType<typeof getSolicitudes>>);
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{
+                    ...solicitudAsociada,
+                    usuario: { ...solicitudAsociada.usuario, telefono: "9 1111 2222" },
+                    citas: [{
+                        id_cita: "CITA-1",
+                        solicitud_id: "SOL-2",
+                        estado_cita: "Sin llamadas",
+                        observacion: null,
+                        priorizacion_clinica: null,
+                        fecha_estimada_atencion: null,
+                        profesional: null,
+                        prestacion: null,
+                        gestor: null,
+                        llamadas: [],
+                        editable: true,
+                        puedeRegistrarRechazo: true
+                    }]
+                }]
+            }
+        });
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const contexto = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        fireEvent.click(within(contexto).getByRole("button", { name: "Cerrar cita" }));
+        const cierre = await screen.findByRole("dialog", { name: "Cierre administrativo de cita" });
+        expect(within(cierre).getByText("Teléfonos: 9 1111 2222 · 9 8765 4321")).toBeInTheDocument();
+    });
+
     it("contexto: muestra las acciones de solicitud y de cita pendiente editable", async () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
             ok: true,
