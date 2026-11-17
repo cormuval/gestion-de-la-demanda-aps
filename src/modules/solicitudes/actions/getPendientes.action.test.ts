@@ -31,6 +31,18 @@ describe("getPendientes", () => {
         expect(arg.where.estado_cita.in).toContain("Sin llamadas");
     });
 
+    it("selecciona cascada completa sin cargar funcionarios completos", async () => {
+        await getPendientes("12.345.678-9");
+        const solicitud = (prisma.solicitud.findMany as any).mock.calls[0][0];
+        const cita = (prisma.cita.findMany as any).mock.calls[0][0];
+        expect(solicitud.include).toBeUndefined();
+        expect(solicitud.select).toEqual(expect.objectContaining({ tipo_solicitud_id: true, motivo_id: true, centro_id: true }));
+        expect(solicitud.select.citas.where).toBeUndefined();
+        expect(solicitud.select.citas.select.gestor).toEqual({ select: { nombre: true } });
+        expect(solicitud.select.citas.select.llamadas.select.comunicador).toEqual({ select: { nombre: true } });
+        expect(cita.where).toEqual({ rut_usuario: "12345678-9", estado_cita: { in: ["Sin llamadas", "No contesta (1)", "No contesta (2)", "Solo llamada de aviso"] } });
+    });
+
     it("devuelve exitosamente pendientes vacios", async () => {
         (prisma.cita.findMany as any).mockResolvedValue([]);
 

@@ -22,54 +22,21 @@ beforeEach(() => {
         centro_id: "650",
         rol: { id: 2, nombre: "Gestor" }
     });
-    (prisma.solicitud.findMany as any).mockResolvedValue([{ id_solicitud: "SOL-2", accion: "Realizar solicitud" }]);
-    (prisma.cita.findMany as any).mockResolvedValue([
-        { id_cita: "CITA-1", estado_cita: "Sin llamadas", _count: { llamadas: 0 } },
-        { id_cita: "CITA-2", estado_cita: "Sin llamadas", _count: { llamadas: 1 } }
-    ]);
+    (prisma.solicitud.findMany as any).mockResolvedValue([{ id_solicitud: "SOL-2", accion: "Realizar solicitud", citas: [
+        { id_cita: "CITA-1", estado_cita: "Sin llamadas", llamadas: [] },
+        { id_cita: "CITA-2", estado_cita: "No contesta (1)", llamadas: [{}] },
+        { id_cita: "CITA-3", estado_cita: "Cita Aceptada", llamadas: [{}] }
+    ] }]);
 });
 
 describe("getOtrasSolicitudes", () => {
-    it("consulta solicitudes En Curso del centro y solo trae citas de otra solicitud En Curso", async () => {
+    it("consulta solicitudes del centro con citas anidadas y conserva reglas de edición", async () => {
         const result = await getOtrasSolicitudes("12.345.678-5", "SOL-1");
-
-        expect(prisma.solicitud.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: {
-                    rut_usuario: "12345678-5",
-                    id_solicitud: { not: "SOL-1" },
-                    estado_solicitud: "En Curso",
-                    centro_id: "650"
-                }
-            })
-        );
-        expect(prisma.cita.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: {
-                    rut_usuario: "12345678-5",
-                    centro_id: "650",
-                    estado_cita: { in: ["Sin llamadas", "No contesta (1)", "No contesta (2)", "Solo llamada de aviso"] },
-                    solicitud: {
-                        is: {
-                            id_solicitud: { not: "SOL-1" },
-                            estado_solicitud: "En Curso",
-                            centro_id: "650"
-                        }
-                    }
-                },
-                include: { profesional: true, prestacion: true, _count: { select: { llamadas: true } } }
-            })
-        );
-        expect(result).toEqual({
-            ok: true,
-            data: {
-                solicitudes: [{ id_solicitud: "SOL-2", accion: "Realizar solicitud" }],
-                citas: [
-                    { id_cita: "CITA-1", estado_cita: "Sin llamadas", editable: true, puedeRegistrarRechazo: true },
-                    { id_cita: "CITA-2", estado_cita: "Sin llamadas", editable: false, puedeRegistrarRechazo: true }
-                ]
-            }
-        });
+        const args = (prisma.solicitud.findMany as any).mock.calls[0][0];
+        expect(args.where).toEqual({ rut_usuario: "12345678-5", id_solicitud: { not: "SOL-1" }, estado_solicitud: "En Curso", centro_id: "650" });
+        expect(args.select.citas.where).toEqual({ centro_id: "650" });
+        expect(prisma.cita.findMany).not.toHaveBeenCalled();
+        expect(result.ok && result.data.solicitudes[0].citas.map((cita) => [cita.editable, cita.puedeRegistrarRechazo])).toEqual([[true, true], [false, true], [false, false]]);
     });
 
     it("resuelve centro desde funcionario si la sesion no trae centro", async () => {
@@ -94,25 +61,10 @@ describe("getOtrasSolicitudes", () => {
 
     it("devuelve listas vacias como exito", async () => {
         (prisma.solicitud.findMany as any).mockResolvedValueOnce([]);
-        (prisma.cita.findMany as any).mockResolvedValueOnce([]);
-
         await expect(getOtrasSolicitudes("12345678-5", "SOL-1")).resolves.toEqual({
             ok: true,
-            data: { solicitudes: [], citas: [] }
+            data: { solicitudes: [] }
         });
-        expect(prisma.cita.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: expect.objectContaining({
-                    solicitud: {
-                        is: {
-                            id_solicitud: { not: "SOL-1" },
-                            estado_solicitud: "En Curso",
-                            centro_id: "650"
-                        }
-                    }
-                })
-            })
-        );
     });
 
     it("devuelve error de configuracion cuando el funcionario no tiene centro", async () => {

@@ -4,11 +4,12 @@
 import { prisma } from "@/shared/lib/prisma";
 import { requirePermiso } from "@/shared/lib/permisos";
 // types
-import { ESTADOS_PENDIENTES } from "@/modules/comunicador/types/comunicador";
+import { esEstadoPendiente } from "@/modules/comunicador/types/comunicador";
 import type { ResultadoAccion } from "@/shared/types/resultado";
 // utils
 import { esCitaEditable } from "../utils/citas";
 import { normalizarRut } from "../utils/rut";
+import { SOLICITUD_CASCADA_SELECT } from "../utils/selectCascada";
 
 const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
 
@@ -31,41 +32,28 @@ export async function getOtrasSolicitudes(rutUsuario: string, solicitudActualId:
 
     const centroId = await getCentroFuncionario(user.rut, user.centro_id);
     if (!centroId) return { ok: false, error: ERROR_CENTRO } satisfies ResultadoAccion<never>;
-    const [solicitudes, citasRaw] = await Promise.all([
-        prisma.solicitud.findMany({
-            where: {
-                rut_usuario: rut,
-                id_solicitud: { not: solicitudActualId },
-                estado_solicitud: "En Curso",
-                centro_id: centroId
-            },
-            include: { usuario: true, tipoSolicitud: true, motivo: true, orientador: true, gestor: true },
-            orderBy: [{ priorizacion_admin: "desc" }, { fecha_inicio: "asc" }]
-        }),
-        prisma.cita.findMany({
-            where: {
-                rut_usuario: rut,
-                centro_id: centroId,
-                estado_cita: { in: [...ESTADOS_PENDIENTES] },
-                solicitud: {
-                    is: {
-                        id_solicitud: { not: solicitudActualId },
-                        estado_solicitud: "En Curso",
-                        centro_id: centroId
-                    }
-                }
-            },
-            include: { profesional: true, prestacion: true, _count: { select: { llamadas: true } } },
-            orderBy: [{ fecha_estimada_atencion: "asc" }, { fecha_creacion: "asc" }]
-        })
-    ]);
+    const solicitudesRaw = await prisma.solicitud.findMany({
+        where: {
+            rut_usuario: rut,
+            id_solicitud: { not: solicitudActualId },
+            estado_solicitud: "En Curso",
+            centro_id: centroId
+        },
+        select: {
+            ...SOLICITUD_CASCADA_SELECT,
+            citas: { ...SOLICITUD_CASCADA_SELECT.citas, where: { centro_id: centroId } }
+        },
+        orderBy: [{ priorizacion_admin: "desc" }, { fecha_inicio: "asc" }]
+    });
 
-    const citas = citasRaw.map(({ _count, ...cita }) => ({
-        ...cita,
-        editable: esCitaEditable({ estado_cita: cita.estado_cita, cantidadLlamadas: _count.llamadas }),
-        puedeRegistrarRechazo: true
+    const solicitudes = solicitudesRaw.map((solicitud) => ({
+        ...solicitud,
+        citas: solicitud.citas.map((cita) => ({
+            ...cita,
+            editable: esCitaEditable({ estado_cita: cita.estado_cita, cantidadLlamadas: cita.llamadas.length }),
+            puedeRegistrarRechazo: esEstadoPendiente(cita.estado_cita)
+        }))
     }));
-
-    const payload = { solicitudes, citas };
+    const payload = { solicitudes };
     return { ok: true, data: payload } satisfies ResultadoAccion<typeof payload>;
 }
