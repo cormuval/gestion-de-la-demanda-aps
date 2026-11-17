@@ -9,6 +9,16 @@ const colores: Record<TonoSemaforo, string> = {
     rojo: "bg-destructive text-destructive-foreground",
     gris: "bg-muted text-muted-foreground"
 };
-export function EstadoBadge({ rotulo, estado, tono, suave = false }: { rotulo: string; estado: string | null; tono: TonoSemaforo; suave?: boolean }) {
-    return <Badge data-tono={tono} className={`${colores[tono]} ${suave ? "opacity-75" : ""}`}>{rotulo}: {estado ?? "Sin estado"}</Badge>;
+
+export function EstadoBadge({ rotulo, estado, tono, suave = false }: {
+    rotulo: string;
+    estado: string | null;
+    tono: TonoSemaforo;
+    suave?: boolean;
+}) {
+    return (
+        <Badge data-tono={tono} className={`${colores[tono]} ${suave ? "opacity-75" : ""}`}>
+            <span className="font-semibold">{rotulo}:</span> <span className="font-normal">{estado ?? "Sin estado"}</span>
+        </Badge>
+    );
 }
