@@ -43,6 +43,9 @@ import { toast } from "sonner";
 
 const solicitudBase = {
     id_solicitud: "SOL-1",
+    centro_id: "650",
+    tipo_solicitud_id: 1,
+    motivo_id: 1,
     fecha_inicio: new Date("2026-09-01T00:00:00"),
     rut_usuario: "12345678-5",
     descripcion: "Base",
@@ -61,7 +64,11 @@ const solicitudBase = {
     },
     tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
     motivo: { nombre_motivo: "Control" },
-    orientador: { nombre: "Orientadora Uno" }
+    orientador: { nombre: "Orientadora Uno" },
+    razon_rechazo: null,
+    fecha_validacion: null,
+    gestor: null,
+    citas: []
 };
 
 const solicitudAsociada = {
@@ -100,12 +107,13 @@ beforeEach(() => {
     vi.mocked(getSolicitudes).mockResolvedValue({
         ok: true,
         data: { solicitudes: [solicitudBase], total: 1, page: 1, pageSize: 100, totalPages: 1 }
-    } as Awaited<ReturnType<typeof getSolicitudes>>);
+    } as unknown as Awaited<ReturnType<typeof getSolicitudes>>);
     vi.mocked(getOtrasSolicitudes).mockResolvedValue({
         ok: true,
         data: {
-            solicitudes: [solicitudAsociada],
-            citas: [
+            solicitudes: [{
+                ...solicitudAsociada,
+                citas: [
                 {
                     id_cita: "CITA-1",
                     solicitud_id: "SOL-2",
@@ -115,10 +123,13 @@ beforeEach(() => {
                     fecha_estimada_atencion: new Date(`${fechaCitaEditable}T00:00:00`),
                     profesional: { nombre: "Medico" },
                     prestacion: { nombre_prestacion: "Consulta" },
+                    gestor: null,
+                    llamadas: [],
                     editable: true,
                     puedeRegistrarRechazo: true
                 }
-            ]
+                ]
+            }]
         }
     } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
     vi.mocked(verificarSolicitudPendiente).mockResolvedValue({ ok: true, data: { pendiente: true, estado: "En Curso" } });
@@ -148,7 +159,94 @@ function abrirFiltros() {
 }
 
 describe("RevisarSolicitudesView contexto de citas", () => {
+    it("contexto: muestra las acciones de solicitud y de cita pendiente editable", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{
+                    ...solicitudAsociada,
+                    accion: "En espera de validación",
+                    citas: [{
+                        id_cita: "CITA-1",
+                        solicitud_id: "SOL-2",
+                        estado_cita: "Sin llamadas",
+                        observacion: null,
+                        priorizacion_clinica: "Alta",
+                        fecha_estimada_atencion: null,
+                        profesional: null,
+                        prestacion: null,
+                        gestor: null,
+                        llamadas: [],
+                        editable: true,
+                        puedeRegistrarRechazo: true
+                    }]
+                }]
+            }
+        });
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const modal = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        for (const nombre of ["Realizar", "Rechazar", "Usuario", "Cerrar cita", "Editar prioridad", "Editar fecha estimada"]) {
+            expect(within(modal).getByRole("button", { name: nombre })).toBeInTheDocument();
+        }
+    });
+
+    it("contexto: muestra una cita cerrada sin botones de cita", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{
+                    ...solicitudAsociada,
+                    citas: [{
+                        id_cita: "CITA-CERRADA",
+                        solicitud_id: "SOL-2",
+                        estado_cita: "Cita Aceptada",
+                        observacion: null,
+                        priorizacion_clinica: "Alta",
+                        fecha_estimada_atencion: null,
+                        profesional: null,
+                        prestacion: null,
+                        gestor: null,
+                        llamadas: [],
+                        editable: true,
+                        puedeRegistrarRechazo: true
+                    }]
+                }]
+            }
+        });
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        const modal = await screen.findByRole("dialog", { name: "Solicitudes y citas en curso" });
+        expect(within(modal).getByText("Cita Aceptada")).toBeInTheDocument();
+        for (const nombre of ["Cerrar cita", "Editar prioridad", "Editar fecha estimada"]) {
+            expect(within(modal).queryByRole("button", { name: nombre })).not.toBeInTheDocument();
+        }
+    });
+
+    it("contexto vacío: muestra el mensaje correspondiente", async () => {
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({ ok: true, data: { solicitudes: [] } });
+        render(<RevisarSolicitudesView />);
+        await screen.findByText("SOL-1");
+        await openGestionMenu();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Otras solicitudes/i }));
+        expect(await screen.findByText("No hay otras solicitudes ni citas en curso para este RUT en tu centro.")).toBeInTheDocument();
+    });
+
     it("abre el cierre administrativo con los datos de la solicitud asociada y recarga al guardar", async () => {
+        vi.mocked(getSolicitudes).mockResolvedValueOnce({
+            ok: true,
+            data: {
+                solicitudes: [{ ...solicitudBase, usuario: solicitudAsociada.usuario }],
+                total: 1,
+                page: 1,
+                pageSize: 100,
+                totalPages: 1
+            }
+        } as unknown as Awaited<ReturnType<typeof getSolicitudes>>);
         render(<RevisarSolicitudesView />);
 
         await screen.findByText("SOL-1");
@@ -195,8 +293,11 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValue({
             ok: true,
             data: {
-                solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "Realizar solicitud" }],
-                citas: [{
+                solicitudes: [{
+                    ...solicitudBase,
+                    id_solicitud: "SOL-2",
+                    accion: "Realizar solicitud",
+                    citas: [{
                     id_cita: "CITA-1",
                     solicitud_id: "SOL-2",
                     estado_cita: "Sin llamadas",
@@ -205,8 +306,11 @@ describe("RevisarSolicitudesView contexto de citas", () => {
                     fecha_estimada_atencion: new Date(`${fechaCitaEditable}T00:00:00`),
                     profesional: { nombre: "Medico" },
                     prestacion: { nombre_prestacion: "Consulta" },
+                    gestor: null,
+                    llamadas: [],
                     editable: true,
                     puedeRegistrarRechazo: false
+                    }]
                 }]
             }
         } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
@@ -303,8 +407,9 @@ describe("RevisarSolicitudesView contexto de citas", () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValue({
             ok: true,
             data: {
-                solicitudes: [solicitudAsociada],
-                citas: [{
+                solicitudes: [{
+                    ...solicitudAsociada,
+                    citas: [{
                     id_cita: "CITA-1",
                     solicitud_id: "SOL-2",
                     estado_cita: "Solo llamada de aviso",
@@ -313,8 +418,11 @@ describe("RevisarSolicitudesView contexto de citas", () => {
                     fecha_estimada_atencion: new Date(`${fechaCitaEditable}T00:00:00`),
                     profesional: { nombre: "Medico" },
                     prestacion: { nombre_prestacion: "Consulta" },
+                    gestor: null,
+                    llamadas: [],
                     editable: false,
                     puedeRegistrarRechazo: true
+                    }]
                 }]
             }
         } as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
@@ -335,7 +443,7 @@ describe("RevisarSolicitudesView contexto de citas", () => {
     ])("abre %s sobre el modal de contexto y restaura el foco al cerrar", async (accion, titulo) => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValue({
             ok: true,
-            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación" }], citas: [] }
+            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", citas: [] }] }
         } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
 
         render(<RevisarSolicitudesView />);
@@ -364,7 +472,7 @@ describe("RevisarSolicitudesView contexto de citas", () => {
     it("mantiene el resumen de una gestión exitosa sobre el modal de contexto", async () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValue({
             ok: true,
-            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación" }], citas: [] }
+            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", citas: [] }] }
         } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
         vi.mocked(gestionarSolicitud).mockResolvedValue({
             ok: true,
@@ -422,7 +530,7 @@ describe("RevisarSolicitudesView contexto de citas", () => {
     it("refresca el contexto de Otras solicitudes si la verificacion encuentra un conflicto", async () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValue({
             ok: true,
-            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación" }], citas: [] }
+            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", citas: [] }] }
         } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
         vi.mocked(verificarSolicitudPendiente).mockResolvedValueOnce({ ok: true, data: { pendiente: false, estado: "Rechazado" } });
 
@@ -444,7 +552,7 @@ describe("RevisarSolicitudesView contexto de citas", () => {
     it("refresca el contexto de Otras solicitudes si el guardado encuentra un conflicto", async () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValue({
             ok: true,
-            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación" }], citas: [] }
+            data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", citas: [] }] }
         } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
         vi.mocked(gestionarSolicitud).mockResolvedValueOnce({ ok: false, error: ERROR_SOLICITUD_NO_PENDIENTE });
 
@@ -491,7 +599,7 @@ describe("RevisarSolicitudesView tabla compacta", () => {
         vi.mocked(getSolicitudes).mockResolvedValueOnce({
             ok: true,
             data: { solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-3", motivo: null }], total: 1, page: 1, pageSize: 100, totalPages: 1 }
-        } as Awaited<ReturnType<typeof getSolicitudes>>);
+        } as unknown as Awaited<ReturnType<typeof getSolicitudes>>);
 
         render(<RevisarSolicitudesView />);
 
@@ -587,7 +695,7 @@ describe("RevisarSolicitudesView tabla compacta", () => {
         vi.mocked(getSolicitudes).mockResolvedValueOnce({
             ok: true,
             data: { solicitudes: [{ ...solicitudBase, orientador: null }], total: 1, page: 1, pageSize: 100, totalPages: 1 }
-        } as Awaited<ReturnType<typeof getSolicitudes>>);
+        } as unknown as Awaited<ReturnType<typeof getSolicitudes>>);
         render(<RevisarSolicitudesView />);
 
         await screen.findByText("SOL-1");
@@ -602,8 +710,7 @@ describe("RevisarSolicitudesView tabla compacta", () => {
         vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({
             ok: true,
             data: {
-                solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", orientador: { nombre: "Orientador Contextual" } }],
-                citas: []
+                solicitudes: [{ ...solicitudBase, id_solicitud: "SOL-2", accion: "En espera de validación", orientador: { nombre: "Orientador Contextual" }, citas: [] }]
             }
         } as unknown as Awaited<ReturnType<typeof getOtrasSolicitudes>>);
         render(<RevisarSolicitudesView />);
@@ -654,7 +761,7 @@ describe("RevisarSolicitudesView errores de acciones", () => {
     });
 
     it("muestra el estado vacio del modal solo cuando el contexto responde con exito", async () => {
-        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({ ok: true, data: { solicitudes: [], citas: [] } });
+        vi.mocked(getOtrasSolicitudes).mockResolvedValueOnce({ ok: true, data: { solicitudes: [] } });
 
         render(<RevisarSolicitudesView />);
 
@@ -821,7 +928,7 @@ function respuestaCon(idSolicitud: string): RespuestaSolicitudes {
     return {
         ok: true,
         data: { solicitudes: [{ ...solicitudBase, id_solicitud: idSolicitud }], total: 1, page: 1, pageSize: 100, totalPages: 1 }
-    } as RespuestaSolicitudes;
+    } as unknown as RespuestaSolicitudes;
 }
 
 describe("RevisarSolicitudesView verificacion antes de gestionar", () => {
@@ -1095,7 +1202,7 @@ describe("RevisarSolicitudesView búsqueda global", () => {
         return {
             ok: true,
             data: { solicitudes: [{ ...solicitudBase, id_solicitud: id }], total, page, pageSize: 100, totalPages: Math.ceil(total / 100) }
-        } as RespuestaSolicitudes;
+        } as unknown as RespuestaSolicitudes;
     }
 
     async function editarTexto(texto: string) {
@@ -1213,7 +1320,7 @@ describe("RevisarSolicitudesView orden de página", () => {
     ];
 
     function paginaOrdenable(filas: typeof filasOrdenables, page = 1): RespuestaSolicitudes {
-        return { ok: true, data: { solicitudes: filas, total: 201, page, pageSize: 100, totalPages: 3 } } as RespuestaSolicitudes;
+        return { ok: true, data: { solicitudes: filas, total: 201, page, pageSize: 100, totalPages: 3 } } as unknown as RespuestaSolicitudes;
     }
 
     function idsVisibles(): string[] {

@@ -64,11 +64,16 @@ import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestio
 import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
 
 type SolicitudesResponse = Extract<Awaited<ReturnType<typeof getSolicitudes>>, { ok: true }>["data"];
-type SolicitudRow = SolicitudesResponse["solicitudes"][number];
+type SolicitudRow = Omit<SolicitudesResponse["solicitudes"][number], "tipoSolicitud" | "motivo" | "orientador" | "gestor"> & {
+    tipoSolicitud: { nombre_tipo_solicitud: string } | null;
+    motivo: { nombre_motivo: string } | null;
+    orientador: { nombre: string } | null;
+    gestor: { nombre: string } | null;
+};
 type RevisionCatalogos = Extract<Awaited<ReturnType<typeof getRevisionCatalogos>>, { ok: true }>["data"];
 type OtrasSolicitudesResponse = Extract<Awaited<ReturnType<typeof getOtrasSolicitudes>>, { ok: true }>["data"];
 type GestionResumen = Extract<Awaited<ReturnType<typeof gestionarSolicitud>>, { ok: true }>["data"]["resumen"];
-type CitaContexto = OtrasSolicitudesResponse["citas"][number];
+type CitaContexto = OtrasSolicitudesResponse["solicitudes"][number]["citas"][number];
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
 type PrioridadClinica = (typeof PRIORIDADES_CLINICAS)[number];
 type RazonRechazo = (typeof RAZONES_RECHAZO)[number];
@@ -405,8 +410,7 @@ export function RevisarSolicitudesView() {
     }
 
     function openRegistrarRechazoCita(cita: CitaContexto) {
-        const solicitudContextual = otrasContexto?.solicitudes.find((solicitud) => solicitud.id_solicitud === cita.solicitud_id);
-        const usuario = solicitudContextual?.usuario;
+        const usuario = otrasSolicitudBase?.usuario;
         if (!usuario) return;
 
         const nombreUsuario = [usuario.nombre, usuario.apellido].filter(Boolean).join(" ");
@@ -1156,7 +1160,7 @@ function OtrasSolicitudesModal({
     onEditarFechaEstimadaCita: (cita: CitaContexto) => void;
     onRegistrarRechazoCita: (cita: CitaContexto) => void;
 }) {
-    const estaVacio = contexto !== null && contexto.solicitudes.length === 0 && contexto.citas.length === 0;
+    const estaVacio = contexto !== null && contexto.solicitudes.length === 0;
 
     return (
         <Dialog
@@ -1184,20 +1188,19 @@ function OtrasSolicitudesModal({
                 ) : estaVacio ? (
                     <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">No hay otras solicitudes ni citas en curso para este RUT en tu centro.</div>
                 ) : contexto ? (
-                    <ListaPendientes
+                    <ListaPendientes<CitaContexto, OtrasSolicitudesResponse["solicitudes"][number]>
                         solicitudes={contexto.solicitudes}
-                        citas={contexto.citas}
                         accionesSolicitud={(solicitud) => {
                             const enEspera = solicitud.accion === ACCION_ESPERA_VALIDACION;
                             return (
                                 <div className="flex flex-wrap justify-end gap-2">
                                     {enEspera ? (
                                         <>
-                                            <Button type="button" variant="outline" onClick={() => onRealizar(solicitud)}>
+                                            <Button type="button" variant="outline" onClick={() => onRealizar({ ...solicitudBase, ...solicitud })}>
                                                 <Check data-icon="inline-start" />
                                                 Realizar
                                             </Button>
-                                            <Button type="button" variant="outline" onClick={() => onRechazar(solicitud)}>
+                                            <Button type="button" variant="outline" onClick={() => onRechazar({ ...solicitudBase, ...solicitud })}>
                                                 <X data-icon="inline-start" />
                                                 Rechazar
                                             </Button>
@@ -1205,7 +1208,7 @@ function OtrasSolicitudesModal({
                                     ) : (
                                         <Badge variant="muted">Validada</Badge>
                                     )}
-                                    <Button type="button" variant="outline" onClick={() => onEditarUsuario(solicitud)}>
+                                    <Button type="button" variant="outline" onClick={() => onEditarUsuario({ ...solicitudBase, ...solicitud })}>
                                         <Edit data-icon="inline-start" />
                                         Usuario
                                     </Button>
