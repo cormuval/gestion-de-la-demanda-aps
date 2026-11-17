@@ -34,6 +34,8 @@ function fechaDesdeHoyMasAnios(anios: number): string {
 const fechaVigente = fechaDesdeHoy(7);
 const fechaNueva = fechaDesdeHoy(14);
 const cita = {
+    gestor: null,
+    llamadas: [],
     id_cita: "CITA-1",
     solicitud_id: "SOL-1",
     estado_cita: "Sin llamadas",

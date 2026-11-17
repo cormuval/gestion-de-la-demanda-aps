@@ -23,6 +23,8 @@ function fechaFutura(dias: number): string {
 
 const fechaVigente = fechaFutura(7);
 const cita = {
+    gestor: null,
+    llamadas: [],
     id_cita: "CITA-1",
     solicitud_id: "SOL-1",
     estado_cita: "Sin llamadas",

@@ -23,9 +23,6 @@ import { IngresarSolicitudView } from "./IngresarSolicitudView";
 // lib
 import { toast } from "sonner";
 
-type PendientesExitosos = Extract<Awaited<ReturnType<typeof getPendientes>>, { ok: true }>["data"];
-type SolicitudPendiente = PendientesExitosos["solicitudesPendientes"][number];
-
 const usuarioConfirmado = {
     rut: "12345678-5",
     nombre: "Paciente",
@@ -49,7 +46,8 @@ const usuarioConfirmadoB = {
     nombre: "Paciente B"
 };
 
-const solicitudDuplicada: SolicitudPendiente = {
+const solicitudDuplicada = {
+    citas: [], orientador: null, gestor: null,
     id_solicitud: "SOL-duplicada",
     centro_id: "650",
     fecha_inicio: new Date("2026-07-02T12:00:00Z"),
@@ -150,7 +148,7 @@ async function completarFormularioSolicitud(motivo = "10") {
     const [tipoSolicitud] = screen.getAllByRole("combobox");
     fireEvent.change(tipoSolicitud, { target: { value: "1" } });
 
-    await screen.findByText("Control");
+    await screen.findByRole("option", { name: "Control" });
     const [, motivoSolicitud, disponibilidad] = screen.getAllByRole("combobox");
     fireEvent.change(motivoSolicitud, { target: { value: motivo } });
     fireEvent.change(disponibilidad, { target: { value: "Solo AM" } });

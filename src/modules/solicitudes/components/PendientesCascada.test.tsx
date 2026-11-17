@@ -11,7 +11,8 @@ const solicitud = {
     estado_solicitud: "En Curso",
     accion: "En espera de validación",
     tipoSolicitud: { nombre_tipo_solicitud: "Atencion" },
-    motivo: { nombre_motivo: "Control" }
+    motivo: { nombre_motivo: "Control" },
+    orientador: null, gestor: null, razon_rechazo: null, fecha_validacion: null, citas: []
 };
 
 const cita = {
@@ -22,24 +23,40 @@ const cita = {
     priorizacion_clinica: "Alta",
     fecha_estimada_atencion: new Date("2026-10-01T00:00:00"),
     profesional: { nombre: "Medico" },
-    prestacion: { nombre_prestacion: "Consulta" }
+    prestacion: { nombre_prestacion: "Consulta" },
+    gestor: null, llamadas: []
 };
 
 describe("ListaPendientes", () => {
     it("anida citas y muestra priorizacion y fecha estimada", () => {
-        render(<ListaPendientes solicitudes={[solicitud]} citas={[cita]} />);
+        render(<ListaPendientes solicitudes={[{ ...solicitud, citas: [cita] }]} />);
 
         expect(screen.getByTitle("SOL-1")).toBeInTheDocument();
         expect(screen.getByTitle("CITA-1")).toBeInTheDocument();
         expect(screen.getByText("Alta")).toBeInTheDocument();
-        expect(screen.getByText(/Fecha estimada:/)).toHaveTextContent("01-10-2026");
+        expect(screen.getByText(/Fecha estimada:/).parentElement).toHaveTextContent("01-10-2026");
+    });
+
+    it("muestra citas cerradas abiertas sin acciones y llamadas de otros centros", () => {
+        const cerrada = { ...cita, estado_cita: "Cita Aceptada", llamadas: [{ id_llamada: "LL-1", fecha_llamada: new Date("2026-01-15T12:00:00Z"), respuesta_usuario: "Cita Aceptada", observacion: "Contacto externo", hora_agendada: null, comunicador: { nombre: "Ana" } }] };
+        render(<ListaPendientes solicitudes={[{ ...solicitud, citas: [cerrada] }]} accionesCita={() => <button>Acción cita</button>} />);
+        expect(screen.getByRole("button", { name: "Ver citas (1)" })).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByText("Cita Aceptada")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Acción cita" })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Ver llamadas (1)" }));
+        expect(screen.getByText("Contacto externo")).toBeInTheDocument();
+    });
+
+    it("muestra citas pendientes sin solicitud en curso en Otras citas", () => {
+        render(<PendientesCascada centroActivoId="650" pendientes={{ solicitudesPendientes: [], citasPendientes: [cita] }} />);
+        expect(screen.getByText("Otras citas")).toBeInTheDocument();
+        expect(screen.getByTitle("CITA-1")).toBeInTheDocument();
     });
 
     it("renderiza acciones por solicitud y cita", () => {
         render(
             <ListaPendientes
-                solicitudes={[solicitud]}
-                citas={[{ ...cita, editable: true }]}
+                solicitudes={[{ ...solicitud, citas: [{ ...cita, editable: true }] }]}
                 accionesSolicitud={(item) => <button>Solicitud {item.id_solicitud}</button>}
                 accionesCita={(item) => <button>Cita {item.id_cita}</button>}
             />
