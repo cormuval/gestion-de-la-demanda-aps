@@ -23,7 +23,7 @@ export function SolicitudTarjeta({ solicitud, cantidadCitas, citasAbiertasInicia
     const [abiertas, setAbiertas] = useState(citasAbiertasInicial);
     return (
         <article data-testid={`solicitud-${solicitud.id_solicitud}`} aria-label={`Solicitud ${acortarId(solicitud.id_solicitud)}`} className="flex flex-col gap-3 rounded-md border p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+            <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] sm:gap-6">
                 <div className="min-w-0">
                     <p id={`solicitud-${solicitud.id_solicitud}`}>
                         <span className="font-medium">Solicitud:</span>{" "}
@@ -43,7 +43,7 @@ export function SolicitudTarjeta({ solicitud, cantidadCitas, citasAbiertasInicia
                         </p>
                     )}
                 </div>
-                <div className="flex flex-col gap-1 sm:items-end">
+                <div className="flex flex-col gap-1 sm:items-end sm:text-right">
                     <EstadoBadge rotulo="Estado de la solicitud" estado={solicitud.estado_solicitud} tono={tonoEstadoSolicitud(solicitud.estado_solicitud)} />
                     <p>
                         <span className="font-medium">Orientador/a:</span>{" "}
@@ -61,22 +61,26 @@ export function SolicitudTarjeta({ solicitud, cantidadCitas, citasAbiertasInicia
                         <span className="font-medium">Fecha de cierre:</span>{" "}
                         {formatearFecha(solicitud.fecha_cierre)}
                     </p>
-                    {acciones}
                 </div>
             </div>
-            {cantidadCitas === 0 ? <p>{textoSinCitas}</p> : (
-                <>
-                    <div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            aria-expanded={abiertas}
-                            aria-controls={`citas-${solicitud.id_solicitud}`}
-                            onClick={() => setAbiertas(!abiertas)}
+            <div className="flex flex-wrap items-center gap-2">
+                {cantidadCitas === 0 ? (
+                    <p>{textoSinCitas}</p>
+                ) : (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        aria-expanded={abiertas}
+                        aria-controls={`citas-${solicitud.id_solicitud}`}
+                        onClick={() => setAbiertas(!abiertas)}
                     >
-                            Ver citas ({cantidadCitas})
-                        </Button>
-                    </div>
+                        Ver citas ({cantidadCitas})
+                    </Button>
+                )}
+                {acciones}
+            </div>
+            {cantidadCitas > 0 && (
+                <>
                     {abiertas && (
                         <div id={`citas-${solicitud.id_solicitud}`} className="flex flex-col gap-3 border-l-4 border-primary/40 pl-3">
                             {children}

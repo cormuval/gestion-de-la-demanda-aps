@@ -25,7 +25,10 @@ export function EstadoBadge({ rotulo, estado, tono, suave = false }: {
 }) {
     return (
         <Badge data-tono={tono} className={suave ? coloresSuaves[tono] : colores[tono]}>
-            <span className="font-semibold">{rotulo}:</span> <span className="font-normal">{estado ?? "Sin estado"}</span>
+            <span>
+                <span className="font-semibold">{rotulo}:</span>{" "}
+                <span className="font-normal">{estado ?? "Sin estado"}</span>
+            </span>
         </Badge>
     );
 }

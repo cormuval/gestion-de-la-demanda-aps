@@ -23,7 +23,7 @@ export function CitaTarjeta({ cita, detallePendiente = false, acciones }: {
     const [abiertas, setAbiertas] = useState(false);
     return (
         <section aria-label={`Cita ${acortarId(cita.id_cita)}`} data-testid={`cita-${cita.id_cita}`} className="flex flex-col gap-3 rounded-md border p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+            <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] sm:gap-6">
                 <div className="min-w-0">
                     <p>
                         <span className="font-medium">Cita:</span>{" "}
@@ -48,7 +48,7 @@ export function CitaTarjeta({ cita, detallePendiente = false, acciones }: {
                         </>
                     )}
                 </div>
-                <div className="flex flex-col gap-1 sm:items-end">
+                <div className="flex flex-col gap-1 sm:items-end sm:text-right">
                     <EstadoBadge rotulo="Estado de la cita" estado={cita.estado_cita} tono={tonoEstadoCita(cita.estado_cita)} suave />
                     <p>
                         <span className="font-medium">Gestor/a:</span>{" "}
@@ -64,19 +64,19 @@ export function CitaTarjeta({ cita, detallePendiente = false, acciones }: {
                             {cita.hora_agendada ? formatearFechaHora(cita.hora_agendada) : "Fecha y hora no registradas"}
                         </p>
                     )}
-                    {acciones}
                 </div>
             </div>
-            <div>
+            <div className="flex flex-wrap items-center gap-2">
                 <Button
                     type="button"
                     variant="outline"
                     aria-expanded={abiertas}
                     aria-controls={`llamadas-${cita.id_cita}`}
                     onClick={() => setAbiertas(!abiertas)}
-                    >
+                >
                     Ver llamadas ({cita.llamadas.length})
                 </Button>
+                {acciones}
             </div>
             {abiertas && (
                 <div id={`llamadas-${cita.id_cita}`} className="flex flex-col gap-2">

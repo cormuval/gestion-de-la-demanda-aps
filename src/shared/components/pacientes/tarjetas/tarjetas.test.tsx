@@ -143,6 +143,24 @@ describe("tarjetas", () => {
         render(<CitaTarjeta cita={cita} acciones={<button>Cerrar cita</button>} />);
         expect(screen.getByRole("button", { name: "Cerrar cita" })).toBeInTheDocument();
     });
+    it("ubica las acciones de la solicitud junto a Ver citas, fuera de la columna de datos", () => {
+        render(
+            <SolicitudTarjeta
+                solicitud={solicitud}
+                cantidadCitas={1}
+                citasAbiertasInicial={false}
+                textoSinCitas="Sin citas registradas."
+                acciones={<button>Reimprimir voucher</button>}
+            />
+        );
+        const filaAcciones = screen.getByRole("button", { name: "Ver citas (1)" }).parentElement;
+        expect(filaAcciones).toContainElement(screen.getByRole("button", { name: "Reimprimir voucher" }));
+    });
+    it("ubica las acciones de la cita junto a Ver llamadas", () => {
+        render(<CitaTarjeta cita={cita} acciones={<button>Cerrar cita</button>} />);
+        const filaAcciones = screen.getByRole("button", { name: /Ver llamadas/ }).parentElement;
+        expect(filaAcciones).toContainElement(screen.getByRole("button", { name: "Cerrar cita" }));
+    });
     it("omite textos libres y prioridad ausentes", () => {
         render(
             <>
