@@ -21,7 +21,7 @@ export function SolicitudTarjeta({ solicitud, cantidadCitas, citasAbiertasInicia
 }) {
     const [abiertas, setAbiertas] = useState(citasAbiertasInicial);
     return (
-        <article aria-labelledby={`solicitud-${solicitud.id_solicitud}`} className="flex flex-col gap-3 rounded-md border p-4">
+        <article data-testid={`solicitud-${solicitud.id_solicitud}`} aria-labelledby={`solicitud-${solicitud.id_solicitud}`} className="flex flex-col gap-3 rounded-md border p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <div className="min-w-0">
                     <p id={`solicitud-${solicitud.id_solicitud}`}><span className="font-medium">Solicitud:</span> <CodigoId id={solicitud.id_solicitud} /></p>

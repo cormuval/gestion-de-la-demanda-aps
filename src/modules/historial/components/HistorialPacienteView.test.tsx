@@ -154,6 +154,39 @@ const VOUCHER_EN_CURSO: VoucherSolicitud = {
 };
 
 describe("HistorialPacienteView", () => {
+    it("las citas parten cerradas y una nueva búsqueda las vuelve a cerrar", async () => {
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_COMPLETO });
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        const boton = await screen.findByRole("button", { name: "Ver citas (2)" });
+        expect(boton).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(boton);
+        expect(screen.getByRole("button", { name: "Ver llamadas (2)" })).toBeInTheDocument();
+        buscar();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Ver citas (2)" })).toHaveAttribute("aria-expanded", "false"));
+    });
+
+    it("conserva el orden recibido, muestra ambos gestores y oculta detalles de pendientes", async () => {
+        const historial = structuredClone(HISTORIAL_COMPLETO);
+        historial.solicitudes[1].citas[0].gestor = "Gestor Cita";
+        historial.solicitudes[1].citas[0].priorizacion_clinica = "Alta";
+        historial.solicitudes[1].citas[0].fecha_estimada_atencion = new Date("2026-03-26T00:00:00Z");
+        vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: historial });
+        render(<HistorialPacienteView />);
+        escribirRut("12345678-5");
+        buscar();
+        await screen.findByText("Juana Perez");
+        expect(screen.getAllByRole("article").map((articulo) => articulo.getAttribute("data-testid"))).toEqual([
+            "solicitud-SOL-1", "solicitud-SOL-2", "solicitud-SOL-3"
+        ]);
+        expect(within(screen.getByTestId("solicitud-SOL-2")).getByText("Gestor Dos")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Ver citas (2)" }));
+        expect(within(screen.getByTestId("cita-CITA-1")).getByText("Gestor Cita")).toBeInTheDocument();
+        expect(screen.queryByText("Alta")).not.toBeInTheDocument();
+        expect(screen.queryByText("Fecha estimada:")).not.toBeInTheDocument();
+    });
+
     it("busca por RUT y muestra paciente y resumen", async () => {
         vi.mocked(getHistorialPaciente).mockResolvedValue({ ok: true, data: HISTORIAL_COMPLETO });
 
@@ -188,8 +221,9 @@ describe("HistorialPacienteView", () => {
         // La cita CITA-2 (dentro de SOL-2) esta cerrada pero sin llamadas: su fecha de cierre
         // es "—", especificamente dentro de su propia tarjeta (a diferencia de CITA-1, en la
         // misma solicitud, que si tiene fecha de cierre).
+        fireEvent.click(screen.getByRole("button", { name: "Ver citas (2)" }));
         const tarjetaCita2 = screen.getByTestId("cita-CITA-2");
-        expect(within(tarjetaCita2).getByText("—")).toBeInTheDocument();
+        expect(within(tarjetaCita2).getByText("Cierre de la cita:").parentElement).toHaveTextContent("—");
     });
 
     it("muestra agenda de la cita aceptada con las llamadas plegadas", async () => {
@@ -200,12 +234,13 @@ describe("HistorialPacienteView", () => {
         render(<HistorialPacienteView />);
         escribirRut("12345678-5");
         buscar();
-        const boton = await screen.findByRole("button", { name: "Ver llamadas (2)" });
+        fireEvent.click(await screen.findByRole("button", { name: "Ver citas (2)" }));
+        const boton = screen.getByRole("button", { name: "Ver llamadas (2)" });
 
         expect(boton).toHaveAttribute("aria-expanded", "false");
         const cita = within(screen.getByTestId("cita-CITA-1"));
-        expect(cita.getByText("Fecha y hora agendadas")).toBeVisible();
-        expect(cita.getByText("01-07-2026, 09:30")).toBeVisible();
+        expect(cita.getByText("Fecha y hora agendadas:")).toBeVisible();
+        expect(cita.getByText("Fecha y hora agendadas:").parentElement).toHaveTextContent("01-07-2026 09:30");
         expect(cita.queryByText("Fecha y hora no registradas")).not.toBeInTheDocument();
     });
 
@@ -221,10 +256,11 @@ describe("HistorialPacienteView", () => {
         buscar();
         await screen.findByText("Juana Perez");
 
-        expect(within(screen.getByTestId("cita-CITA-2")).getByText("Fecha y hora no registradas")).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: "Ver citas (2)" }));
+        expect(within(screen.getByTestId("cita-CITA-2")).getByText("Fecha y hora agendadas:").parentElement).toHaveTextContent("Fecha y hora no registradas");
         const rechazada = within(screen.getByTestId("cita-CITA-1"));
-        expect(rechazada.queryByText("Fecha y hora agendadas")).not.toBeInTheDocument();
-        expect(rechazada.queryByText("01-07-2026, 09:30")).not.toBeInTheDocument();
+        expect(rechazada.queryByText("Fecha y hora agendadas:")).not.toBeInTheDocument();
+        expect(rechazada.queryByText("01-07-2026 09:30")).not.toBeInTheDocument();
         expect(rechazada.queryByText("Fecha y hora no registradas")).not.toBeInTheDocument();
     });
 
@@ -235,7 +271,8 @@ describe("HistorialPacienteView", () => {
         escribirRut("12345678-5");
         buscar();
 
-        const botonLlamadas = await screen.findByRole("button", { name: "Ver llamadas (2)" });
+        fireEvent.click(await screen.findByRole("button", { name: "Ver citas (2)" }));
+        const botonLlamadas = screen.getByRole("button", { name: "Ver llamadas (2)" });
         expect(botonLlamadas).toHaveAttribute("aria-expanded", "false");
         const idLlamadas = botonLlamadas.getAttribute("aria-controls");
         expect(idLlamadas).toBeTruthy();
@@ -248,9 +285,9 @@ describe("HistorialPacienteView", () => {
 
         expect(within(listaLlamadas).getByText("Cita Aceptada")).toBeInTheDocument();
         expect(within(listaLlamadas).getByText("No contesta")).toBeInTheDocument();
-        expect(within(listaLlamadas).getByText("Comunicador: Comunicador Uno")).toBeInTheDocument();
+        expect(within(listaLlamadas).getByText("Comunicador Uno")).toBeInTheDocument();
         expect(within(listaLlamadas).getByText("Observacion de la llamada 1")).toBeInTheDocument();
-        expect(within(listaLlamadas).getByText("Comunicador: Comunicador Dos")).toBeInTheDocument();
+        expect(within(listaLlamadas).getByText("Comunicador Dos")).toBeInTheDocument();
         expect(within(listaLlamadas).getByText("Observacion de la llamada 2")).toBeInTheDocument();
     });
 
@@ -525,7 +562,7 @@ describe("HistorialPacienteView", () => {
 
         expect(await screen.findByText("Voucher de solicitud")).toBeInTheDocument();
         expect(screen.getByText("Fecha:")).toBeInTheDocument();
-        expect(screen.getByText("10-01-2026")).toBeInTheDocument();
+        expect(within(obtenerVoucherVisible()).getByText("10-01-2026")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Reimprimir voucher SOL-1" })).not.toBeDisabled();
     });
 

@@ -21,7 +21,7 @@ export function CitaTarjeta({ cita, detallePendiente = false, acciones }: {
 }) {
     const [abiertas, setAbiertas] = useState(false);
     return (
-        <div className="flex flex-col gap-3 rounded-md border p-4">
+        <div data-testid={`cita-${cita.id_cita}`} className="flex flex-col gap-3 rounded-md border p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <div className="min-w-0">
                     <p><span className="font-medium">Cita:</span> <CodigoId id={cita.id_cita} /></p>
