@@ -60,6 +60,8 @@ const SOLICITUD_REALIZADA = {
     citas: [
         {
             id_cita: "CITA-1",
+            gestor: null,
+            priorizacion_clinica: null,
             estamento: "Medicina",
             prestacion: "Consulta",
             estado_cita: "Cita Aceptada",
@@ -89,6 +91,8 @@ const SOLICITUD_REALIZADA = {
         },
         {
             id_cita: "CITA-2",
+            gestor: null,
+            priorizacion_clinica: null,
             estamento: "Kinesiologia",
             prestacion: "Control",
             estado_cita: "Cita Aceptada",

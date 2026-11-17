@@ -1,4 +1,6 @@
-export interface LlamadaHistorial {
+import type { LlamadaTarjetaDatos, CitaTarjetaDatos, SolicitudTarjetaDatos } from "@/shared/types/tarjetasPaciente";
+
+export interface LlamadaHistorial extends LlamadaTarjetaDatos {
     id_llamada: string;
     fecha_llamada: Date | null;
     respuesta_usuario: string;
@@ -7,12 +9,14 @@ export interface LlamadaHistorial {
     hora_agendada: Date | null;
 }
 
-export interface CitaHistorial {
+export interface CitaHistorial extends CitaTarjetaDatos {
     id_cita: string;
     estamento: string | null;
     prestacion: string | null;
     estado_cita: string | null;
     cerrada: boolean;
+    gestor: string | null;
+    priorizacion_clinica: string | null;
     fecha_cierre: Date | null;
     fecha_estimada_atencion: Date | null;
     hora_agendada: Date | null;
@@ -20,7 +24,7 @@ export interface CitaHistorial {
     llamadas: LlamadaHistorial[];
 }
 
-export interface SolicitudHistorial {
+export interface SolicitudHistorial extends SolicitudTarjetaDatos {
     id_solicitud: string;
     fecha_inicio: Date;
     tipo: string | null;

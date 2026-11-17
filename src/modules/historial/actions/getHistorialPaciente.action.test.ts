@@ -98,6 +98,8 @@ describe("getHistorialPaciente", () => {
         expect(argsFindMany.select.orientador).toEqual({ select: { nombre: true } });
         expect(argsFindMany.select.gestor).toEqual({ select: { nombre: true } });
         expect(argsFindMany.select.citas.select.llamadas.select.comunicador).toEqual({ select: { nombre: true } });
+        expect(argsFindMany.select.citas.select.gestor).toEqual({ select: { nombre: true } });
+        expect(argsFindMany.select.citas.select.priorizacion_clinica).toBe(true);
         expect(argsFindMany.select.citas.select.profesional).toEqual({ select: { nombre: true } });
         expect(argsFindMany.select.citas.select.prestacion).toEqual({ select: { nombre_prestacion: true } });
         expect(argsFindMany.select.tipoSolicitud).toEqual({ select: { nombre_tipo_solicitud: true } });
@@ -125,6 +127,8 @@ describe("getHistorialPaciente", () => {
                 citas: [
                     {
                         id_cita: "CITA-1",
+                        gestor: { nombre: "Gestor Cita" },
+                        priorizacion_clinica: "Alta",
                         estado_cita: "Cita Aceptada",
                         fecha_estimada_atencion: null,
                         observacion: null,
