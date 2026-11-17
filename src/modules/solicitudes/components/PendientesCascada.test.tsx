@@ -72,7 +72,7 @@ describe("PendientesCascada", () => {
         render(<PendientesCascada centroActivoId="650" pendientes={{ solicitudesPendientes: [solicitud], citasPendientes: [cita] }} />);
 
         expect(screen.getByText("Pendientes del paciente")).toBeInTheDocument();
-        expect(screen.getByText("Solicitudes En Curso con sus citas pendientes anidadas.")).toBeInTheDocument();
+        expect(screen.getByText("Solicitudes En Curso con todas sus citas anidadas.")).toBeInTheDocument();
     });
 
     it("reimprime cada solicitud por su ID y solo deshabilita la que esta cargando", () => {

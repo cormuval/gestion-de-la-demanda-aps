@@ -5,9 +5,16 @@ import type { TonoSemaforo } from "@/shared/lib/semaforoEstado";
 
 const colores: Record<TonoSemaforo, string> = {
     amarillo: "bg-secondary text-secondary-foreground",
-    verde: "bg-accent text-accent-foreground",
+    verde: "bg-accent text-foreground",
     rojo: "bg-destructive text-destructive-foreground",
     gris: "bg-muted text-muted-foreground"
+};
+
+const coloresSuaves: Record<TonoSemaforo, string> = {
+    amarillo: "bg-secondary/25 text-foreground",
+    verde: "bg-accent/25 text-foreground",
+    rojo: "bg-destructive/25 text-foreground",
+    gris: "bg-muted/25 text-foreground"
 };
 
 export function EstadoBadge({ rotulo, estado, tono, suave = false }: {
@@ -17,7 +24,7 @@ export function EstadoBadge({ rotulo, estado, tono, suave = false }: {
     suave?: boolean;
 }) {
     return (
-        <Badge data-tono={tono} className={`${colores[tono]} ${suave ? "opacity-75" : ""}`}>
+        <Badge data-tono={tono} className={suave ? coloresSuaves[tono] : colores[tono]}>
             <span className="font-semibold">{rotulo}:</span> <span className="font-normal">{estado ?? "Sin estado"}</span>
         </Badge>
     );

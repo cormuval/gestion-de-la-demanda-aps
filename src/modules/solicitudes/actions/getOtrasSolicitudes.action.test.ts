@@ -35,6 +35,7 @@ describe("getOtrasSolicitudes", () => {
         const args = (prisma.solicitud.findMany as any).mock.calls[0][0];
         expect(args.where).toEqual({ rut_usuario: "12345678-5", id_solicitud: { not: "SOL-1" }, estado_solicitud: "En Curso", centro_id: "650" });
         expect(args.select.citas.where).toEqual({ centro_id: "650" });
+        expect(args.select.citas.orderBy).toEqual([{ fecha_estimada_atencion: "asc" }, { fecha_creacion: "asc" }]);
         expect(prisma.cita.findMany).not.toHaveBeenCalled();
         expect(result.ok && result.data.solicitudes[0].citas.map((cita) => [cita.editable, cita.puedeRegistrarRechazo])).toEqual([[true, true], [false, true], [false, false]]);
     });

@@ -8,6 +8,7 @@ import { CodigoId } from "@/shared/components/ui/codigo-id";
 import { EstadoBadge } from "./estado-badge";
 import { LlamadaTarjeta } from "./llamada-tarjeta";
 // lib
+import { acortarId } from "@/shared/lib/acortarId";
 import { tonoEstadoCita } from "@/shared/lib/semaforoEstado";
 import { formatearFecha, formatearFechaCalendario, formatearFechaHora } from "@/shared/lib/formatoFecha";
 import { ESTADO_CITA } from "@/modules/comunicador/types/comunicador";
@@ -21,7 +22,7 @@ export function CitaTarjeta({ cita, detallePendiente = false, acciones }: {
 }) {
     const [abiertas, setAbiertas] = useState(false);
     return (
-        <div data-testid={`cita-${cita.id_cita}`} className="flex flex-col gap-3 rounded-md border p-4">
+        <section aria-label={`Cita ${acortarId(cita.id_cita)}`} data-testid={`cita-${cita.id_cita}`} className="flex flex-col gap-3 rounded-md border p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <div className="min-w-0">
                     <p>
@@ -88,6 +89,6 @@ export function CitaTarjeta({ cita, detallePendiente = false, acciones }: {
                     )}
                 </div>
             )}
-        </div>
+        </section>
     );
 }

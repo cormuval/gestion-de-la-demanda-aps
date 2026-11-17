@@ -104,7 +104,7 @@ export function PendientesCascada({
         <Card>
             <CardHeader>
                 <CardTitle>Pendientes del paciente</CardTitle>
-                <CardDescription>Solicitudes En Curso con sus citas pendientes anidadas.</CardDescription>
+                <CardDescription>Solicitudes En Curso con todas sus citas anidadas.</CardDescription>
             </CardHeader>
             <CardContent>
                 <ListaPendientes

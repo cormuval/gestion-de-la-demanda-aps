@@ -6,6 +6,7 @@ import { Button } from "@/shared/components/ui/button";
 import { CodigoId } from "@/shared/components/ui/codigo-id";
 import { EstadoBadge } from "./estado-badge";
 // lib
+import { acortarId } from "@/shared/lib/acortarId";
 import { tonoEstadoSolicitud } from "@/shared/lib/semaforoEstado";
 import { formatearFecha } from "@/shared/lib/formatoFecha";
 // types
@@ -21,7 +22,7 @@ export function SolicitudTarjeta({ solicitud, cantidadCitas, citasAbiertasInicia
 }) {
     const [abiertas, setAbiertas] = useState(citasAbiertasInicial);
     return (
-        <article data-testid={`solicitud-${solicitud.id_solicitud}`} aria-labelledby={`solicitud-${solicitud.id_solicitud}`} className="flex flex-col gap-3 rounded-md border p-4">
+        <article data-testid={`solicitud-${solicitud.id_solicitud}`} aria-label={`Solicitud ${acortarId(solicitud.id_solicitud)}`} className="flex flex-col gap-3 rounded-md border p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <div className="min-w-0">
                     <p id={`solicitud-${solicitud.id_solicitud}`}>

@@ -45,6 +45,27 @@ const tarjetaSolicitud = (datos = solicitud, cantidad = 1, abierta = false) => (
 );
 
 describe("tarjetas", () => {
+    it("identifica las regiones por su código abreviado", () => {
+        render(
+            <>
+                {tarjetaSolicitud({ ...solicitud, id_solicitud: "solicitud-12345678" })}
+                <CitaTarjeta cita={cita} />
+            </>
+        );
+        expect(screen.getByRole("article", { name: "Solicitud solicitud-45678" })).toBeInTheDocument();
+        expect(screen.getByRole("region", { name: "Cita cita-123" })).toBeInTheDocument();
+    });
+    it("no reduce la opacidad del texto de los badges", () => {
+        render(
+            <>
+                {tarjetaSolicitud()}
+                <CitaTarjeta cita={cita} />
+            </>
+        );
+        for (const badge of screen.getAllByText(/Estado de la (solicitud|cita):/)) {
+            expect(badge.closest("[data-tono]")?.className).not.toMatch(/\bopacity-/);
+        }
+    });
     it("solicitud: rótulos, motivo destacado, tono y fechas", () => {
         render(tarjetaSolicitud());
         expect(screen.getByText(/Estado de la solicitud:/).closest("[data-tono]")).toHaveAttribute("data-tono", "verde");

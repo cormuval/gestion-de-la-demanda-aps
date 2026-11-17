@@ -66,9 +66,9 @@ import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendient
 type SolicitudesResponse = Extract<Awaited<ReturnType<typeof getSolicitudes>>, { ok: true }>["data"];
 type RevisionCatalogos = Extract<Awaited<ReturnType<typeof getRevisionCatalogos>>, { ok: true }>["data"];
 type OtrasSolicitudesResponse = Extract<Awaited<ReturnType<typeof getOtrasSolicitudes>>, { ok: true }>["data"];
-type SolicitudRow = Pick<OtrasSolicitudesResponse["solicitudes"][number],
-    "id_solicitud" | "rut_usuario" | "usuario" | "tipoSolicitud" | "motivo" | "orientador" | "descripcion"
->;
+type SolicitudRow = Pick<SolicitudesResponse["solicitudes"][number],
+    "id_solicitud" | "rut_usuario" | "descripcion"
+> & Pick<OtrasSolicitudesResponse["solicitudes"][number], "usuario" | "tipoSolicitud" | "motivo" | "orientador">;
 type GestionResumen = Extract<Awaited<ReturnType<typeof gestionarSolicitud>>, { ok: true }>["data"]["resumen"];
 type CitaContexto = OtrasSolicitudesResponse["solicitudes"][number]["citas"][number];
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
