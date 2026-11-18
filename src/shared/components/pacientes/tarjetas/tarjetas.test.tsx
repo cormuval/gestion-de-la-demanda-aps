@@ -66,10 +66,32 @@ describe("tarjetas", () => {
             expect(badge.closest("[data-tono]")?.className).not.toMatch(/\bopacity-/);
         }
     });
+    it("solicitud: muestra tipo y motivo concatenados en una fila", () => {
+        render(
+            <SolicitudTarjeta
+                solicitud={{ ...solicitud, tipo: "Atención general" }}
+                cantidadCitas={0}
+                citasAbiertasInicial={false}
+                textoSinCitas="Sin citas registradas."
+            />
+        );
+        expect(screen.getByText(/Tipo y motivo:/).parentElement).toHaveTextContent("Tipo y motivo: Atención general · Consulta");
+    });
+    it("solicitud sin tipo ni motivo muestra —", () => {
+        render(
+            <SolicitudTarjeta
+                solicitud={{ ...solicitud, tipo: null, motivo: null }}
+                cantidadCitas={0}
+                citasAbiertasInicial={false}
+                textoSinCitas="Sin citas registradas."
+            />
+        );
+        expect(screen.getByText(/Tipo y motivo:/).parentElement).toHaveTextContent("Tipo y motivo: —");
+    });
     it("solicitud: rótulos, motivo destacado, tono y fechas", () => {
         render(tarjetaSolicitud());
         expect(screen.getByText(/Estado de la solicitud:/).closest("[data-tono]")).toHaveAttribute("data-tono", "verde");
-        expect(screen.getByText(/Motivo:/).parentElement).toHaveTextContent("Motivo: Consulta");
+        expect(screen.getByText(/Tipo y motivo:/).parentElement).toHaveTextContent("Tipo y motivo: Consulta");
         expect(screen.getByText(/Orientador\/a:/).parentElement).toHaveTextContent("Ana");
         expect(screen.getByText(/Gestor\/a:/).parentElement).toHaveTextContent("Luis");
         expect(screen.getByText(/Fecha de creación:/).parentElement).toHaveTextContent("30-12-2025");
