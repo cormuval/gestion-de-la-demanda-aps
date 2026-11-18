@@ -29,7 +29,10 @@ export function SolicitudTarjeta({ solicitud, cantidadCitas, citasAbiertasInicia
                         <span className="font-medium">Solicitud:</span>{" "}
                         <CodigoId id={solicitud.id_solicitud} />
                     </p>
-                    <p className="text-lg"><span className="font-semibold">Motivo:</span> {solicitud.motivo ?? "—"}</p>
+                    <p className="text-lg">
+                        <span className="font-semibold">Tipo y motivo:</span>{" "}
+                        {[solicitud.tipo, solicitud.motivo].filter(Boolean).join(" · ") || "—"}
+                    </p>
                     {solicitud.descripcion?.trim() && (
                         <p className="whitespace-pre-line break-words">
                             <span className="font-medium">Descripción del paciente:</span>{" "}
