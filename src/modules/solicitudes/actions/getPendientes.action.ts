@@ -11,17 +11,12 @@ import { normalizarRut } from "../utils/rut";
 // types
 import { ESTADOS_PENDIENTES } from "@/modules/comunicador/types/comunicador";
 
-const SOLICITUD_PENDIENTE_INCLUDE = { tipoSolicitud: true, motivo: true } satisfies Prisma.SolicitudInclude;
-const CITA_PENDIENTE_INCLUDE = {
-    solicitud: { include: SOLICITUD_PENDIENTE_INCLUDE },
-    profesional: true,
-    prestacion: true
-} satisfies Prisma.CitaInclude;
+import { CITA_CASCADA_SELECT, SOLICITUD_CASCADA_SELECT } from "../utils/selectCascada";
 
-type PendientesPaciente = {
-    solicitudesPendientes: Prisma.SolicitudGetPayload<{ include: typeof SOLICITUD_PENDIENTE_INCLUDE }>[];
-    citasPendientes: Prisma.CitaGetPayload<{ include: typeof CITA_PENDIENTE_INCLUDE }>[];
-};
+interface PendientesPaciente {
+    solicitudesPendientes: Prisma.SolicitudGetPayload<{ select: typeof SOLICITUD_CASCADA_SELECT }>[];
+    citasPendientes: Prisma.CitaGetPayload<{ select: typeof CITA_CASCADA_SELECT }>[];
+}
 
 export async function getPendientes(rutUsuario: string): Promise<ResultadoAccion<PendientesPaciente>> {
     const user = await requirePermiso("solicitudes.ver");
@@ -32,12 +27,12 @@ export async function getPendientes(rutUsuario: string): Promise<ResultadoAccion
     const [solicitudesPendientes, citasPendientes] = await Promise.all([
         prisma.solicitud.findMany({
             where: { rut_usuario: rut, estado_solicitud: "En Curso" },
-            include: SOLICITUD_PENDIENTE_INCLUDE,
+            select: SOLICITUD_CASCADA_SELECT,
             orderBy: { fecha_inicio: "desc" }
         }),
         prisma.cita.findMany({
             where: { rut_usuario: rut, estado_cita: { in: [...ESTADOS_PENDIENTES] } },
-            include: CITA_PENDIENTE_INCLUDE,
+            select: CITA_CASCADA_SELECT,
             orderBy: [{ priorizacion: "desc" }, { fecha_creacion: "desc" }]
         })
     ]);

@@ -14,6 +14,7 @@ import { esEstadoTerminal } from "@/modules/comunicador/types/comunicador";
 import { esRutChilenoValido, normalizarRut } from "@/modules/solicitudes/utils/rut";
 import { fechaCierreCita, fechaCierreSolicitud } from "../utils/cierre";
 import { resolverAgendaCita } from "../utils/agendaCita";
+import { ordenarSolicitudesHistorial } from "../utils/orden";
 
 const ERROR_RUT = "RUT invalido";
 const ERROR_CENTRO = "El funcionario activo no tiene centro asignado. Contacta a soporte para corregir tu configuracion.";
@@ -41,6 +42,8 @@ const SOLICITUD_HISTORIAL_SELECT = {
             estado_cita: true,
             fecha_estimada_atencion: true,
             observacion: true,
+            priorizacion_clinica: true,
+            gestor: { select: { nombre: true } },
             profesional: { select: { nombre: true } },
             prestacion: { select: { nombre_prestacion: true } },
             llamadas: {
@@ -82,6 +85,8 @@ function mapCita(cita: CitaConRelaciones): CitaHistorial {
         prestacion: cita.prestacion?.nombre_prestacion ?? null,
         estado_cita: cita.estado_cita,
         cerrada: esEstadoTerminal(cita.estado_cita),
+        gestor: cita.gestor?.nombre ?? null,
+        priorizacion_clinica: cita.priorizacion_clinica,
         fecha_cierre: fechaCierreCita(cita.estado_cita, llamadas.map((llamada) => llamada.fecha_llamada)),
         fecha_estimada_atencion: cita.fecha_estimada_atencion,
         hora_agendada: resolverAgendaCita(cita.estado_cita, llamadas),
@@ -156,7 +161,7 @@ export async function getHistorialPaciente(rutPaciente: string): Promise<Resulta
         ok: true,
         data: {
             paciente: { rut: usuario.rut, nombre: `${usuario.nombre} ${usuario.apellido}`, nombre_social: usuario.nombre_social },
-            solicitudes: solicitudes.map(mapSolicitud)
+            solicitudes: ordenarSolicitudesHistorial(solicitudes.map(mapSolicitud))
         }
     };
 }

@@ -64,11 +64,13 @@ import { ERROR_SOLICITUD_NO_PENDIENTE } from "@/modules/solicitudes/types/gestio
 import type { CitaCascadaConEdicion } from "@/modules/solicitudes/types/pendientes";
 
 type SolicitudesResponse = Extract<Awaited<ReturnType<typeof getSolicitudes>>, { ok: true }>["data"];
-type SolicitudRow = SolicitudesResponse["solicitudes"][number];
 type RevisionCatalogos = Extract<Awaited<ReturnType<typeof getRevisionCatalogos>>, { ok: true }>["data"];
 type OtrasSolicitudesResponse = Extract<Awaited<ReturnType<typeof getOtrasSolicitudes>>, { ok: true }>["data"];
+type SolicitudRow = Pick<SolicitudesResponse["solicitudes"][number],
+    "id_solicitud" | "rut_usuario" | "descripcion"
+> & Pick<OtrasSolicitudesResponse["solicitudes"][number], "usuario" | "tipoSolicitud" | "motivo" | "orientador">;
 type GestionResumen = Extract<Awaited<ReturnType<typeof gestionarSolicitud>>, { ok: true }>["data"]["resumen"];
-type CitaContexto = OtrasSolicitudesResponse["citas"][number];
+type CitaContexto = OtrasSolicitudesResponse["solicitudes"][number]["citas"][number];
 type TipoPrestacion = typeof TIPO_PRESTACION_EXAMENES | typeof TIPO_PRESTACION_PROFESIONAL;
 type PrioridadClinica = (typeof PRIORIDADES_CLINICAS)[number];
 type RazonRechazo = (typeof RAZONES_RECHAZO)[number];
@@ -1156,7 +1158,7 @@ function OtrasSolicitudesModal({
     onEditarFechaEstimadaCita: (cita: CitaContexto) => void;
     onRegistrarRechazoCita: (cita: CitaContexto) => void;
 }) {
-    const estaVacio = contexto !== null && contexto.solicitudes.length === 0 && contexto.citas.length === 0;
+    const estaVacio = contexto !== null && contexto.solicitudes.length === 0;
 
     return (
         <Dialog
@@ -1184,9 +1186,8 @@ function OtrasSolicitudesModal({
                 ) : estaVacio ? (
                     <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">No hay otras solicitudes ni citas en curso para este RUT en tu centro.</div>
                 ) : contexto ? (
-                    <ListaPendientes
+                    <ListaPendientes<CitaContexto, OtrasSolicitudesResponse["solicitudes"][number]>
                         solicitudes={contexto.solicitudes}
-                        citas={contexto.citas}
                         accionesSolicitud={(solicitud) => {
                             const enEspera = solicitud.accion === ACCION_ESPERA_VALIDACION;
                             return (
