@@ -21,8 +21,8 @@ registra cada caso con el mismo servicio del endpoint (`registrarContrarreferenc
 - Conserva el `id_solicitud`, la fecha de ingreso y, en las validadas, la cita con su fecha estimada
   original (reenviar desde el Apps Script la recalcularia desde hoy).
 - Si el paciente ya existe no envia el telefono, para no reemplazar un dato mas reciente.
-- Rechaza RUT con digito verificador invalido (2 casos, CR 4144 y 4464): se revisan en el origen y se
-  cargan despues por el flujo normal.
+- Rechaza RUT con digito verificador invalido. Hubo 2 (CR 4144 y 4464): el equipo los verifico en el
+  origen y se corrigieron en el archivo de entrada antes de cargar.
 - Sin `--ejecutar` solo simula. `--ejecutar` exige `--base=<base_destino>` igual a la de `DATABASE_URL`.
 
 El archivo de entrada (JSON con datos de pacientes) se genera por solo lectura desde la BD antigua,
@@ -32,7 +32,8 @@ vive fuera del repo en el servidor y se borra al terminar.
 
 1. Simulacion en `gestion_demanda_ensayo`: simular, `--limite=3`, carga completa, re-ejecucion
    (todo duplicado) y consulta Prisma con `include` de `getSolicitudes` sin panic. **Hecho 19-11-2026:**
-   232 cargadas, 2 rechazadas, 20 citas con su fecha estimada original, horas iguales a las del endpoint.
+   234 cargadas (2 tras corregir el RUT), 20 citas con su fecha estimada original, horas iguales a las
+   del endpoint. Simulacion en produccion: 234 por cargar, 0 duplicados.
 2. Produccion (`gestion_demanda`), solo con orden explicita: respaldo `mysqldump` de `solicitudes`,
    `citas` y `usuarios`; simular; `--limite=3` y revisar; carga completa; re-ejecucion; revision en la app.
 3. Avisar a los gestores que entran contrarreferencias del 04-11 al 17-11 con su fecha original.
