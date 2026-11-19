@@ -16,6 +16,7 @@
         "db:seed:ref": "prisma db execute --file prisma/seed-data/referencia.sql --schema prisma/schema.prisma",
         "db:rbac:migrar": "tsx prisma/scripts/derivar-permisos.ts",
         "migracion:appsheet": "tsx prisma/scripts/migracion-appsheet/migrar.ts",
+        "recuperar:contrarreferencias": "tsx prisma/scripts/recuperar-contrarreferencias/recuperar.ts",
         "db:studio": "prisma studio",
         "services:up": "docker compose up -d mysql",
         "services:down": "docker compose down"
