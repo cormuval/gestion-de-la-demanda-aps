@@ -6,7 +6,8 @@ const { tx, prismaMock } = vi.hoisted(() => {
         solicitud: { findFirst: vi.fn(), create: vi.fn() },
         usuario: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
         tipoSolicitud: { findUnique: vi.fn() },
-        funcionario: { findUnique: vi.fn() }
+        funcionario: { findUnique: vi.fn() },
+        motivo: { findUnique: vi.fn() }
     };
     return {
         tx,
@@ -171,9 +172,18 @@ describe("registrarSolicitudWeb", () => {
         expect(tx.solicitud.create.mock.calls[0][0].data.descripcion).toContain("Teléfono indicado");
     });
 
+    it("guarda el identificador de submotivo validado", async () => {
+        tx.motivo.findUnique.mockResolvedValue({ id_motivo: 9 });
+        await registrarSolicitudWeb({ ...entrada, envio: { ...entrada.envio, motivo_id: 9 } });
+        expect(tx.solicitud.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({ motivo_id: 9 })
+        });
+    });
+
     it("duplicado En Curso del mismo tipo devuelve éxito sin escribir paciente ni solicitud", async () => {
-        tx.solicitud.findFirst.mockResolvedValue({ id_solicitud: "WEB-anterior" });
-        expect(await registrarSolicitudWeb(entrada)).toEqual({ ok: true, estado: "DUPLICADA" });
+        tx.solicitud.findFirst.mockResolvedValue({ id_solicitud: "WEB-anterior", motivo_id: 8 });
+        tx.motivo.findUnique.mockResolvedValue({ id_motivo: 9 });
+        expect(await registrarSolicitudWeb({ ...entrada, envio: { ...entrada.envio, motivo_id: 9 } })).toEqual({ ok: true, estado: "DUPLICADA" });
         expect(tx.solicitud.findFirst).toHaveBeenCalledWith({
             where: { rut_usuario: "12345678-5", tipo_solicitud_id: 1, estado_solicitud: "En Curso" }
         });

@@ -36,6 +36,7 @@ export const envioSchema = z.object({
         z.number(),
         z.string().max(10).regex(/^\d+$/).transform(Number)
     ]).pipe(z.number().int().min(1).max(2147483647)),
+    motivo_id: z.number().int().positive().max(2147483647).nullable().optional(),
     descripcion: z.string().trim().min(10).max(1000),
     disponibilidad_llamada: z.enum(["AM", "PM", "AM/PM"]),
     sitio_web: z.string().max(200).optional()

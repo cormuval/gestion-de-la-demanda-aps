@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { prismaMock } = vi.hoisted(() => ({
     prismaMock: {
         centro: { findUnique: vi.fn() },
-        tipoSolicitud: { findMany: vi.fn() }
+        tipoSolicitud: { findMany: vi.fn() },
+        motivo: { findMany: vi.fn() }
     }
 }));
 
@@ -24,7 +25,15 @@ describe("tiposHabilitados", () => {
             { id_tipo_solicitud: 7, nombre_tipo_solicitud: "Consulta general" }
         ]);
 
-        expect(await tiposHabilitados("centro-ficticio")).toEqual([{ id: 7, nombre: "Consulta general" }]);
+        prismaMock.motivo.findMany.mockResolvedValue([
+            { id_motivo: 9, tipo_solicitud_id: 7, nombre_motivo: "Control" }
+        ]);
+        expect(await tiposHabilitados("centro-ficticio")).toEqual([
+            { id: 7, nombre: "Consulta general", submotivos: [{ id: 9, nombre: "Control" }] }
+        ]);
+        expect(prismaMock.motivo.findMany).toHaveBeenCalledWith(expect.objectContaining({
+            where: { estado: "1", tipo_solicitud_id: { in: [7] } }
+        }));
         expect(prismaMock.centro.findUnique).toHaveBeenCalledWith({
             where: { id_centro: "centro-ficticio" }, select: { nombre_centro: true }
         });
