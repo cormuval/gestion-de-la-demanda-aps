@@ -53,7 +53,7 @@ beforeEach(() => {
     vi.mocked(verificarCaptcha).mockResolvedValue(true);
     vi.mocked(consultarPercapita).mockResolvedValue({ estado: "INSCRITO", paciente });
     vi.mocked(prisma.centro.findUnique).mockResolvedValue({ id_centro: "501" } as never);
-    vi.mocked(tiposHabilitados).mockResolvedValue([{ id: 1, nombre: "Consulta" }]);
+    vi.mocked(tiposHabilitados).mockResolvedValue([{ id: 1, nombre: "Consulta", submotivos: [{ id: 9, nombre: "Control" }] }]);
 });
 describe("verificar solicitud pública", () => {
     it("prioriza x-real-ip sobre cualquier cadena reenviada", async () => {
@@ -159,7 +159,7 @@ describe("verificar solicitud pública", () => {
     });
     it("emite token de veinte minutos y catálogo", async () => {
         const antes = Date.now();
-        await comprobar(entrada, 200, { ok: true, token: "token-opaco", tipos: [{ id: 1, nombre: "Consulta" }] });
+        await comprobar(entrada, 200, { ok: true, token: "token-opaco", tipos: [{ id: 1, nombre: "Consulta", submotivos: [{ id: 9, nombre: "Control" }] }] });
         expect(consultarPercapita).toHaveBeenCalledWith("12345678-5");
         expect(firmarToken).toHaveBeenCalledWith({ rut: "12345678-5", exp: expect.any(Number) }, "secreto-ficticio");
         expect(vi.mocked(firmarToken).mock.calls[0][0].exp).toBeGreaterThanOrEqual(antes + 20 * 60_000);

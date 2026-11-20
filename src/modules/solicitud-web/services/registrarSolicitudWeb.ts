@@ -45,7 +45,7 @@ export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promi
         return await prisma.$transaction(async (tx): Promise<ResultadoSolicitudWeb> => {
             await verificarCatalogos(tx, {
                 tipo_solicitud_id: envio.tipo_solicitud_id,
-                motivo_id: null,
+                motivo_id: envio.motivo_id ?? null,
                 rut_funcionario: RUT_ORIENTADOR_WEB
             });
 
@@ -117,7 +117,7 @@ export async function registrarSolicitudWeb(entrada: EntradaSolicitudWeb): Promi
                     ultimo_control: edad === null ? null : String(edad),
                     rut_usuario: rut,
                     tipo_solicitud_id: envio.tipo_solicitud_id,
-                    motivo_id: null,
+                    motivo_id: envio.motivo_id ?? null,
                     descripcion,
                     disponibilidad_llamada: envio.disponibilidad_llamada,
                     centro_id,

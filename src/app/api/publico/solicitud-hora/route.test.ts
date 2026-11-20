@@ -51,7 +51,7 @@ beforeEach(() => {
     permitir.mockReturnValue(true);
     vi.mocked(verificarToken).mockReturnValue({ rut: "12345678-5", exp: Date.now() + 1000 });
     vi.mocked(consultarPercapita).mockResolvedValue({ estado: "INSCRITO", paciente });
-    vi.mocked(tiposHabilitados).mockResolvedValue([{ id: 1, nombre: "Consulta" }]);
+    vi.mocked(tiposHabilitados).mockResolvedValue([{ id: 1, nombre: "Consulta", submotivos: [{ id: 9, nombre: "Control" }] }]);
     vi.mocked(registrarSolicitudWeb).mockResolvedValue({ ok: true, estado: "CREADA", id_solicitud: "WEB-ficticia" });
 });
 describe("envío público", () => {
@@ -65,7 +65,7 @@ describe("envío público", () => {
     });
     it("valida tipo con centro reconsultado antes de registrar", async () => {
         vi.mocked(consultarPercapita).mockResolvedValue({ estado: "INSCRITO", paciente: { ...paciente, centro_id: "999" } });
-        vi.mocked(tiposHabilitados).mockImplementation(async (centro) => centro === "999" ? [] : [{ id: 1, nombre: "Consulta" }]);
+        vi.mocked(tiposHabilitados).mockImplementation(async (centro) => centro === "999" ? [] : [{ id: 1, nombre: "Consulta", submotivos: [{ id: 9, nombre: "Control" }] }]);
         await comprobar(entrada, 400, { error: "DATOS", campos: ["tipo_solicitud_id"] });
         expect(vi.mocked(consultarPercapita).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(tiposHabilitados).mock.invocationCallOrder[0]);
         expect(tiposHabilitados).toHaveBeenCalledWith("999");
@@ -179,4 +179,16 @@ describe("envío público", () => {
         vi.mocked(registrarSolicitudWeb).mockResolvedValue({ ok: false, codigo: "INTERNO", error: "Privado" });
         await comprobar(entrada, 500, { error: "INTERNO" });
     });
+});
+
+it.each([null, 12])("rechaza un submotivo incompatible: %s", async (motivo_id) => {
+    await comprobar({ ...entrada, motivo_id }, 400, { error: "DATOS", campos: ["motivo_id"] });
+    expect(registrarSolicitudWeb).not.toHaveBeenCalled();
+});
+
+it("entrega el submotivo válido al servicio de guardado", async () => {
+    await comprobar({ ...entrada, motivo_id: 9 }, 201, { ok: true });
+    expect(registrarSolicitudWeb).toHaveBeenCalledWith(expect.objectContaining({
+        envio: expect.objectContaining({ motivo_id: 9 })
+    }));
 });

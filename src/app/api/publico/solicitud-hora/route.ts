@@ -51,8 +51,15 @@ export async function POST(request: Request): Promise<NextResponse> {
         if (resultado.estado !== "INSCRITO") return finalizar({ error: "NO_DISPONIBLE" }, 503);
         const centro_id = resultado.paciente.centro_id;
         const tipos = await tiposHabilitados(centro_id);
-        if (!tipos.some((tipo) => tipo.id === envio.tipo_solicitud_id)) {
+        const tipo = tipos.find((opcion) => opcion.id === envio.tipo_solicitud_id);
+        if (!tipo) {
             return finalizar({ error: "DATOS", campos: ["tipo_solicitud_id"] }, 400);
+        }
+        const submotivos = tipo.submotivos ?? [];
+        if (envio.motivo_id !== undefined && (
+            envio.motivo_id === null ? submotivos.length > 0 : !submotivos.some((motivo) => motivo.id === envio.motivo_id)
+        )) {
+            return finalizar({ error: "DATOS", campos: ["motivo_id"] }, 400);
         }
         const registro = await registrarSolicitudWeb({ rut, centro_id, envio, percapita: resultado.paciente });
         if (!registro.ok) return finalizar({ error: "INTERNO" }, 500);
