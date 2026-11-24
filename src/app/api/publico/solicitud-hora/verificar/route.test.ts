@@ -19,13 +19,14 @@ function peticion(cuerpo: unknown, origin = "https://formulario.example.test"): 
         body: typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo)
     });
 }
-async function comprobar(cuerpo: unknown, status: number, esperado: unknown): Promise<void> {
+async function comprobar(cuerpo: unknown, status: number, esperado: unknown, esperarCentro = false): Promise<void> {
     const respuesta = await POST(peticion(cuerpo));
     expect(respuesta.status).toBe(status);
     const datos = await respuesta.json();
     expect(datos).toEqual(esperado);
     expect(datos).not.toHaveProperty("nombre");
-    expect(datos).not.toHaveProperty("centro");
+    if (esperarCentro) expect(datos).toHaveProperty("centro");
+    else expect(datos).not.toHaveProperty("centro");
     const texto = JSON.stringify(datos);
     expect(texto).not.toContain("apellido");
     expect(texto).not.toContain("centro_id");
@@ -52,7 +53,7 @@ beforeEach(() => {
     permitir.mockReturnValue(true);
     vi.mocked(verificarCaptcha).mockResolvedValue(true);
     vi.mocked(consultarPercapita).mockResolvedValue({ estado: "INSCRITO", paciente });
-    vi.mocked(prisma.centro.findUnique).mockResolvedValue({ id_centro: "501" } as never);
+    vi.mocked(prisma.centro.findUnique).mockResolvedValue({ id_centro: "501", nombre_centro: "Centro De Salud FamiliarPlacilla (Valparaíso)" } as never);
     vi.mocked(tiposHabilitados).mockResolvedValue([{ id: 1, nombre: "Consulta", submotivos: [{ id: 9, nombre: "Control" }] }]);
 });
 describe("verificar solicitud pública", () => {
@@ -157,11 +158,26 @@ describe("verificar solicitud pública", () => {
         await comprobar(entrada, 200, { ok: false, motivo: "NO_INSCRITO" });
         expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("SEARCH", false, { name: "Formulario web" }, "solicitudes", { details: "/api/publico/solicitud-hora/verificar rut=12345678-5 → 200 sin centro" });
     });
-    it("emite token de veinte minutos y catálogo", async () => {
+    it("emite token de veinte minutos, catálogo y centro público", async () => {
         const antes = Date.now();
-        await comprobar(entrada, 200, { ok: true, token: "token-opaco", tipos: [{ id: 1, nombre: "Consulta", submotivos: [{ id: 9, nombre: "Control" }] }] });
+        await comprobar(entrada, 200, {
+            ok: true,
+            token: "token-opaco",
+            tipos: [{ id: 1, nombre: "Consulta", submotivos: [{ id: 9, nombre: "Control" }] }],
+            centro: { id: "501", nombre: "CESFAM Placilla" }
+        }, true);
         expect(consultarPercapita).toHaveBeenCalledWith("12345678-5");
-        expect(firmarToken).toHaveBeenCalledWith({ rut: "12345678-5", exp: expect.any(Number) }, "secreto-ficticio");
+        expect(firmarToken).toHaveBeenCalledWith({ rut: "12345678-5", exp: expect.any(Number), centro_id: "501" }, "secreto-ficticio");
         expect(vi.mocked(firmarToken).mock.calls[0][0].exp).toBeGreaterThanOrEqual(antes + 20 * 60_000);
+    });
+
+    it("no expone datos del paciente aunque devuelva el centro", async () => {
+        const respuesta = await POST(peticion(entrada));
+        const texto = await respuesta.text();
+        expect(texto).toContain("centro");
+        expect(texto).not.toContain("centro_id");
+        expect(texto).not.toContain("Privado");
+        expect(texto).not.toContain("Reservado");
+        expect(texto).not.toContain("apellido");
     });
 });

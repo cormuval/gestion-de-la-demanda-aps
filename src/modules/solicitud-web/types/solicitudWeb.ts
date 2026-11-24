@@ -1,6 +1,24 @@
 export interface PayloadToken {
     rut: string;
     exp: number;
+    // Opcional para seguir aceptando tokens emitidos antes de R1.
+    centro_id?: string;
+}
+
+export interface SubmotivoPublico {
+    id: number;
+    nombre: string;
+}
+
+export interface TipoSolicitudPublico {
+    id: number;
+    nombre: string;
+    submotivos: SubmotivoPublico[];
+}
+
+export interface CentroPublico {
+    id: string;
+    nombre: string;
 }
 
 export interface PacientePercapita {

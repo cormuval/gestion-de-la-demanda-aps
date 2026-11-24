@@ -40,6 +40,7 @@ afterEach(() => {
 // lib
 import { verificarToken } from "@/modules/solicitud-web/lib/token";
 // services
+import { aplicarCatalogoWeb } from "@/modules/solicitud-web/config/catalogoWeb";
 import { registrarSolicitudWeb } from "@/modules/solicitud-web/services/registrarSolicitudWeb";
 vi.mock("@/modules/solicitud-web/lib/token", () => ({ verificarToken: vi.fn() }));
 vi.mock("@/modules/solicitud-web/services/registrarSolicitudWeb", () => ({ registrarSolicitudWeb: vi.fn() }));
@@ -170,6 +171,30 @@ describe("envío público", () => {
         expect(tiposHabilitados).not.toHaveBeenCalled();
     });
     it("creada", async () => { await comprobar(entrada, 201, { ok: true }); });
+    it.each([7, 8])("rechaza como DATOS el tipo %s excluido del catálogo web", async (tipo) => {
+        vi.mocked(tiposHabilitados).mockResolvedValue(aplicarCatalogoWeb([
+            { id: 7, nombre: "Consulta de morbilidad medica", submotivos: [] },
+            { id: 8, nombre: "Consulta de morbilidad odontologica", submotivos: [] },
+            { id: 14, nombre: "Control de ciclo vital", submotivos: [] },
+            { id: 1, nombre: "Consulta", submotivos: [] }
+        ]));
+        await comprobar({ ...entrada, tipo_solicitud_id: tipo }, 400, { error: "DATOS", campos: ["tipo_solicitud_id"] });
+        expect(registrarSolicitudWeb).not.toHaveBeenCalled();
+    });
+    it("audita centro_cambio cuando el centro reconsultado difiere del verificado", async () => {
+        vi.mocked(verificarToken).mockReturnValue({ rut: "12345678-5", exp: Date.now() + 1000, centro_id: "600" });
+        await comprobar(entrada, 201, { ok: true });
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { name: "Formulario web" }, "solicitudes", { details: "/api/publico/solicitud-hora rut=12345678-5 → 201 centro_cambio" });
+    });
+    it("no audita centro_cambio cuando el centro coincide", async () => {
+        vi.mocked(verificarToken).mockReturnValue({ rut: "12345678-5", exp: Date.now() + 1000, centro_id: "501" });
+        await comprobar(entrada, 201, { ok: true });
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { name: "Formulario web" }, "solicitudes", { details: "/api/publico/solicitud-hora rut=12345678-5 → 201" });
+    });
+    it("no audita centro_cambio con un token antiguo sin centro_id", async () => {
+        await comprobar(entrada, 201, { ok: true });
+        expect(AuditLogger.logDataAccess).toHaveBeenCalledWith("CREATE", true, { name: "Formulario web" }, "solicitudes", { details: "/api/publico/solicitud-hora rut=12345678-5 → 201" });
+    });
     it("duplicada responde idéntico y audita", async () => {
         vi.mocked(registrarSolicitudWeb).mockResolvedValue({ ok: true, estado: "DUPLICADA" });
         await comprobar(entrada, 201, { ok: true });
