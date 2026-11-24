@@ -47,6 +47,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             return finalizar({ error: "DATOS", campos }, 400);
         }
         const envio = validacion.data;
+        const centroVerificado = payload.centro_id;
         const resultado = await consultarPercapita(rut);
         if (resultado.estado !== "INSCRITO") return finalizar({ error: "NO_DISPONIBLE" }, 503);
         const centro_id = resultado.paciente.centro_id;
@@ -63,7 +64,11 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
         const registro = await registrarSolicitudWeb({ rut, centro_id, envio, percapita: resultado.paciente });
         if (!registro.ok) return finalizar({ error: "INTERNO" }, 500);
-        return finalizar({ ok: true }, 201, true, registro.estado === "DUPLICADA" ? " duplicada" : "");
+        const sufijos = [
+            registro.estado === "DUPLICADA" ? "duplicada" : "",
+            centroVerificado !== undefined && centroVerificado !== centro_id ? "centro_cambio" : ""
+        ].filter(Boolean);
+        return finalizar({ ok: true }, 201, true, sufijos.length ? ` ${sufijos.join(" ")}` : "");
     } catch {
         return finalizar({ error: "INTERNO" }, 500);
     }

@@ -10,6 +10,8 @@ import { verificarCaptcha } from "@/modules/solicitud-web/lib/turnstile";
 import { verificarSchema } from "@/modules/solicitud-web/schemas/solicitudWeb.schema";
 // services
 import { tiposHabilitados } from "@/modules/solicitud-web/services/tiposHabilitados";
+// utils
+import { nombreCentroPublico } from "@/modules/solicitud-web/utils/nombreCentroPublico";
 
 export function OPTIONS(request: Request): NextResponse {
     return new NextResponse(null, { status: 204, headers: encabezadosCors(request) });
@@ -45,11 +47,16 @@ export async function POST(request: Request): Promise<NextResponse> {
         const resultado = await consultarPercapita(rut);
         if (resultado.estado !== "INSCRITO") return finalizar({ ok: false, motivo: resultado.estado }, 200);
         const centro_id = resultado.paciente.centro_id;
-        const centro = await prisma.centro.findUnique({ where: { id_centro: centro_id }, select: { id_centro: true } });
+        const centro = await prisma.centro.findUnique({ where: { id_centro: centro_id }, select: { id_centro: true, nombre_centro: true } });
         if (!centro) return finalizar({ ok: false, motivo: "NO_INSCRITO" }, 200, false, " sin centro");
         const tipos = await tiposHabilitados(centro_id);
-        const token = firmarToken({ rut, exp: Date.now() + 20 * 60_000 }, secreto);
-        return finalizar({ ok: true, token, tipos }, 200, true);
+        const token = firmarToken({ rut, exp: Date.now() + 20 * 60_000, centro_id }, secreto);
+        return finalizar({
+            ok: true,
+            token,
+            tipos,
+            centro: { id: centro.id_centro, nombre: nombreCentroPublico(centro.nombre_centro) ?? "" }
+        }, 200, true);
     } catch {
         return finalizar({ ok: false, motivo: "NO_DISPONIBLE" }, 200);
     }

@@ -29,6 +29,17 @@ describe('token de solicitud web', () => {
         expect(verificarToken(firmarToken(payload, secreto), secreto, 1000)).toEqual(payload);
     });
 
+    it('conserva el centro de la verificación al firmar y verificar', () => {
+        const conCentro: PayloadToken = { ...payload, centro_id: '605' };
+        expect(verificarToken(firmarToken(conCentro, secreto), secreto, 1000)).toEqual(conCentro);
+    });
+
+    it('sigue aceptando tokens antiguos sin centro_id', () => {
+        const json: string = JSON.stringify(payload);
+        const firma: string = createHmac('sha256', secreto).update(json).digest('base64url');
+        expect(verificarToken(`${Buffer.from(json).toString('base64url')}.${firma}`, secreto, 1000)).toEqual(payload);
+    });
+
     it('firma el JSON del payload con HMAC-SHA256', () => {
         const json: string = JSON.stringify(payload);
         const firma: string = createHmac('sha256', secreto).update(json).digest('base64url');
@@ -53,7 +64,7 @@ describe('token de solicitud web', () => {
         expect(verificarToken(token, secreto, 1000)).toBeNull();
     });
 
-    it.each([null, {}, { ...payload, exp: '2000' }, { ...payload, rut: 123 }])('rechaza payload firmado con estructura inválida %j', (valor) => {
+    it.each([null, {}, { ...payload, exp: '2000' }, { ...payload, rut: 123 }, { ...payload, centro_id: 123 }, { ...payload, centro_id: '' }])('rechaza payload firmado con estructura inválida %j', (valor) => {
         const json: string = JSON.stringify(valor);
         const firma: string = createHmac('sha256', secreto).update(json).digest('base64url');
         expect(verificarToken(`${Buffer.from(json).toString('base64url')}.${firma}`, secreto, 1000)).toBeNull();

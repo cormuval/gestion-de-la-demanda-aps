@@ -37,11 +37,16 @@ export function verificarToken(token: string, secreto: string, ahora: number = D
         if (typeof payload !== 'object' || payload === null
             || !('rut' in payload) || typeof payload.rut !== 'string'
             || !('exp' in payload) || typeof payload.exp !== 'number'
-            || !Number.isFinite(payload.exp) || payload.exp <= ahora) {
+            || !Number.isFinite(payload.exp) || payload.exp <= ahora
+            || ('centro_id' in payload && (typeof payload.centro_id !== 'string' || payload.centro_id === ''))) {
             return null;
         }
 
-        return { rut: payload.rut, exp: payload.exp };
+        return {
+            rut: payload.rut,
+            exp: payload.exp,
+            ...('centro_id' in payload ? { centro_id: payload.centro_id as string } : {})
+        };
     } catch {
         return null;
     }
